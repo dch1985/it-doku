@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "it-doku-monorepo",
   "version": "1.0.0",
   "private": true,
@@ -22,5 +22,8 @@
     "rimraf": "^5.0.1"
   },
   "author": "Driss Chaouat",
-  "description": "IT-Dokumentation System mit Backend und Frontend"
+  "description": "IT-Dokumentation System mit Backend und Frontend",
+  "dependencies": {
+    "clsx": "^2.1.1"
+  }
 }
