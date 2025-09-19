@@ -1,0 +1,26 @@
+﻿{
+  "name": "it-doku-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "format": "prettier --write .",
+    "clean": "npm run clean --workspaces && rimraf node_modules",
+    "install:all": "npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.0.0",
+    "prettier": "^3.0.0",
+    "rimraf": "^5.0.1"
+  },
+  "author": "Driss Chaouat",
+  "description": "IT-Dokumentation System mit Backend und Frontend"
+}

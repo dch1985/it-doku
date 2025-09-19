@@ -1,0 +1,26 @@
+﻿{
+  "name": "@it-doku/backend",
+  "version": "1.0.0",
+  "description": "IT-Dokumentation Backend API",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "echo \"No tests yet\"",
+    "format": "prettier --write src"
+  },
+  "dependencies": {
+    "express": "^4.18.0",
+    "cors": "^2.8.5",
+    "helmet": "^7.0.0",
+    "morgan": "^1.10.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.0",
+    "@types/cors": "^2.8.0",
+    "@types/morgan": "^1.9.0",
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0"
+  }
+}
