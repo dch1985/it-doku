@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
+import Scanner from './components/Scanner';
 
 // Dark Mode Hook
 const useDarkMode = () => {
@@ -128,6 +129,7 @@ const TopicCard: React.FC<TopicCardProps> = ({ topic, index }) => (
 // Main App Component
 const App: React.FC = () => {
   const { isDarkMode, toggleDarkMode } = useDarkMode();
+  const [showScanner, setShowScanner] = useState(false);
 
   return (
     <div className="app-layout">
@@ -199,13 +201,23 @@ const App: React.FC = () => {
       </main>
 
       {/* Floating Action Button */}
-      <button 
+      <button
         className="fab"
-        aria-label="Neue Dokumentation hinzufügen"
-        title="Neue Dokumentation"
+        onClick={() => setShowScanner(true)}
+        aria-label="Lokales Verzeichnis scannen"
+        title="Verzeichnis Scannen"
       >
         <PlusIcon />
       </button>
+
+      {/* Scanner Modal */}
+      {showScanner && (
+        <div className="modal-overlay" onClick={() => setShowScanner(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <Scanner onClose={() => setShowScanner(false)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
