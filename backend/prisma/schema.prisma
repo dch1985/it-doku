@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Document {
+  id          Int            @id @default(autoincrement())
+  title       String
+  content     String?
+  category    DocumentCategory
+  tags        String
+  status      DocumentStatus @default(DRAFT)
+  priority    Priority       @default(MEDIUM)
+  version     Int            @default(1)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  
+  @@map("documents")
+}
+
+enum DocumentCategory {
+  SERVER
+  NETWORK
+  SECURITY
+  BACKUP
+  MONITORING
+  SOFTWARE
+  CODE_ANALYSIS
+}
+
+enum DocumentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+  REVIEW
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model GeneratedDocumentation {
+  id              String   @id @default(uuid())
+  repositoryUrl   String
+  filePath        String
+  fileName        String?
+  language        String   @default("typescript")
+  
+  // String statt @db.Text (SQLite kompatibel)
+  description     String
+  functions       Json?
+  // String statt String[] - JSON-encoded array
+  dependencies    String?
+  usageExamples   String?
+  codeSnippet     String?
+  
+  confidence      Float?
+  tokensUsed      Int?
+  generatedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([repositoryUrl])
+  @@index([filePath])
+  @@index([generatedAt])
+}
