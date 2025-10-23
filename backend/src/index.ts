@@ -3,6 +3,8 @@ import cors from 'cors';
 import morgan from 'morgan';
 import helmet from 'helmet';
 import { LocalScanner } from './services/localScanner';
+import documentRoutes from './routes/documents';
+import templateRoutes from './routes/templates';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -13,6 +15,10 @@ app.use(helmet());
 app.use(cors());
 app.use(morgan('combined'));
 app.use(express.json());
+
+// API Routes
+app.use('/api/documents', documentRoutes);
+app.use('/api/templates', templateRoutes);
 
 // Routes
 app.get('/api/health', (req, res) => {
@@ -31,6 +37,24 @@ app.get('/api/docs', (req, res) => {
     endpoints: [
       'GET /api/health - Health Check',
       'GET /api/docs - API Documentation',
+      '',
+      '=== Documents ===',
+      'GET /api/documents - Alle Dokumente auflisten',
+      'GET /api/documents/:id - Einzelnes Dokument abrufen',
+      'GET /api/documents/stats - Dokumenten-Statistiken',
+      'POST /api/documents - Neues Dokument erstellen',
+      'PUT /api/documents/:id - Dokument aktualisieren',
+      'DELETE /api/documents/:id - Dokument löschen',
+      '',
+      '=== Templates ===',
+      'GET /api/templates - Alle Templates auflisten',
+      'GET /api/templates/:id - Einzelnes Template abrufen',
+      'POST /api/templates - Neues Template erstellen',
+      'PUT /api/templates/:id - Template aktualisieren',
+      'DELETE /api/templates/:id - Template löschen',
+      'POST /api/templates/seed - NIST-konforme Templates seeden',
+      '',
+      '=== Scanner ===',
       'POST /api/scan - Scan local directory for IT assets'
     ]
   });

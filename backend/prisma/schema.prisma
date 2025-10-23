@@ -1,0 +1,46 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Template Model - Vordefinierte Dokumentvorlagen
+model Template {
+  id        String   @id @default(uuid())
+  title     String
+  category  String   // server, network, security, backup, monitoring, troubleshoot, incident, change
+  content   String   // Template-Inhalt als Markdown/Text
+  type      String   // documentation, procedure, report, request
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relation zu Dokumenten die dieses Template nutzen
+  documents Document[]
+
+  @@map("templates")
+}
+
+// Document Model - Erstellte IT-Dokumentationen
+model Document {
+  id         String   @id @default(uuid())
+  templateId String?  // Optional: Referenz zum verwendeten Template
+  title      String
+  content    String   // Dokumenten-Inhalt als Markdown/Text
+  category   String   // server, network, security, backup, monitoring, troubleshoot, incident, change
+  status     String   @default("draft") // draft, review, approved, archived
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relation zum Template
+  template   Template? @relation(fields: [templateId], references: [id])
+
+  @@map("documents")
+  @@index([category])
+  @@index([status])
+}

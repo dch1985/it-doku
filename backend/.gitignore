@@ -1,0 +1,17 @@
+# Environment
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Database
+*.db
+*.db-journal
+prisma/.env
+
+# Build
+dist/
+
+# Prisma
+.prisma/
