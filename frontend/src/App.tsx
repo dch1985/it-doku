@@ -1,5 +1,9 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Scanner from './components/Scanner';
+import DocumentList from './components/DocumentList';
+import DocumentForm from './components/DocumentForm';
+import DeleteConfirmation from './components/DeleteConfirmation';
+import { Document } from './api/documents';
 
 // Dark Mode Hook
 const useDarkMode = () => {
@@ -19,65 +23,11 @@ const useDarkMode = () => {
   return { isDarkMode, toggleDarkMode };
 };
 
-// IT Topic Data
-interface TopicData {
-  id: string;
-  title: string;
-  icon: string;
-  description: string;
-  category: 'server' | 'network' | 'security' | 'backup' | 'monitoring' | 'troubleshoot';
-}
-
-const topicsData: TopicData[] = [
-  {
-    id: 'server',
-    title: 'Serveradministration',
-    icon: '🖥️',
-    description: 'Linux & Windows Server Management, Virtualisierung und Cloud-Services.',
-    category: 'server'
-  },
-  {
-    id: 'network',
-    title: 'Netzwerk',
-    icon: '🌐',
-    description: 'Switches, Router & Firewall Konfiguration, VPN und Netzwerksicherheit.',
-    category: 'network'
-  },
-  {
-    id: 'security',
-    title: 'Sicherheit',
-    icon: '🔒',
-    description: 'Security Guidelines, Penetration Testing und Compliance-Standards.',
-    category: 'security'
-  },
-  {
-    id: 'backup',
-    title: 'Backup & Recovery',
-    icon: '💾',
-    description: 'Datensicherung, Disaster Recovery und Business Continuity Planning.',
-    category: 'backup'
-  },
-  {
-    id: 'monitoring',
-    title: 'Monitoring',
-    icon: '📊',
-    description: 'System- & Netzwerk-Überwachung, Alerting und Performance-Analyse.',
-    category: 'monitoring'
-  },
-  {
-    id: 'troubleshoot',
-    title: 'Troubleshooting',
-    icon: '🔧',
-    description: 'Problemlösung, Diagnose-Tools und systematische Fehleranalyse.',
-    category: 'troubleshoot'
-  }
-];
-
-// Icons für Dark Mode Toggle
+// Icons
 const SunIcon: React.FC = () => (
-  <svg 
-    className="dark-mode-toggle-icon dark-mode-toggle-icon--sun" 
-    fill="currentColor" 
+  <svg
+    className="dark-mode-toggle-icon dark-mode-toggle-icon--sun"
+    fill="currentColor"
     viewBox="0 0 20 20"
   >
     <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
@@ -85,9 +35,9 @@ const SunIcon: React.FC = () => (
 );
 
 const MoonIcon: React.FC = () => (
-  <svg 
-    className="dark-mode-toggle-icon dark-mode-toggle-icon--moon" 
-    fill="currentColor" 
+  <svg
+    className="dark-mode-toggle-icon dark-mode-toggle-icon--moon"
+    fill="currentColor"
     viewBox="0 0 20 20"
   >
     <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
@@ -100,36 +50,49 @@ const PlusIcon: React.FC = () => (
   </svg>
 );
 
-// Topic Card Component
-interface TopicCardProps {
-  topic: TopicData;
-  index: number;
-}
-
-const TopicCard: React.FC<TopicCardProps> = ({ topic, index }) => (
-  <div 
-    className={`topic-card topic-card--${topic.category} animate-fade-in-up`}
-    style={{ animationDelay: `${index * 100}ms` }}
-    tabIndex={0}
-    role="button"
-    aria-label={`${topic.title} dokumentation öffnen`}
-  >
-    <div className="topic-card-content">
-      <div className="topic-card-icon" role="img" aria-label={topic.title}>
-        {topic.icon}
-      </div>
-      <div>
-        <h3 className="topic-card-title">{topic.title}</h3>
-        <p className="topic-card-description">{topic.description}</p>
-      </div>
-    </div>
-  </div>
+const ScannerIcon: React.FC = () => (
+  <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+  </svg>
 );
 
 // Main App Component
 const App: React.FC = () => {
   const { isDarkMode, toggleDarkMode } = useDarkMode();
   const [showScanner, setShowScanner] = useState(false);
+  const [showDocumentForm, setShowDocumentForm] = useState(false);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [editingDocument, setEditingDocument] = useState<Document | null>(null);
+  const [deletingDocument, setDeletingDocument] = useState<Document | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [view, setView] = useState<'documents' | 'scanner'>('documents');
+
+  const handleNewDocument = () => {
+    setEditingDocument(null);
+    setShowDocumentForm(true);
+  };
+
+  const handleEditDocument = (document: Document) => {
+    setEditingDocument(document);
+    setShowDocumentForm(true);
+  };
+
+  const handleDeleteDocument = (document: Document) => {
+    setDeletingDocument(document);
+    setShowDeleteConfirmation(true);
+  };
+
+  const handleDocumentSuccess = () => {
+    setRefreshTrigger((prev) => prev + 1);
+    setShowDocumentForm(false);
+    setEditingDocument(null);
+  };
+
+  const handleDeleteSuccess = () => {
+    setRefreshTrigger((prev) => prev + 1);
+    setShowDeleteConfirmation(false);
+    setDeletingDocument(null);
+  };
 
   return (
     <div className="app-layout">
@@ -139,8 +102,29 @@ const App: React.FC = () => {
           <h1 className="header-logo">
             IT Dokumentation
           </h1>
-          
+
           <div className="header-actions">
+            <button
+              className="header-nav-btn"
+              onClick={() => setView('documents')}
+              style={{
+                color: view === 'documents' ? 'var(--primary-blue)' : 'var(--text-secondary)',
+              }}
+              title="Dokumentationen"
+            >
+              📄 Dokumente
+            </button>
+            <button
+              className="header-nav-btn"
+              onClick={() => setView('scanner')}
+              style={{
+                color: view === 'scanner' ? 'var(--primary-blue)' : 'var(--text-secondary)',
+              }}
+              title="Verzeichnis Scanner"
+            >
+              <ScannerIcon />
+              Scanner
+            </button>
             <button
               className="dark-mode-toggle"
               onClick={toggleDarkMode}
@@ -156,67 +140,89 @@ const App: React.FC = () => {
 
       {/* Main Content */}
       <main className="app-main">
-        {/* Hero Section */}
-        <section className="hero-section">
-          <div className="container">
-            <div className="hero-content">
-              <h2 className="hero-title">
-                Willkommen zur IT-Dokumentation
-              </h2>
-              <p className="hero-description">
-                Zentrale Anlaufstelle für alle technischen Dokumentationen, 
-                Anleitungen und Best Practices. Professionell organisiert für 
-                maximale Effizienz in der IT-Administration.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Topics Grid */}
-        <section className="main-content">
-          <div className="topics-grid">
-            {topicsData.map((topic, index) => (
-              <TopicCard 
-                key={topic.id} 
-                topic={topic} 
-                index={index}
-              />
-            ))}
-          </div>
-        </section>
-
-        {/* Status Section */}
-        <section className="main-content">
-          <div className="container">
-            <div className="text-center">
-              <h3 style={{ marginBottom: 'var(--space-lg)' }}>System Status</h3>
-              <div className="flex justify-center gap-md flex-wrap">
-                <span className="badge badge--success">Alle Services Online</span>
-                <span className="badge badge--info">Wartung geplant: 23:00</span>
-                <span className="badge badge--warning">Updates verfügbar</span>
+        {view === 'documents' ? (
+          <>
+            {/* Hero Section */}
+            <section className="hero-section">
+              <div className="container">
+                <div className="hero-content">
+                  <h2 className="hero-title">
+                    IT-Dokumentations-Management
+                  </h2>
+                  <p className="hero-description">
+                    Erstelle, verwalte und organisiere deine IT-Dokumentationen mit
+                    NIST-konformen Templates. Professionell, strukturiert und effizient.
+                  </p>
+                </div>
               </div>
-            </div>
-          </div>
-        </section>
+            </section>
+
+            {/* Document List */}
+            <section className="main-content">
+              <DocumentList
+                onEdit={handleEditDocument}
+                onDelete={handleDeleteDocument}
+                refreshTrigger={refreshTrigger}
+              />
+            </section>
+          </>
+        ) : (
+          <>
+            {/* Scanner Section */}
+            <section className="hero-section">
+              <div className="container">
+                <div className="hero-content">
+                  <h2 className="hero-title">
+                    Verzeichnis Scanner
+                  </h2>
+                  <p className="hero-description">
+                    Scanne lokale Verzeichnisse und identifiziere automatisch IT-relevante Dateien.
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            {/* Scanner Component */}
+            <section className="main-content">
+              <Scanner onClose={() => {}} />
+            </section>
+          </>
+        )}
       </main>
 
       {/* Floating Action Button */}
-      <button
-        className="fab"
-        onClick={() => setShowScanner(true)}
-        aria-label="Lokales Verzeichnis scannen"
-        title="Verzeichnis Scannen"
-      >
-        <PlusIcon />
-      </button>
+      {view === 'documents' && (
+        <button
+          className="fab"
+          onClick={handleNewDocument}
+          aria-label="Neues Dokument erstellen"
+          title="Neues Dokument"
+        >
+          <PlusIcon />
+        </button>
+      )}
 
-      {/* Scanner Modal */}
-      {showScanner && (
-        <div className="modal-overlay" onClick={() => setShowScanner(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <Scanner onClose={() => setShowScanner(false)} />
-          </div>
-        </div>
+      {/* Modals */}
+      {showDocumentForm && (
+        <DocumentForm
+          document={editingDocument}
+          onClose={() => {
+            setShowDocumentForm(false);
+            setEditingDocument(null);
+          }}
+          onSuccess={handleDocumentSuccess}
+        />
+      )}
+
+      {showDeleteConfirmation && deletingDocument && (
+        <DeleteConfirmation
+          document={deletingDocument}
+          onClose={() => {
+            setShowDeleteConfirmation(false);
+            setDeletingDocument(null);
+          }}
+          onSuccess={handleDeleteSuccess}
+        />
       )}
     </div>
   );
