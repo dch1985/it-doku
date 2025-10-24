@@ -1,17 +1,24 @@
-/**
- * DocumentList Component (OPTIMIZED)
- * Mit Debouncing, Logger & Performance-Optimierungen
- */
-
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  Search,
+  Plus,
+  Filter,
+  Grid,
+  List,
+  SortAsc,
+  X,
+  FolderOpen,
+  CheckCircle2,
+  Clock,
+  Archive
+} from 'lucide-react';
 import { useDocuments } from '../hooks/useDocuments';
 import { useDebounce } from '../hooks/useDebounce';
 import { DocumentCard } from './DocumentCard';
 import { DocumentForm } from './DocumentForm';
-import { useDarkMode } from '../context/DarkModeContext';
-import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { showToast } from '../utils/toast';
-import logger from '../utils/logger';
+import { logger } from '../utils/logger';
 import {
   Document,
   CreateDocumentDTO,
@@ -19,7 +26,9 @@ import {
   DocumentStatus,
 } from '../types/document';
 
-export const DocumentList: React.FC = () => {
+export function DocumentList() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const {
     filteredDocuments,
     loading,
@@ -32,10 +41,10 @@ export const DocumentList: React.FC = () => {
     searchDocuments,
     clearFilters,
     documentsByCategory,
+    documentsByStatus,
     totalDocuments,
   } = useDocuments();
 
-  const { toggleDarkMode } = useDarkMode();
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -44,27 +53,44 @@ export const DocumentList: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [sortBy, setSortBy] = useState<'date' | 'title' | 'category'>('date');
 
-  // Debounce search term - only search after 300ms of no typing
+  // Debounce search
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
-  // Effect for debounced search
   useEffect(() => {
     if (debouncedSearchTerm !== undefined) {
-      logger.debug('Performing debounced search:', debouncedSearchTerm);
       searchDocuments(debouncedSearchTerm);
     }
   }, [debouncedSearchTerm, searchDocuments]);
 
-  // Keyboard Shortcuts
-  useKeyboardShortcuts({
-    onNewDocument: () => handleCreateNew(),
-    onSearch: () => searchInputRef.current?.focus(),
-    onToggleDarkMode: toggleDarkMode,
-    onEscape: () => setIsFormOpen(false),
-  });
+  // Check URL params for actions
+  useEffect(() => {
+    const action = searchParams.get('action');
+    const category = searchParams.get('category');
+    const search = searchParams.get('search');
 
-  
+    if (action === 'new') {
+      handleCreateNew();
+    }
+    if (category) {
+      setSelectedCategory(category);
+      filterByCategory(category);
+    }
+    if (search) {
+      setSearchTerm(search);
+    }
+  }, [searchParams]);
+
+  const categories = Object.keys(documentsByCategory || {}).sort();
+
+  const stats = {
+    total: totalDocuments,
+    published: documentsByStatus[DocumentStatus.PUBLISHED]?.length || 0,
+    drafts: documentsByStatus[DocumentStatus.DRAFT]?.length || 0,
+    archived: documentsByStatus[DocumentStatus.ARCHIVED]?.length || 0,
+  };
 
   const handleCreateNew = () => {
     logger.info('Opening document form in create mode');
@@ -79,10 +105,11 @@ export const DocumentList: React.FC = () => {
     setSelectedDocument(document);
     setIsFormOpen(true);
   };
-const categories = Object.keys(documentsByCategory || {}).sort();
 
   const handleDelete = async (id: string) => {
     logger.info('Attempting to delete document:', id);
+    if (!confirm('Möchtest du dieses Dokument wirklich löschen?')) return;
+
     try {
       const success = await deleteDocument(id);
       if (success) {
@@ -100,44 +127,37 @@ const categories = Object.keys(documentsByCategory || {}).sort();
     try {
       if (formMode === 'create') {
         await createDocument(data as CreateDocumentDTO);
+        showToast.success('Dokument erfolgreich erstellt');
       } else if (selectedDocument) {
         await updateDocument(selectedDocument.id, data as UpdateDocumentDTO);
+        showToast.success('Dokument erfolgreich aktualisiert');
       }
+      setIsFormOpen(false);
     } catch (error) {
       logger.error('Form submission failed:', error);
+      showToast.error('Fehler beim Speichern des Dokuments');
     }
   };
 
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setSearchTerm(value);
-    // searchDocuments is called by debounced effect, not here
-  };
-
-  const handleCategoryFilter = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value;
-    logger.debug('Category filter changed:', value);
-    setSelectedCategory(value);
-    if (value) {
-      filterByCategory(value);
+  const handleCategoryFilter = (category: string) => {
+    setSelectedCategory(category);
+    if (category) {
+      filterByCategory(category);
     } else {
       clearFilters();
     }
   };
 
-  const handleStatusFilter = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value as DocumentStatus;
-    logger.debug('Status filter changed:', value);
-    setSelectedStatus(value);
-    if (value) {
-      filterByStatus(value);
+  const handleStatusFilter = (status: string) => {
+    setSelectedStatus(status);
+    if (status) {
+      filterByStatus(status as DocumentStatus);
     } else {
       clearFilters();
     }
   };
 
   const handleClearFilters = () => {
-    logger.info('Clearing all filters');
     setSearchTerm('');
     setSelectedCategory('');
     setSelectedStatus('');
@@ -145,184 +165,236 @@ const categories = Object.keys(documentsByCategory || {}).sort();
     showToast.info('Filter zurückgesetzt');
   };
 
+  // Sort documents
+  const sortedDocuments = [...filteredDocuments].sort((a, b) => {
+    switch (sortBy) {
+      case 'title':
+        return a.title.localeCompare(b.title);
+      case 'category':
+        return a.category.localeCompare(b.category);
+      case 'date':
+      default:
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    }
+  });
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-500 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-300 font-medium">Dokumente werden geladen...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen p-4 md:p-8">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
             <div>
-              <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
-                📚 IT-Dokumentation
+              <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-2">
+                Dokumente
               </h1>
               <p className="text-gray-600 dark:text-gray-400">
-                Verwalte und organisiere deine IT-Dokumente
+                Verwalte und organisiere deine IT-Dokumentationen
               </p>
             </div>
             <button
               onClick={handleCreateNew}
-              className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg flex items-center gap-2"
+              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-medium transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
             >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
+              <Plus className="w-5 h-5" />
               Neues Dokument
             </button>
           </div>
 
           {/* Stats Bar */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-6 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-6">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                    {totalDocuments}
-                  </span>
-                  <span className="text-gray-600 dark:text-gray-400">Dokumente gesamt</span>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                  <FolderOpen className="w-5 h-5 text-white" />
                 </div>
-                <div className="h-8 w-px bg-gray-300 dark:bg-gray-600" />
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold text-green-600 dark:text-green-400">
-                    {categories.length}
-                  </span>
-                  <span className="text-gray-600 dark:text-gray-400">Kategorien</span>
+                <div>
+                  <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.total}</div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400">Gesamt</div>
                 </div>
               </div>
-              {(searchTerm || selectedCategory || selectedStatus) && (
-                <button
-                  onClick={handleClearFilters}
-                  className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
-                >
-                  🔄 Filter zurücksetzen
-                </button>
-              )}
+            </div>
+
+            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.published}</div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400">Veröffentlicht</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-yellow-500 to-yellow-600 flex items-center justify-center">
+                  <Clock className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.drafts}</div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400">Entwürfe</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-gray-500 to-gray-600 flex items-center justify-center">
+                  <Archive className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.archived}</div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400">Archiviert</div>
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Search and Filters */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Search - WITH DEBOUNCING */}
-              <div className="md:col-span-1">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  🔍 Suche {searchTerm && debouncedSearchTerm !== searchTerm && (
-                    <span className="text-xs text-gray-500 ml-2">(suche...)</span>
-                  )}
-                </label>
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={searchTerm}
-                  onChange={handleSearch}
-                  placeholder="Dokumente durchsuchen... (Ctrl+K)"
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors dark:bg-gray-700 dark:text-white"
-                />
+          <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl p-6 border border-gray-200 dark:border-gray-700">
+            <div className="flex flex-col lg:flex-row gap-4">
+              {/* Search */}
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Dokumente durchsuchen..."
+                    className="w-full pl-12 pr-4 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-gray-900 dark:text-white placeholder-gray-500"
+                  />
+                </div>
               </div>
 
               {/* Category Filter */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  📁 Kategorie
-                </label>
-                <select
-                  value={selectedCategory}
-                  onChange={handleCategoryFilter}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors dark:bg-gray-700 dark:text-white"
-                >
-                  <option value="">Alle Kategorien</option>
-                  {categories.map(category => (
-                    <option key={category} value={category}>
-                      {category} ({documentsByCategory[category].length})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <select
+                value={selectedCategory}
+                onChange={(e) => handleCategoryFilter(e.target.value)}
+                className="px-4 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-gray-900 dark:text-white"
+              >
+                <option value="">Alle Kategorien</option>
+                {categories.map((category) => (
+                  <option key={category} value={category}>
+                    {category} ({documentsByCategory[category].length})
+                  </option>
+                ))}
+              </select>
 
               {/* Status Filter */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  🏷️ Status
-                </label>
-                <select
-                  value={selectedStatus}
-                  onChange={handleStatusFilter}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors dark:bg-gray-700 dark:text-white"
+              <select
+                value={selectedStatus}
+                onChange={(e) => handleStatusFilter(e.target.value)}
+                className="px-4 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-gray-900 dark:text-white"
+              >
+                <option value="">Alle Status</option>
+                <option value={DocumentStatus.PUBLISHED}>Veröffentlicht</option>
+                <option value={DocumentStatus.DRAFT}>Entwurf</option>
+                <option value={DocumentStatus.ARCHIVED}>Archiviert</option>
+              </select>
+
+              {/* Sort */}
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="px-4 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-gray-900 dark:text-white"
+              >
+                <option value="date">Nach Datum</option>
+                <option value="title">Nach Titel</option>
+                <option value="category">Nach Kategorie</option>
+              </select>
+
+              {/* View Mode Toggle */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-3 rounded-xl border transition-all ${
+                    viewMode === 'grid'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  }`}
                 >
-                  <option value="">Alle Status</option>
-                  <option value={DocumentStatus.DRAFT}>Entwurf</option>
-                  <option value={DocumentStatus.PUBLISHED}>Veröffentlicht</option>
-                  <option value={DocumentStatus.ARCHIVED}>Archiviert</option>
-                </select>
+                  <Grid className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-3 rounded-xl border transition-all ${
+                    viewMode === 'list'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  }`}
+                >
+                  <List className="w-5 h-5" />
+                </button>
               </div>
             </div>
-            
-            {/* Keyboard Shortcuts Hint */}
-            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-                <span>⌨️ Shortcuts:</span>
-                <span><kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded">N</kbd> Neues Dokument</span>
-                <span><kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded">Ctrl+K</kbd> Suche</span>
-                <span><kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded">Ctrl+D</kbd> Dark Mode</span>
+
+            {/* Active Filters */}
+            {(searchTerm || selectedCategory || selectedStatus) && (
+              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Aktive Filter:</span>
+                  {searchTerm && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-full text-sm">
+                      Suche: {searchTerm}
+                    </span>
+                  )}
+                  {selectedCategory && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded-full text-sm">
+                      {selectedCategory}
+                    </span>
+                  )}
+                  {selectedStatus && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-full text-sm">
+                      {selectedStatus}
+                    </span>
+                  )}
+                  <button
+                    onClick={handleClearFilters}
+                    className="inline-flex items-center gap-1 px-3 py-1 text-sm text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-full transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                    Alle Filter entfernen
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
         {/* Error State */}
         {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6 mb-6">
             <div className="flex items-center gap-3">
-              <span className="text-2xl">⚠️</span>
+              <span className="text-3xl">⚠️</span>
               <div>
-                <h3 className="font-medium text-red-800 dark:text-red-200">Fehler</h3>
+                <h3 className="font-semibold text-red-800 dark:text-red-200">Fehler beim Laden</h3>
                 <p className="text-red-600 dark:text-red-300 text-sm">{error}</p>
               </div>
             </div>
           </div>
         )}
 
-        {/* Loading State */}
-        {loading && (
-          <div className="flex items-center justify-center py-20">
-            <div className="text-center">
-              <svg
-                className="animate-spin h-12 w-12 text-blue-600 dark:text-blue-400 mx-auto mb-4"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                  fill="none"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                />
-              </svg>
-              <p className="text-gray-600 dark:text-gray-300">Dokumente werden geladen...</p>
-            </div>
-          </div>
-        )}
-
         {/* Empty State */}
-        {!loading && filteredDocuments.length === 0 && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-12 text-center border border-gray-200 dark:border-gray-700">
-            <div className="text-6xl mb-4">📄</div>
+        {!loading && sortedDocuments.length === 0 && (
+          <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl p-12 text-center border border-gray-200 dark:border-gray-700">
+            <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+              <FolderOpen className="w-10 h-10 text-gray-400" />
+            </div>
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
               Keine Dokumente gefunden
             </h3>
@@ -334,7 +406,7 @@ const categories = Object.keys(documentsByCategory || {}).sort();
             {!searchTerm && !selectedCategory && !selectedStatus && (
               <button
                 onClick={handleCreateNew}
-                className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-medium transition-all shadow-lg"
               >
                 Erstes Dokument erstellen
               </button>
@@ -342,15 +414,22 @@ const categories = Object.keys(documentsByCategory || {}).sort();
           </div>
         )}
 
-        {/* Document Grid */}
-        {!loading && filteredDocuments.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredDocuments.map(document => (
+        {/* Document Grid/List */}
+        {!loading && sortedDocuments.length > 0 && (
+          <div
+            className={
+              viewMode === 'grid'
+                ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+                : 'space-y-4'
+            }
+          >
+            {sortedDocuments.map((document) => (
               <DocumentCard
                 key={document.id}
                 document={document}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
+                viewMode={viewMode}
               />
             ))}
           </div>
@@ -367,6 +446,6 @@ const categories = Object.keys(documentsByCategory || {}).sort();
       />
     </div>
   );
-};
+}
 
 export default DocumentList;
