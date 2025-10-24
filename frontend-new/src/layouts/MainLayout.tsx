@@ -1,6 +1,7 @@
 ﻿import { useSidebarStore } from '@/stores/sidebarStore'
 import { useThemeStore } from '@/stores/themeStore'
 import { Button } from '@/components/ui/button'
+import { SearchBar } from '@/components/SearchBar'
 import { Menu, X, Home, FileText, MessageSquare, BarChart3, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -38,8 +39,10 @@ export function MainLayout({ children }: MainLayoutProps) {
             {navigation.map((item) => {
               const Icon = item.icon
               return (
-                <a key={item.name} href={item.href} className='flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground'>
-                  <Icon className='h-5 w-5' />
+                <a key={item.name}
+  href={`#${item.href === '/' ? '' : item.href.slice(1)}`}
+  className='flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground'
+>                  <Icon className='h-4 w-4' />
                   {item.name}
                 </a>
               )
@@ -60,18 +63,18 @@ export function MainLayout({ children }: MainLayoutProps) {
 
       <div className='flex flex-1 flex-col overflow-hidden'>
         <header className='flex h-16 items-center gap-4 border-b bg-card px-6'>
-          <Button variant='ghost' size='icon' onClick={toggle} className='lg:hidden'>
-            {isOpen ? <X className='h-5 w-5' /> : <Menu className='h-5 w-5' />}
-          </Button>
+  <Button variant='ghost' size='icon' onClick={toggle} className='lg:hidden'>
+    {isOpen ? <X className='h-5 w-5' /> : <Menu className='h-5 w-5' />}
+  </Button>
 
-          <div className='flex-1'>
-            <h1 className='text-lg font-semibold'>Dashboard</h1>
-          </div>
+  <div className='flex-1'>
+    <SearchBar />
+  </div>
 
-          <div className='flex items-center gap-2'>
-            <ThemeToggle />
-          </div>
-        </header>
+  <div className='flex items-center gap-2'>
+    <ThemeToggle />
+  </div>
+</header>
 
         <main className='flex-1 overflow-y-auto p-6'>{children}</main>
       </div>
