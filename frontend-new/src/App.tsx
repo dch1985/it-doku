@@ -2,6 +2,9 @@
 import { ChatProvider } from './contexts/ChatContext'
 import { MainLayout } from './layouts/MainLayout'
 import { ChatSidebar } from './features/chat/components/ChatSidebar'
+import { DocumentsChart } from './features/dashboard/components/DocumentsChart'
+import { AIUsageChart } from './features/dashboard/components/AIUsageChart'
+import { StorageChart } from './features/dashboard/components/StorageChart'
 import { useThemeStore } from './stores/themeStore'
 import { useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -30,7 +33,7 @@ function App() {
         <MainLayout>
           <div className='space-y-6'>
             <div>
-              <h2 className='text-3xl font-bold tracking-tight'>Welcome back!</h2>
+              <h2 className='text-3xl font-bold tracking-tight'>Welcome back, Driss!</h2>
               <p className='text-muted-foreground'>
                 Here's what's happening with your documentation today.
               </p>
@@ -81,6 +84,13 @@ function App() {
                 </CardContent>
               </Card>
             </div>
+
+            <div className='grid gap-4 md:grid-cols-2'>
+              <DocumentsChart />
+              <AIUsageChart />
+            </div>
+
+            <StorageChart />
 
             <Card>
               <CardHeader>
