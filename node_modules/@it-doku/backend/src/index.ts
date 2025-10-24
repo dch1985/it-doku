@@ -2,6 +2,10 @@
 import cors from 'cors';
 import dotenv from 'dotenv';
 import chatRouter from './routes/chat.js';
+import documentsRouter from './routes/documents.js'
+import templatesRouter from './routes/templates.js'
+import githubRouter from './routes/github.js';
+import uploadRouter from './routes/upload.js';
 
 dotenv.config();
 
@@ -44,9 +48,21 @@ app.get('/api/docs', (req, res) => {
 // Chat Route
 app.use('/api/chat', chatRouter);
 
+// Documents Routes
+app.use('/api/documents', documentsRouter)
+
+// Templates Routes
+app.use('/api/templates', templatesRouter)
+
+// GitHub Routes
+app.use('/api/github', githubRouter)
+
+// Upload Routes
+app.use('/api/upload', uploadRouter)
+
 // 404 Handler
 app.use((req, res) => {
-  res.status(404).json({ 
+  res.status(404).json({
     error: 'Not Found',
     path: req.url
   });

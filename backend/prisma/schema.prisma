@@ -8,65 +8,67 @@ datasource db {
 }
 
 model Document {
-  id          Int            @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   title       String
-  content     String?
-  category    DocumentCategory
-  tags        String
-  status      DocumentStatus @default(DRAFT)
-  priority    Priority       @default(MEDIUM)
-  version     Int            @default(1)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  content     String
+  category    String
+  status      String   @default("Draft")
+  size        String   @default("0 KB")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  versions    DocumentVersion[]
+  attachments Attachment[]
   
   @@map("documents")
 }
 
-enum DocumentCategory {
-  SERVER
-  NETWORK
-  SECURITY
-  BACKUP
-  MONITORING
-  SOFTWARE
-  CODE_ANALYSIS
+model DocumentVersion {
+  id          Int      @id @default(autoincrement())
+  documentId  Int
+  content     String
+  version     String
+  changes     String
+  createdBy   String
+  createdAt   DateTime @default(now())
+  
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  @@map("document_versions")
 }
 
-enum DocumentStatus {
-  DRAFT
-  PUBLISHED
-  ARCHIVED
-  REVIEW
+model Template {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String
+  content     String
+  category    String
+  icon        String
+  createdAt   DateTime @default(now())
+  
+  @@map("templates")
 }
 
-enum Priority {
-  LOW
-  MEDIUM
-  HIGH
-  CRITICAL
+model ChatHistory {
+  id        Int      @id @default(autoincrement())
+  message   String
+  role      String
+  createdAt DateTime @default(now())
+  
+  @@map("chat_history")
 }
 
-model GeneratedDocumentation {
-  id              String   @id @default(uuid())
-  repositoryUrl   String
-  filePath        String
-  fileName        String?
-  language        String   @default("typescript")
+model Attachment {
+  id          Int      @id @default(autoincrement())
+  documentId  Int
+  filename    String
+  originalName String
+  mimeType    String
+  size        Int
+  path        String
+  createdAt   DateTime @default(now())
   
-  // String statt @db.Text (SQLite kompatibel)
-  description     String
-  functions       Json?
-  // String statt String[] - JSON-encoded array
-  dependencies    String?
-  usageExamples   String?
-  codeSnippet     String?
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
   
-  confidence      Float?
-  tokensUsed      Int?
-  generatedAt     DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  @@index([repositoryUrl])
-  @@index([filePath])
-  @@index([generatedAt])
+  @@map("attachments")
 }

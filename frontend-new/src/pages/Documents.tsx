@@ -6,22 +6,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge'
 import { Search, FileText, Download, Trash2, Eye, Filter } from 'lucide-react'
 import { toast } from 'sonner'
+import { exportToPDF, exportToMarkdown, downloadMarkdown, exportToJSON } from '@/lib/exportUtils'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { useDocuments } from '@/hooks/useDocuments'
 
 export function Documents() {
   const [searchQuery, setSearchQuery] = useState('')
-
-  const documents = [
-    { id: 1, title: 'Server Configuration Guide', category: 'Infrastructure', updated: '2 hours ago', size: '2.4 MB', status: 'Published' },
-    { id: 2, title: 'Network Topology Documentation', category: 'Network', updated: '5 hours ago', size: '1.8 MB', status: 'Published' },
-    { id: 3, title: 'Backup and Recovery Strategy', category: 'Operations', updated: '1 day ago', size: '3.2 MB', status: 'Published' },
-    { id: 4, title: 'Security Policy 2024', category: 'Security', updated: '2 days ago', size: '1.1 MB', status: 'Published' },
-    { id: 5, title: 'API Documentation', category: 'Development', updated: '3 days ago', size: '4.5 MB', status: 'Draft' },
-    { id: 6, title: 'Database Schema Overview', category: 'Development', updated: '4 days ago', size: '892 KB', status: 'Published' },
-    { id: 7, title: 'Incident Response Runbook', category: 'Operations', updated: '5 days ago', size: '2.1 MB', status: 'Published' },
-    { id: 8, title: 'Cloud Migration Plan', category: 'Infrastructure', updated: '1 week ago', size: '5.3 MB', status: 'Draft' },
-    { id: 9, title: 'User Access Management', category: 'Security', updated: '1 week ago', size: '1.5 MB', status: 'Published' },
-    { id: 10, title: 'Monitoring and Alerting Setup', category: 'Operations', updated: '2 weeks ago', size: '2.8 MB', status: 'Published' },
-  ]
+  const { documents, loading, deleteDocument } = useDocuments()
 
   const filteredDocuments = documents.filter(doc =>
     doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -29,15 +25,41 @@ export function Documents() {
   )
 
   const handleView = (doc: typeof documents[0]) => {
-    toast.info(`Opening: ${doc.title}`)
+    window.location.hash = `document/${doc.id}`
   }
 
   const handleDownload = (doc: typeof documents[0]) => {
     toast.success(`Downloading: ${doc.title}`)
   }
 
-  const handleDelete = (doc: typeof documents[0]) => {
-    toast.error(`Deleted: ${doc.title}`)
+  const handleDelete = async (doc: typeof documents[0]) => {
+    if (confirm(`Are you sure you want to delete "${doc.title}"?`)) {
+      await deleteDocument(doc.id)
+    }
+  }
+
+  const handleExportPDF = () => {
+    exportToPDF(filteredDocuments, 'IT Documentation')
+    toast.success('Exported to PDF successfully!')
+  }
+
+  const handleExportMarkdown = () => {
+    const markdown = exportToMarkdown(filteredDocuments)
+    downloadMarkdown(markdown, 'it-documentation')
+    toast.success('Exported to Markdown successfully!')
+  }
+
+  const handleExportJSON = () => {
+    exportToJSON(filteredDocuments)
+    toast.success('Exported to JSON successfully!')
+  }
+
+  if (loading) {
+    return (
+      <div className='flex items-center justify-center h-96'>
+        <div className='text-lg font-medium'>Loading documents...</div>
+      </div>
+    )
   }
 
   return (
@@ -71,6 +93,25 @@ export function Documents() {
               <Filter className='mr-2 h-4 w-4' />
               Filter
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button>
+                  <Download className='mr-2 h-4 w-4' />
+                  Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align='end'>
+                <DropdownMenuItem onClick={handleExportPDF}>
+                  Export as PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportMarkdown}>
+                  Export as Markdown
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportJSON}>
+                  Export as JSON
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           <div className='rounded-md border'>
@@ -110,7 +151,9 @@ export function Documents() {
                         </Badge>
                       </TableCell>
                       <TableCell className='text-muted-foreground'>{doc.size}</TableCell>
-                      <TableCell className='text-muted-foreground'>{doc.updated}</TableCell>
+                      <TableCell className='text-muted-foreground'>
+                        {new Date(doc.updatedAt).toLocaleDateString()}
+                      </TableCell>
                       <TableCell className='text-right'>
                         <div className='flex justify-end gap-2'>
                           <Button 

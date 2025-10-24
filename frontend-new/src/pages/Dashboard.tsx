@@ -10,16 +10,36 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { Plus, MessageSquare, FileText } from 'lucide-react'
+import { useDocuments } from '@/hooks/useDocuments'
 
 export function Dashboard() {
   const [newDocDialog, setNewDocDialog] = useState(false)
   const [templatesDialog, setTemplatesDialog] = useState(false)
   const { toggleChat } = useSidebarStore()
+  const { documents, createDocument } = useDocuments()
 
-  const handleNewDocument = () => {
-    toast.success('Document created successfully!')
-    setNewDocDialog(false)
+  const handleNewDocument = async () => {
+  const titleInput = document.getElementById('doc-title') as HTMLInputElement
+  const categoryInput = document.getElementById('doc-category') as HTMLInputElement
+  
+  if (!titleInput?.value || !categoryInput?.value) {
+    toast.error('Please fill in all fields')
+    return
   }
+
+  try {
+    await createDocument({
+      title: titleInput.value,
+      category: categoryInput.value,
+      content: '<h1>' + titleInput.value + '</h1><p>Start writing...</p>'
+    })
+    setNewDocDialog(false)
+    titleInput.value = ''
+    categoryInput.value = ''
+  } catch (error) {
+    // Error handled in hook
+  }
+}
 
   const handleAskAI = () => {
     toggleChat()
@@ -46,15 +66,17 @@ export function Dashboard() {
 
       <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
         <Card>
-          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-            <CardTitle className='text-sm font-medium'>Total Documents</CardTitle>
-            <span className='text-2xl'>📄</span>
-          </CardHeader>
-          <CardContent>
-            <div className='text-2xl font-bold'>245</div>
-            <p className='text-xs text-muted-foreground'>+12% from last month</p>
-          </CardContent>
-        </Card>
+  <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+    <CardTitle className='text-sm font-medium'>Total Documents</CardTitle>
+    <span className='text-2xl'>📄</span>
+  </CardHeader>
+  <CardContent>
+    <div className='text-2xl font-bold'>{documents.length}</div>
+    <p className='text-xs text-muted-foreground'>
+      {documents.filter(d => d.status === 'Published').length} published
+    </p>
+  </CardContent>
+</Card>
 
         <Card>
           <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
