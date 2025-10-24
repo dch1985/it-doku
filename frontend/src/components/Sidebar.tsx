@@ -19,7 +19,7 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const location = useLocation();
-  const { darkMode, toggleDarkMode } = useDarkMode();
+  const { isDarkMode, toggleDarkMode } = useDarkMode();
 
   const navItems = [
     { path: '/', icon: LayoutDashboard, label: 'Dashboard', description: 'Übersicht & Statistiken' },
@@ -141,12 +141,12 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
               ${!isOpen && 'lg:justify-center lg:px-2'}
             `}
           >
-            {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            {isOpen && <span className="font-medium">{darkMode ? 'Light Mode' : 'Dark Mode'}</span>}
+            {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            {isOpen && <span className="font-medium">{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>}
 
             {!isOpen && (
               <div className="absolute left-full ml-6 px-3 py-2 bg-gray-900 dark:bg-gray-800 text-white text-sm rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
-                {darkMode ? 'Light Mode' : 'Dark Mode'}
+                {isDarkMode ? 'Light Mode' : 'Dark Mode'}
                 <div className="absolute right-full top-1/2 -translate-y-1/2 border-8 border-transparent border-r-gray-900 dark:border-r-gray-800" />
               </div>
             )}
