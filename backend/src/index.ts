@@ -1,39 +1,60 @@
-﻿import dotenv from 'dotenv';
-import path from 'path';
-
-// Expliziter Pfad zur .env Datei
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
-
-import express from 'express';
+﻿import express from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
-import morgan from 'morgan';
-import documentRoutes from './routes/document.routes';
-import analyzeRouter from './routes/analyze';
-import chatRouter from './routes/chat';
+import dotenv from 'dotenv';
+import chatRouter from './routes/chat.js';
+
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(helmet());
-app.use(cors({ origin: 'http://localhost:3000' }));
+// Middleware
+app.use(cors());
 app.use(express.json());
-app.use(morgan('dev'));
 
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    timestamp: new Date().toISOString() 
+// Logging
+app.use((req, res, next) => {
+  console.log('[' + new Date().toISOString() + '] ' + req.method + ' ' + req.url);
+  next();
+});
+
+// Routes
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    message: 'Backend API is running!',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0',
+    azureOpenAI: !!process.env.AZURE_OPENAI_KEY
   });
 });
 
-app.use('/api/documents', documentRoutes);
-app.use('/api/analyze', analyzeRouter);
-app.use('/api', chatRouter);
+app.get('/api/docs', (req, res) => {
+  res.json({
+    title: 'IT-Dokumentation API',
+    version: '1.0.0',
+    endpoints: [
+      'GET /api/health - Health Check',
+      'GET /api/docs - API Documentation',
+      'POST /api/chat - AI Chat Endpoint'
+    ]
+  });
+});
 
+// Chat Route
+app.use('/api/chat', chatRouter);
+
+// 404 Handler
+app.use((req, res) => {
+  res.status(404).json({ 
+    error: 'Not Found',
+    path: req.url
+  });
+});
+
+// Start Server
 app.listen(PORT, () => {
-  console.log(`Backend running on port ${PORT}`);
-  console.log('AZURE_OPENAI_API_KEY:', process.env.AZURE_OPENAI_API_KEY ? `Set (${process.env.AZURE_OPENAI_API_KEY.substring(0, 10)}...)` : 'NOT SET ❌');
-  console.log('AZURE_OPENAI_ENDPOINT:', process.env.AZURE_OPENAI_ENDPOINT || 'NOT SET ❌');
-  console.log('AZURE_OPENAI_DEPLOYMENT:', process.env.AZURE_OPENAI_DEPLOYMENT || 'NOT SET ❌');
+  console.log('Backend server running on http://localhost:' + PORT);
+  console.log('Azure OpenAI configured:', !!process.env.AZURE_OPENAI_KEY);
+  console.log('Chat endpoint: http://localhost:' + PORT + '/api/chat');
 });
