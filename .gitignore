@@ -51,3 +51,10 @@ Thumbs.db
 # Prisma generated
 node_modules/.prisma/
 node_modules
+
+# Sensitive files - DO NOT COMMIT
+*.txt
+*.key
+*secret*
+*credential*
+Endpunkt*.txt
