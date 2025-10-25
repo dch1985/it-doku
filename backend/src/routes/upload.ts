@@ -1,27 +1,21 @@
 import { Router, Request, Response } from 'express'
 import multer from 'multer'
-import path from 'path'
-import fs from 'fs'
+import { BlobServiceClient } from '@azure/storage-blob'
 import { prisma } from '../lib/prisma.js'
+import path from 'path'
 
 const router = Router()
 
-// Ensure uploads directory exists
-const uploadsDir = path.join(process.cwd(), 'uploads')
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true })
+// Azure Blob Storage Setup
+const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING
+const containerName = process.env.AZURE_STORAGE_CONTAINER_NAME || 'uploads'
+
+if (!connectionString) {
+  console.error('⚠️ AZURE_STORAGE_CONNECTION_STRING not configured!')
 }
 
-// Configure multer storage
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir)
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
-    cb(null, uniqueSuffix + path.extname(file.originalname))
-  }
-})
+// Multer memory storage (no disk)
+const storage = multer.memoryStorage()
 
 // File filter
 const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
@@ -53,7 +47,7 @@ const upload = multer({
   }
 })
 
-// Upload file
+// Upload file to Azure Blob Storage
 router.post('/', upload.single('file'), async (req: Request, res: Response) => {
   try {
     if (!req.file) {
@@ -63,35 +57,46 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
     const { documentId } = req.body
 
     if (!documentId) {
-      // Clean up uploaded file
-      fs.unlinkSync(req.file.path)
       return res.status(400).json({ error: 'Document ID required' })
     }
 
-    const attachment = await prisma.attachment.create({
-      data: {
-        documentId: parseInt(documentId),
-        filename: req.file.filename,
-        originalName: req.file.originalname,
-        mimeType: req.file.mimetype,
-        size: req.file.size,
-        path: req.file.path
+    if (!connectionString) {
+      return res.status(500).json({ error: 'Storage not configured' })
+    }
+
+    // Generate unique blob name
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+    const blobName = uniqueSuffix + path.extname(req.file.originalname)
+
+    // Upload to Azure Blob Storage
+    const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString)
+    const containerClient = blobServiceClient.getContainerClient(containerName)
+    const blockBlobClient = containerClient.getBlockBlobClient(blobName)
+
+    await blockBlobClient.uploadData(req.file.buffer, {
+      blobHTTPHeaders: {
+        blobContentType: req.file.mimetype
       }
     })
 
+    const blobUrl = blockBlobClient.url
+
+    // Save to database
+    const attachment = await prisma.attachment.create({
+      data: {
+        documentId: parseInt(documentId),
+        filename: blobName,
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        size: req.file.size,
+        path: blobUrl
+      }
+    })
+
+    console.log(`[Upload] File uploaded to Azure Blob: ${blobName}`)
     res.status(201).json(attachment)
   } catch (error: any) {
     console.error('[Upload] Error:', error)
-    
-    // Clean up file if database save failed
-    if (req.file) {
-      try {
-        fs.unlinkSync(req.file.path)
-      } catch (e) {
-        console.error('Failed to clean up file:', e)
-      }
-    }
-    
     res.status(500).json({ error: error.message })
   }
 })
@@ -113,7 +118,7 @@ router.get('/document/:documentId', async (req: Request, res: Response) => {
   }
 })
 
-// Download attachment
+// Download attachment from Azure Blob
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params
@@ -125,19 +130,33 @@ router.get('/:id', async (req: Request, res: Response) => {
     if (!attachment) {
       return res.status(404).json({ error: 'Attachment not found' })
     }
-    
-    if (!fs.existsSync(attachment.path)) {
-      return res.status(404).json({ error: 'File not found on disk' })
+
+    if (!connectionString) {
+      return res.status(500).json({ error: 'Storage not configured' })
     }
+
+    // Download from Azure Blob
+    const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString)
+    const containerClient = blobServiceClient.getContainerClient(containerName)
+    const blockBlobClient = containerClient.getBlockBlobClient(attachment.filename)
+
+    const downloadResponse = await blockBlobClient.download()
     
-    res.download(attachment.path, attachment.originalName)
+    if (!downloadResponse.readableStreamBody) {
+      return res.status(404).json({ error: 'File not found in storage' })
+    }
+
+    res.setHeader('Content-Type', attachment.mimeType)
+    res.setHeader('Content-Disposition', `attachment; filename="${attachment.originalName}"`)
+    
+    downloadResponse.readableStreamBody.pipe(res)
   } catch (error: any) {
     console.error('[Upload] Error:', error)
     res.status(500).json({ error: error.message })
   }
 })
 
-// Delete attachment
+// Delete attachment from Azure Blob
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params
@@ -149,17 +168,24 @@ router.delete('/:id', async (req: Request, res: Response) => {
     if (!attachment) {
       return res.status(404).json({ error: 'Attachment not found' })
     }
-    
-    // Delete file from disk
-    if (fs.existsSync(attachment.path)) {
-      fs.unlinkSync(attachment.path)
+
+    if (!connectionString) {
+      return res.status(500).json({ error: 'Storage not configured' })
     }
+
+    // Delete from Azure Blob
+    const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString)
+    const containerClient = blobServiceClient.getContainerClient(containerName)
+    const blockBlobClient = containerClient.getBlockBlobClient(attachment.filename)
     
+    await blockBlobClient.deleteIfExists()
+
     // Delete from database
     await prisma.attachment.delete({
       where: { id: parseInt(id) }
     })
-    
+
+    console.log(`[Upload] File deleted from Azure Blob: ${attachment.filename}`)
     res.status(204).send()
   } catch (error: any) {
     console.error('[Upload] Error:', error)
