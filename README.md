@@ -1,374 +1,249 @@
-# IT-Dokumentations-Anwendung
-
-> Moderne, cloud-native Lösung für die Verwaltung von IT-Dokumentationen mit Microsoft Azure Integration
-
-[![CI/CD Pipeline](https://github.com/dch1985/it-doku/workflows/CI%20Pipeline/badge.svg)](https://github.com/dch1985/it-doku/actions)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/TypeScript-4.9+-blue.svg)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
-
-## Übersicht
-
-Diese Anwendung revolutioniert die Art, wie IT-Teams ihre Dokumentationen erstellen, verwalten und pflegen. Mit intelligenten Vorlagen, automatisierten Workflows und nahtloser Azure-Integration wird das Dokumentieren von IT-Infrastrukturen und -Prozessen zum Kinderspiel.
-
-## Hauptfunktionen
-
-- **Intelligente Dokumentation:** Best-Practice-Vorlagen für Server, Netzwerke und Prozesse
-- **CRUD-Operationen:** Vollständige Verwaltung von Dokumentationseinträgen
-- **Responsive Design:** Optimiert für Desktop, Tablet und Mobile
-- **Azure-Integration:** Single Sign-On über Azure Active Directory
-- **Volltextsuche:** Schnelles Auffinden relevanter Informationen
-- **Versionskontrolle:** Nachverfolgung aller Änderungen
-- **Kollaboration:** Team-basierte Dokumentationserstellung
-- **Export-Funktionen:** PDF, Word und andere Formate
-
-## Tech Stack
-
-### Frontend
-- **React 18** mit TypeScript
-- **Tailwind CSS** für modernes Styling
-- **Vite** als Build-Tool
-- **Axios** für API-Kommunikation
-
-### Backend
-- **Node.js 18** mit Express.js
-- **Prisma ORM** für typisierte Datenbankzugriffe
-- **PostgreSQL** (Produktion) / SQLite (Entwicklung)
-- **Zod** für Validierung
-
-### Infrastructure
-- **Azure Static Web Apps** (Frontend)
-- **Azure App Service** (Backend)
-- **Azure Database for PostgreSQL**
-- **Azure Key Vault** für Secrets
-- **Application Insights** für Monitoring
-
-## Schnellstart
-
-### Voraussetzungen
-
-- Node.js 18+ ([Download](https://nodejs.org/))
-- Git ([Download](https://git-scm.com/))
-- Azure CLI ([Installation](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli))
-
-### Lokale Entwicklung
-
-```bash
-# Repository klonen
-git clone https://github.com/dch1985/it-doku.git
-cd it-doku
-
-# Dependencies installieren
-npm install
-
-# Backend starten (Terminal 1)
-cd backend
-npm install
-npm run dev
-
-# Frontend starten (Terminal 2)
-cd frontend
-npm install
-npm run dev
-```
-
-Die Anwendung ist dann verfügbar unter:
-- **Frontend:** http://localhost:5173
-- **Backend API:** http://localhost:3001
-- **API Health Check:** http://localhost:3001/health
-
-### Erste Schritte
-
-1. Öffne http://localhost:5173 in deinem Browser
-2. Erstelle dein erstes Dokument über das Formular
-3. Durchsuche die Dokumentenliste
-4. Teste die API-Endpunkte unter http://localhost:3001
-
-## Projektstruktur
-
-```
-it-doku/
-├── .github/workflows/      # CI/CD Pipelines
-├── backend/               # Node.js API Server
-│   ├── src/              # Quellcode
-│   ├── prisma/           # Datenbankschema & Migrationen
-│   └── __tests__/        # Backend Tests
-├── frontend/             # React Single Page Application
-│   ├── src/             # Quellcode
-│   └── __tests__/       # Frontend Tests
-├── infrastructure/       # Terraform/Azure Deployment
-├── docs/                # Projektdokumentation
-├── scripts/             # Utility Scripts
-└── README.md           # Diese Datei
-```
-
-## Deployment
-
-### Automatisches Deployment
-
-Push-basiertes Deployment über GitHub Actions:
-
-- **Development:** Push nach `develop` Branch
-- **Production:** Push nach `main` Branch
-
-### Manuelles Deployment
-
-```bash
-# Azure-Ressourcen erstellen
-./scripts/setup.sh [dev|test|staging|prod]
-
-# Oder mit Terraform
-cd infrastructure
-terraform init
-terraform apply -var="environment=dev"
-
-# Datenbank migrieren
-./scripts/migrate.sh dev
-
-# Health Check
-./scripts/health-check.sh dev
-```
-
-## Testing
-
-```bash
-# Alle Tests ausführen
-npm test
-
-# Backend Tests
-cd backend && npm test
-
-# Frontend Tests
-cd frontend && npm test
-
-# E2E Tests
-npm run test:e2e
-
-# Test Coverage
-npm run test:coverage
-```
-
-### Test-Berichte
-
-- **Unit Tests:** 80%+ Code Coverage
-- **Integration Tests:** API-Endpunkte
-- **E2E Tests:** Kritische User Journeys
-
-## API-Dokumentation
-
-### Basis-Endpunkte
-
-```http
-GET /health                 # System Health Check
-GET /api/documents         # Alle Dokumente abrufen
-POST /api/documents        # Neues Dokument erstellen
-GET /api/documents/:id     # Einzelnes Dokument abrufen
-PUT /api/documents/:id     # Dokument aktualisieren
-DELETE /api/documents/:id  # Dokument löschen
-```
-
-### Beispiel-Request
-
-```javascript
-// Neues Dokument erstellen
-const response = await fetch('/api/documents', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    title: 'Server-Konfiguration Webserver-01',
-    content: 'Ubuntu 22.04 LTS, Nginx 1.18, SSL-Zertifikat: Let\'s Encrypt',
-    category: 'server'
-  })
-});
-```
-
-## Konfiguration
-
-### Umgebungsvariablen
-
-#### Backend (.env)
-```env
-# Database
-DATABASE_URL="file:./dev.db"                    # SQLite (dev)
-DATABASE_URL="postgresql://user:pass@host/db"   # PostgreSQL (prod)
-
-# Authentication
-JWT_SECRET="your-secret-key"
-AZURE_CLIENT_ID="your-azure-client-id"
-AZURE_TENANT_ID="your-azure-tenant-id"
-
-# Monitoring
-APPLICATIONINSIGHTS_CONNECTION_STRING="your-connection-string"
-```
-
-#### Frontend (.env)
-```env
-VITE_API_BASE_URL="http://localhost:3001"      # Lokale Entwicklung
-VITE_API_BASE_URL="/api"                       # Produktion
-VITE_AZURE_CLIENT_ID="your-azure-client-id"
-```
-
-## Development Guidelines
-
-### Code Style
-
-- **ESLint** + **Prettier** für einheitliche Formatierung
-- **TypeScript** für Type Safety
-- **Conventional Commits** für Git-Nachrichten
-
-### Git Workflow
-
-```bash
-# Feature Branch erstellen
-git checkout -b feature/neue-funktion
-
-# Änderungen committen
-git add .
-git commit -m "feat: neue Funktion hinzugefügt"
-
-# Pull Request erstellen
-git push origin feature/neue-funktion
-```
-
-### Commit-Konventionen
-
-- `feat:` Neue Features
-- `fix:` Bugfixes
-- `docs:` Dokumentationsänderungen
-- `style:` Code-Formatierung
-- `refactor:` Code-Refactoring
-- `test:` Tests hinzufügen/ändern
-
-## Roadmap
-
-### Version 1.0 (MVP) ✅
-- [x] CRUD-Operationen für Dokumente
-- [x] Responsive Web-Interface
-- [x] Basic Search-Funktionalität
-- [x] Azure-Deployment
-- [x] CI/CD Pipeline
-
-### Version 1.1 (Q2 2024)
-- [ ] Azure AD Single Sign-On
-- [ ] Erweiterte Suchfilter
-- [ ] Document Templates
-- [ ] Bulk-Operationen
-
-### Version 1.2 (Q3 2024)
-- [ ] Kollaborative Bearbeitung
-- [ ] Kommentar-System
-- [ ] Benachrichtigungen
-- [ ] Advanced Analytics
-
-### Version 2.0 (Q4 2024)
-- [ ] KI-gestützte Dokumentationsvorschläge
-- [ ] Auto-Discovery von IT-Assets
-- [ ] Mobile App (PWA)
-- [ ] Integration mit ITSM-Tools
-
-## Monitoring & Support
-
-### Live-System URLs
-
-- **Production Frontend:** (wird nach Azure-Deployment ergänzt)
-- **Production API:** (wird nach Azure-Deployment ergänzt)
-- **Staging Environment:** (wird nach Azure-Deployment ergänzt)
-
-### Monitoring
-
-- **Application Insights:** (wird nach Azure-Deployment eingerichtet)
-- **Health Checks:** Automatische Überwachung alle 5 Minuten
-- **Alerts:** E-Mail-Benachrichtigungen bei Ausfällen
-
-### Support
-
-Bei Problemen oder Fragen:
-
-1. **Issues:** [GitHub Issues](https://github.com/dch1985/it-doku/issues)
-2. **Dokumentation:** [docs/](./docs/) Verzeichnis
-3. **E-Mail:** dchaouat@chaouat-consulting.de
-
-## Sicherheit
-
-### Sicherheitsrichtlinien
-
-- Alle API-Endpunkte sind durch JWT oder Azure AD geschützt
-- Input-Validierung mit Zod-Schemas
-- SQL-Injection-Schutz durch Prisma ORM
-- HTTPS-Enforcing in Produktion
-- Secret-Management über Azure Key Vault
-
-### Schwachstellen melden
-
-Sicherheitslücken bitte per E-Mail an: security@chaouat-consulting.de melden.
-Nutze **nicht** die öffentlichen GitHub Issues für Sicherheitsprobleme.
-
-## Performance
-
-### Benchmarks
-
-- **Page Load Time:** < 2 Sekunden
-- **API Response Time:** < 500ms
-- **Database Queries:** < 100ms
-- **Bundle Size:** < 200KB (gzip)
-
-### Optimierungen
-
-- Code Splitting für kleinere Bundle-Größen
-- Lazy Loading für bessere Performance
-- Database Query Optimization
-- CDN für statische Assets
-
-## Contributing
-
-Da dies ein Einzelprojekt ist, sind externe Beiträge aktuell nicht vorgesehen. Das Projekt dient als persönliche Lernerfahrung und Portfolio-Showcase.
-
-### Interne Entwicklung
-
-1. Branch von `develop` erstellen
-2. Feature implementieren + Tests schreiben
-3. Pull Request nach `develop`
-4. Code Review (Selbstreview)
-5. Merge nach `develop`
-6. Release nach `main`
-
-## Lizenz
-
-Dieses Projekt ist unter der [MIT Lizenz](LICENSE) veröffentlicht.
-
-## Changelog
-
-### v1.0.0 (2024-03-15)
-- Initiale Veröffentlichung
-- CRUD-Funktionalität für Dokumente
-- Responsive Web-Interface
-- Azure-Deployment
-
-### v0.9.0 (2024-03-01)
-- MVP-Features implementiert
-- CI/CD Pipeline eingerichtet
-- Basis-Tests implementiert
-
-## Credits
-
-### Technologien
-
-- [React](https://reactjs.org/) - Frontend Framework
-- [Node.js](https://nodejs.org/) - Backend Runtime
-- [Prisma](https://www.prisma.io/) - Database ORM
-- [Azure](https://azure.microsoft.com/) - Cloud Platform
-- [Tailwind CSS](https://tailwindcss.com/) - CSS Framework
-
-### Inspiration
-
-Dieses Projekt wurde entwickelt, um die Dokumentationsqualität in IT-Teams zu verbessern und moderne Entwicklungspraktiken zu demonstrieren.
+# 📚 IT-Doku - AI-Powered IT Documentation System
+
+> A modern, full-stack enterprise documentation platform with AI chat, GitHub integration, and file management capabilities.
+
+![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
+![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
+![Express](https://img.shields.io/badge/Express.js-404D59?style=for-the-badge&logo=express&logoColor=white)
+![Prisma](https://img.shields.io/badge/Prisma-3982CE?style=for-the-badge&logo=Prisma&logoColor=white)
+![Azure](https://img.shields.io/badge/Azure_OpenAI-0078D4?style=for-the-badge&logo=microsoft-azure&logoColor=white)
 
 ---
 
-**Entwickelt von:** Driss Chaouat  
-**Unternehmen:** Chaouat-Consulting  
-**Kontakt:** dchaouat@chaouat-consulting.de  
+## ✨ Features
 
-⭐ Vergiss nicht, diesem Projekt einen Stern zu geben, wenn es dir gefällt!
+### 🎯 Core Features
+- **📝 Rich Text Editor** - Full-featured document editor with TipTap
+- **🤖 AI Chat Assistant** - Powered by Azure OpenAI GPT-4
+- **📁 File Management** - Upload, manage, and download attachments (PDF, Word, Excel, Images)
+- **🔍 Command Palette** - Quick navigation with `Ctrl+K`
+- **📊 Analytics Dashboard** - Detailed insights and statistics
+- **🌙 Dark Mode** - Beautiful dark/light theme support
+- **📱 Responsive Design** - Works seamlessly on all devices
+
+### 🚀 Advanced Features
+- **GitHub Integration** - Import repositories and README files
+- **Version History** - Track all document changes
+- **Export Options** - Export to PDF, Markdown, or JSON
+- **Templates System** - Pre-built documentation templates
+- **Real-time CRUD** - Instant database synchronization
+- **Search & Filter** - Find documents quickly
+
+---
+
+## 🛠️ Tech Stack
+
+### Frontend
+- **React 19** with TypeScript
+- **Vite** for blazing-fast development
+- **shadcn/ui** + Tailwind CSS for beautiful UI
+- **TipTap** for rich text editing
+- **Recharts** for data visualization
+- **Sonner** for toast notifications
+
+### Backend
+- **Express.js** with TypeScript
+- **Prisma ORM** for database management
+- **SQLite** for data persistence
+- **Multer** for file uploads
+- **Azure OpenAI** for AI capabilities
+- **Octokit** for GitHub API integration
+
+---
+
+## 📦 Installation
+
+### Prerequisites
+- Node.js 18+ 
+- npm or yarn
+- Azure OpenAI API key (optional, for AI features)
+- GitHub Personal Access Token (optional, for GitHub integration)
+
+### Backend Setup
+```bash
+# Clone the repository
+git clone https://github.com/dch1985/it-doku.git
+cd it-doku
+
+# Install backend dependencies
+cd backend
+npm install
+
+# Create .env file
+cp .env.example .env
+
+# Configure environment variables
+# Edit .env and add your API keys:
+# AZURE_OPENAI_KEY=your_key_here
+# AZURE_OPENAI_ENDPOINT=your_endpoint_here
+# GITHUB_TOKEN=your_github_token_here (optional)
+
+# Run Prisma migrations
+npx prisma migrate dev
+npx prisma generate
+
+# Start backend server
+npm run dev
+```
+
+### Frontend Setup
+```bash
+# Install frontend dependencies
+cd ../frontend-new
+npm install
+
+# Start development server
+npm run dev
+```
+
+The application will be available at:
+- Frontend: `http://localhost:5173`
+- Backend API: `http://localhost:3001`
+
+---
+
+## 📚 Project Structure
+```
+it-doku/
+├── backend/
+│   ├── prisma/
+│   │   └── schema.prisma      # Database schema
+│   ├── src/
+│   │   ├── routes/            # API routes
+│   │   │   ├── chat.ts        # AI chat endpoints
+│   │   │   ├── documents.ts   # Document CRUD
+│   │   │   ├── templates.ts   # Templates management
+│   │   │   ├── github.ts      # GitHub integration
+│   │   │   └── upload.ts      # File upload handling
+│   │   ├── services/          # Business logic
+│   │   ├── lib/               # Utilities
+│   │   └── index.ts           # Server entry point
+│   └── uploads/               # File storage directory
+│
+├── frontend-new/
+│   ├── src/
+│   │   ├── components/        # Reusable components
+│   │   │   ├── ui/           # shadcn/ui components
+│   │   │   ├── DocumentEditor.tsx
+│   │   │   ├── FileUpload.tsx
+│   │   │   └── ChatSidebar.tsx
+│   │   ├── pages/            # Page components
+│   │   │   ├── Dashboard.tsx
+│   │   │   ├── Documents.tsx
+│   │   │   ├── DocumentDetail.tsx
+│   │   │   ├── Analytics.tsx
+│   │   │   └── Settings.tsx
+│   │   ├── hooks/            # Custom React hooks
+│   │   ├── stores/           # State management
+│   │   ├── lib/              # Utilities
+│   │   └── App.tsx           # Main app component
+│   └── public/               # Static assets
+│
+└── README.md
+```
+
+---
+
+## 🔌 API Endpoints
+
+### Documents
+- `GET /api/documents` - List all documents
+- `GET /api/documents/:id` - Get document by ID
+- `POST /api/documents` - Create new document
+- `PUT /api/documents/:id` - Update document
+- `DELETE /api/documents/:id` - Delete document
+
+### File Upload
+- `POST /api/upload` - Upload file attachment
+- `GET /api/upload/document/:documentId` - Get document attachments
+- `GET /api/upload/:id` - Download attachment
+- `DELETE /api/upload/:id` - Delete attachment
+
+### AI Chat
+- `POST /api/chat` - Send message to AI assistant
+
+### GitHub Integration
+- `GET /api/github/repos/:username` - List user repositories
+- `GET /api/github/readme/:owner/:repo` - Get repository README
+
+### Templates
+- `GET /api/templates` - List all templates
+- `GET /api/templates/:id` - Get template by ID
+
+---
+
+## 🎨 Screenshots
+
+### Dashboard
+![Dashboard](docs/screenshots/dashboard.png)
+
+### Document Editor
+![Editor](docs/screenshots/editor.png)
+
+### AI Chat
+![Chat](docs/screenshots/chat.png)
+
+### File Upload
+![Upload](docs/screenshots/upload.png)
+
+---
+
+## 🚀 Deployment
+
+### Backend (Railway/Heroku)
+1. Push code to GitHub
+2. Connect repository to Railway/Heroku
+3. Set environment variables
+4. Deploy!
+
+### Frontend (Vercel/Netlify)
+1. Push code to GitHub
+2. Connect repository to Vercel/Netlify
+3. Build command: `npm run build`
+4. Output directory: `dist`
+5. Deploy!
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the project
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+---
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 👨‍💻 Author
+
+**Driss Chaouat**
+- GitHub: [@dch1985](https://github.com/dch1985)
+- Role: IT Consultant - Microsoft 365 Cloud Services
+
+---
+
+## 🙏 Acknowledgments
+
+- [shadcn/ui](https://ui.shadcn.com/) for the beautiful UI components
+- [TipTap](https://tiptap.dev/) for the rich text editor
+- [Prisma](https://www.prisma.io/) for the excellent ORM
+- [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service) for AI capabilities
+
+---
+
+## 📧 Support
+
+For support, email driss.chaouat@example.com or open an issue on GitHub.
+
+---
+
+<p align="center">Made with ❤️ by Driss Chaouat</p>
