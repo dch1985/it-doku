@@ -1,6 +1,6 @@
+// This is your Prisma schema file for SQL Server (NO ENUMS)
 generator client {
   provider = "prisma-client-js"
-  binaryTargets = ["native", "windows"]
 }
 
 datasource db {
@@ -8,68 +8,293 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ==========================================
+// MULTI-TENANCY
+// ==========================================
+model Tenant {
+  id            String         @id @default(uuid())
+  name          String
+  slug          String         @unique // URL-friendly identifier
+  description   String?
+  
+  // Billing & Subscription
+  subscriptionStatus String     @default("TRIAL") // TRIAL, ACTIVE, SUSPENDED, CANCELLED
+  subscriptionPlan  String?   // FREE, BASIC, PRO, ENTERPRISE
+  subscriptionExpiresAt DateTime?
+  
+  // Settings
+  settings      String?        @db.NVarChar(Max) // JSON as string
+  isActive      Boolean         @default(true)
+  
+  // Relations
+  members       TenantMember[]
+  documents     Document[]
+  templates     Template[]
+  conversations Conversation[]
+  
+  // Metadata
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  
+  @@index([slug])
+  @@index([subscriptionStatus])
+  @@map("tenants")
+}
+
+model TenantMember {
+  id            String         @id @default(uuid())
+  
+  // Relations
+  tenantId      String
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Role in this tenant
+  role          String         @default("MEMBER") // OWNER, ADMIN, MEMBER, VIEWER
+  
+  // Metadata
+  joinedAt      DateTime       @default(now())
+  
+  @@unique([tenantId, userId])
+  @@index([tenantId])
+  @@index([userId])
+  @@map("tenant_members")
+}
+
+// ==========================================
+// USER MANAGEMENT
+// ==========================================
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  name          String
+  password      String?
+  role          String         @default("USER") // ADMIN, USER, VIEWER
+  avatar        String?
+  
+  // Azure AD Integration
+  azureId       String?        @unique // Azure Object ID (oid)
+  azureOID      String?        @unique // Azure Object ID (oid) - alternative field name
+  
+  // Relations
+  tenants       TenantMember[]
+  documents     Document[]
+  conversations Conversation[]
+  apiKeys       ApiKey[]
+  
+  // Metadata
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  lastLoginAt   DateTime?
+  
+  @@map("users")
+}
+
+// ==========================================
+// DOCUMENTS & TEMPLATES
+// ==========================================
 model Document {
-  id          Int      @id @default(autoincrement())
+  id          String           @id @default(uuid())
   title       String
-  content     String
-  category    String
-  status      String   @default("Draft")
-  size        String   @default("0 KB")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  content     String           @db.NVarChar(Max)
+  category    String           @default("DOCUMENTATION") // DOCUMENTATION, CODE_ANALYSIS, TEMPLATE, KNOWLEDGE_BASE, MEETING_NOTES, TUTORIAL, API_SPEC
   
-  versions    DocumentVersion[]
-  attachments Attachment[]
+  // Tags as JSON (SQL Server doesn't support arrays natively)
+  tags        String?          @db.NVarChar(Max) // Store as JSON: ["tag1","tag2"]
   
+  // Versioning
+  version     Int              @default(1)
+  parentId    String?
+  parent      Document?        @relation("DocumentVersions", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  versions    Document[]       @relation("DocumentVersions")
+  
+  // Metadata
+  metadata    String?          @db.NVarChar(Max) // JSON as string
+  status      String           @default("DRAFT") // DRAFT, REVIEW, PUBLISHED, ARCHIVED
+  visibility  String           @default("PRIVATE") // PRIVATE, TEAM, PUBLIC
+  
+  // AI Generated
+  isAiGenerated Boolean        @default(false)
+  aiModel       String?
+  promptUsed    String?        @db.NVarChar(Max)
+  
+  // Relations
+  tenantId      String
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User           @relation(fields: [userId], references: [id])
+  knowledgeNodes KnowledgeNode[]
+  
+  // Timestamps
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  publishedAt DateTime?
+  
+  @@index([tenantId])
+  @@index([userId])
+  @@index([category])
+  @@index([status])
   @@map("documents")
 }
 
-model DocumentVersion {
-  id          Int      @id @default(autoincrement())
-  documentId  Int
-  content     String
-  version     String
-  changes     String
-  createdBy   String
-  createdAt   DateTime @default(now())
-  
-  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  
-  @@map("document_versions")
-}
-
+// ==========================================
+// TEMPLATES
+// ==========================================
 model Template {
-  id          Int      @id @default(autoincrement())
+  id          String         @id @default(uuid())
   name        String
-  description String
-  content     String
+  description String?
   category    String
-  icon        String
-  createdAt   DateTime @default(now())
+  content     String         @db.NVarChar(Max)
+  structure   String         @db.NVarChar(Max) // JSON as string
   
+  // Multi-Tenancy
+  tenantId    String?
+  tenant      Tenant?        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  isGlobal    Boolean         @default(false) // Global templates available to all tenants
+  
+  // Metadata
+  tags        String?        @db.NVarChar(Max) // JSON array as string
+  isNistCompliant Boolean    @default(false)
+  nistFramework   String?
+  
+  // Usage
+  usageCount  Int            @default(0)
+  
+  // Timestamps
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  
+  @@index([tenantId])
+  @@index([isGlobal])
   @@map("templates")
 }
 
-model ChatHistory {
-  id        Int      @id @default(autoincrement())
-  message   String
-  role      String
-  createdAt DateTime @default(now())
+// ==========================================
+// AI CONVERSATIONS
+// ==========================================
+model Conversation {
+  id          String    @id @default(uuid())
+  title       String
   
-  @@map("chat_history")
+  // Relations
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  messages    Message[]
+  
+  // Context & Memory (as JSON strings)
+  context     String?   @db.NVarChar(Max)
+  metadata    String?   @db.NVarChar(Max)
+  
+  // Timestamps
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@index([tenantId])
+  @@index([userId])
+  @@index([updatedAt])
+  @@map("conversations")
 }
 
-model Attachment {
-  id          Int      @id @default(autoincrement())
-  documentId  Int
-  filename    String
-  originalName String
-  mimeType    String
-  size        Int
-  path        String
+model Message {
+  id             String       @id @default(uuid())
+  role           String       // USER, ASSISTANT, SYSTEM
+  content        String       @db.NVarChar(Max)
+  
+  // Relations
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  
+  // Metadata
+  metadata       String?      @db.NVarChar(Max) // JSON as string
+  
+  // Timestamps
+  createdAt      DateTime     @default(now())
+  
+  @@index([conversationId])
+  @@map("messages")
+}
+
+// ==========================================
+// KNOWLEDGE GRAPH
+// ==========================================
+model KnowledgeNode {
+  id          String   @id @default(uuid())
+  content     String   @db.NVarChar(Max)
+  type        String   // CONCEPT, CODE, PERSON, TECHNOLOGY, PROCESS, ENTITY
+  
+  // Vector Embeddings - stored as JSON string
+  // Format: "[0.123, 0.456, ...]"
+  embedding   String?  @db.NVarChar(Max)
+  
+  // Relations
+  documentId  String?
+  document    Document? @relation(fields: [documentId], references: [id])
+  
+  // Graph Connections - stored as JSON array
+  connections String?  @db.NVarChar(Max)
+  tags        String?  @db.NVarChar(Max)
+  
+  // Metadata
+  metadata    String?  @db.NVarChar(Max)
+  
+  // Timestamps
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   
-  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  @@index([documentId])
+  @@index([type])
+  @@map("knowledge_nodes")
+}
+
+// ==========================================
+// API MANAGEMENT
+// ==========================================
+model ApiKey {
+  id          String    @id @default(uuid())
+  name        String
+  key         String    @unique
   
-  @@map("attachments")
+  // Relations
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  
+  // Usage tracking
+  lastUsedAt  DateTime?
+  usageCount  Int       @default(0)
+  
+  // Security
+  expiresAt   DateTime?
+  isActive    Boolean   @default(true)
+  
+  // Timestamps
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@index([userId])
+  @@map("api_keys")
+}
+
+// ==========================================
+// ANALYTICS & LOGGING
+// ==========================================
+model ActivityLog {
+  id          String       @id @default(uuid())
+  userId      String?
+  action      String
+  resource    String
+  resourceId  String?
+  metadata    String?      @db.NVarChar(Max) // JSON as string
+  ipAddress   String?
+  userAgent   String?
+  
+  createdAt   DateTime     @default(now())
+  
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("activity_logs")
 }

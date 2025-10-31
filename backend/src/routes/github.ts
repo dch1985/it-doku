@@ -85,6 +85,10 @@ router.get('/repos/:owner/:repo/file', async (req: Request, res: Response) => {
 // Import repository as document
 router.post('/repos/:owner/:repo/import', async (req: Request, res: Response) => {
   try {
+    if (!(req as any).tenant || !(req as any).user) {
+      return res.status(400).json({ error: 'Tenant and user context required' })
+    }
+
     const { owner, repo } = req.params
     const token = req.headers['x-github-token'] as string
     
@@ -99,9 +103,10 @@ router.post('/repos/:owner/:repo/import', async (req: Request, res: Response) =>
       data: {
         title: `${owner}/${repo} - README`,
         content: readme.content,
-        category: 'Development',
-        status: 'Published',
-        size: `${Math.round(readme.content.length / 1024)} KB`
+        category: 'DEVELOPMENT',
+        tenantId: (req as any).tenant.id, // Tenant isolation
+        userId: (req as any).user.id, // Current user
+        status: 'PUBLISHED' // Uppercase wie im Schema
       }
     })
     

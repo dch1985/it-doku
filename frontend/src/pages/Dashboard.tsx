@@ -1,228 +1,273 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { 
-  FileText, 
-  Clock,
-  ArrowRight,
-  Sparkles,
-  Zap,
-  Database,
-  TrendingUp
-} from 'lucide-react';
-import { documentService } from '../services/document.service';
+﻿import { useState } from 'react'
+import { useSidebarStore } from '@/stores/sidebarStore'
+import { DocumentsChart } from '@/features/dashboard/components/DocumentsChart'
+import { AIUsageChart } from '@/features/dashboard/components/AIUsageChart'
+import { StorageChart } from '@/features/dashboard/components/StorageChart'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { toast } from 'sonner'
+import { Plus, MessageSquare, FileText } from 'lucide-react'
+import { useDocuments } from '@/hooks/useDocuments'
 
 export function Dashboard() {
-  const [stats, setStats] = useState({
-    totalDocuments: 0,
-    recentDocuments: 0,
-    aiGenerations: 0,
-    lastUpdated: new Date(),
-  });
+  const [newDocDialog, setNewDocDialog] = useState(false)
+  const [templatesDialog, setTemplatesDialog] = useState(false)
+  const { toggleChat } = useSidebarStore()
+  const { documents, createDocument } = useDocuments()
 
-  useEffect(() => {
-    loadStats();
-  }, []);
+  const handleNewDocument = async () => {
+  const titleInput = document.getElementById('doc-title') as HTMLInputElement
+  const categoryInput = document.getElementById('doc-category') as HTMLInputElement
+  
+  if (!titleInput?.value || !categoryInput?.value) {
+    toast.error('Please fill in all fields')
+    return
+  }
 
-  const loadStats = async () => {
-    try {
-      const response = await documentService.getAll();
-      setStats({
-        totalDocuments: response.total || response.documents.length,
-        recentDocuments: response.documents.filter(d => {
-          const created = new Date(d.createdAt);
-          const weekAgo = new Date();
-          weekAgo.setDate(weekAgo.getDate() - 7);
-          return created > weekAgo;
-        }).length,
-        aiGenerations: 0,
-        lastUpdated: new Date(),
-      });
-    } catch (error) {
-      console.error('Failed to load stats:', error);
-    }
-  };
-
-  const statCards = [
-    {
-      label: 'Gesamt Dokumente',
-      value: stats.totalDocuments,
-      icon: FileText,
-      color: 'from-cyan-500 to-blue-600',
-      change: '+12%',
-    },
-    {
-      label: 'Diese Woche',
-      value: stats.recentDocuments,
-      icon: Clock,
-      color: 'from-purple-500 to-pink-600',
-      change: '+3',
-    },
-    {
-      label: 'AI Generierungen',
-      value: stats.aiGenerations,
-      icon: Sparkles,
-      color: 'from-orange-500 to-red-600',
-      change: 'Neu',
-    },
-    {
-      label: 'Aktive Projekte',
-      value: 4,
-      icon: Database,
-      color: 'from-green-500 to-emerald-600',
-      change: '+1',
-    },
-  ];
-
-  const quickActions = [
-    {
-      title: 'Neues Dokument',
-      description: 'Erstelle eine neue Dokumentation',
-      icon: FileText,
-      link: '/documents',
-      color: 'from-cyan-500 to-blue-600',
-    },
-    {
-      title: 'AI-Assistent',
-      description: 'Lass die KI dir helfen',
-      icon: Sparkles,
-      link: '#',
-      color: 'from-purple-500 to-pink-600',
-    },
-    {
-      title: 'Code Analyse',
-      description: 'Analysiere deinen Code',
-      icon: Zap,
-      link: '#',
-      color: 'from-orange-500 to-red-600',
-    },
-  ];
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3">
-            <span className="bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-              Dashboard
-            </span>
-            <Sparkles className="w-8 h-8 text-cyan-400 animate-pulse" />
-          </h1>
-          <p className="text-gray-400">
-            Willkommen zurück! Hier ist deine Übersicht.
-          </p>
-        </div>
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {statCards.map((stat, index) => {
-            const Icon = stat.icon;
-            return (
-              <div
-                key={index}
-                className="relative group overflow-hidden rounded-2xl bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/50 backdrop-blur-sm hover:border-gray-600/50 transition-all duration-300"
-              >
-                <div className={`absolute inset-0 bg-gradient-to-br ${stat.color} opacity-0 group-hover:opacity-10 transition-opacity duration-300`} />
-                
-                <div className="relative p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className={`p-3 rounded-xl bg-gradient-to-br ${stat.color} shadow-lg`}>
-                      <Icon className="w-6 h-6 text-white" />
-                    </div>
-                    <span className="text-xs font-medium text-green-400 bg-green-400/10 px-2 py-1 rounded-full">
-                      {stat.change}
-                    </span>
-                  </div>
-                  
-                  <div className="text-3xl font-bold text-white mb-1">
-                    {stat.value}
-                  </div>
-                  <div className="text-sm text-gray-400">
-                    {stat.label}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Quick Actions */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-            <Zap className="w-6 h-6 text-cyan-400" />
-            Quick Actions
-          </h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {quickActions.map((action, index) => {
-              const Icon = action.icon;
-              return (
-                <Link
-                  key={index}
-                  to={action.link}
-                  className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/50 backdrop-blur-sm hover:border-gray-600/50 transition-all duration-300 hover:scale-105"
-                >
-                  <div className={`absolute inset-0 bg-gradient-to-br ${action.color} opacity-0 group-hover:opacity-20 transition-opacity duration-300`} />
-                  
-                  <div className="relative p-6">
-                    <div className={`inline-flex p-3 rounded-xl bg-gradient-to-br ${action.color} shadow-lg mb-4`}>
-                      <Icon className="w-6 h-6 text-white" />
-                    </div>
-                    
-                    <h3 className="text-lg font-semibold text-white mb-2">
-                      {action.title}
-                    </h3>
-                    <p className="text-sm text-gray-400 mb-4">
-                      {action.description}
-                    </p>
-                    
-                    <div className="flex items-center text-cyan-400 text-sm font-medium group-hover:gap-2 transition-all">
-                      Starten
-                      <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Recent Activity */}
-        <div className="rounded-2xl bg-gradient-to-br from-gray-800/50 to-gray-900/50 border border-gray-700/50 backdrop-blur-sm p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-              <TrendingUp className="w-6 h-6 text-cyan-400" />
-              Letzte Aktivität
-            </h2>
-            <Link
-              to="/documents"
-              className="text-cyan-400 hover:text-cyan-300 text-sm font-medium flex items-center gap-1"
-            >
-              Alle anzeigen
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-          
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="flex items-center gap-4 p-4 rounded-xl bg-gray-800/30 hover:bg-gray-800/50 transition-colors"
-              >
-                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-white" />
-                </div>
-                <div className="flex-1">
-                  <div className="text-white font-medium">Dokument bearbeitet</div>
-                  <div className="text-sm text-gray-400">Vor {i} Stunden</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  try {
+    await createDocument({
+      title: titleInput.value,
+      category: categoryInput.value,
+      content: '<h1>' + titleInput.value + '</h1><p>Start writing...</p>'
+    })
+    setNewDocDialog(false)
+    titleInput.value = ''
+    categoryInput.value = ''
+  } catch (error) {
+    // Error handled in hook
+  }
 }
 
-export default Dashboard;
+  const handleAskAI = () => {
+    toggleChat()
+    toast.info('AI Chat opened!')
+  }
+
+  const templates = [
+    { id: 1, name: 'Server Dokumentation', icon: '🖥️', description: 'Vollstaendige Server-Dokumentation' },
+    { id: 2, name: 'Netzwerk-Diagramm', icon: '🌐', description: 'Netzwerk-Topologie und Konfiguration' },
+    { id: 3, name: 'Backup-Plan', icon: '💾', description: 'Backup-Strategie und Wiederherstellung' },
+    { id: 4, name: 'Runbook', icon: '📖', description: 'Schritt-fuer-Schritt Anleitungen' },
+    { id: 5, name: 'Security Policy', icon: '🔒', description: 'Sicherheitsrichtlinien' },
+    { id: 6, name: 'Change Log', icon: '📝', description: 'Aenderungsprotokoll' },
+  ]
+
+  return (
+    <div className='space-y-6'>
+      <div>
+        <h2 className='text-3xl font-bold tracking-tight'>Welcome back, Driss!</h2>
+        <p className='text-muted-foreground'>
+          Here's what's happening with your documentation today.
+        </p>
+      </div>
+
+      <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
+        <Card>
+  <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+    <CardTitle className='text-sm font-medium'>Total Documents</CardTitle>
+    <span className='text-2xl'>📄</span>
+  </CardHeader>
+  <CardContent>
+    <div className='text-2xl font-bold'>{documents.length}</div>
+    <p className='text-xs text-muted-foreground'>
+      {documents.filter(d => d.status === 'Published').length} published
+    </p>
+  </CardContent>
+</Card>
+
+        <Card>
+          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+            <CardTitle className='text-sm font-medium'>AI Queries</CardTitle>
+            <span className='text-2xl'>💬</span>
+          </CardHeader>
+          <CardContent>
+            <div className='text-2xl font-bold'>1,284</div>
+            <p className='text-xs text-muted-foreground'>+8% from last month</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+            <CardTitle className='text-sm font-medium'>Active Users</CardTitle>
+            <span className='text-2xl'>👥</span>
+          </CardHeader>
+          <CardContent>
+            <div className='text-2xl font-bold'>42</div>
+            <p className='text-xs text-muted-foreground'>+4 new this week</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+            <CardTitle className='text-sm font-medium'>Storage Used</CardTitle>
+            <span className='text-2xl'>💾</span>
+          </CardHeader>
+          <CardContent>
+            <div className='text-2xl font-bold'>2.4 GB</div>
+            <p className='text-xs text-muted-foreground'>18% of 15 GB</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className='grid gap-4 md:grid-cols-2'>
+        <DocumentsChart />
+        <AIUsageChart />
+      </div>
+
+      <StorageChart />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Quick Actions</CardTitle>
+          <CardDescription>Get started with common tasks</CardDescription>
+        </CardHeader>
+        <CardContent className='flex gap-2'>
+          <Button onClick={() => setNewDocDialog(true)}>
+            <Plus className='mr-2 h-4 w-4' />
+            New Document
+          </Button>
+          <Button variant='outline' onClick={handleAskAI}>
+            <MessageSquare className='mr-2 h-4 w-4' />
+            Ask AI
+          </Button>
+          <Button variant='outline' onClick={() => setTemplatesDialog(true)}>
+            <FileText className='mr-2 h-4 w-4' />
+            View Templates
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Activity</CardTitle>
+            <CardDescription>Latest updates to your documentation</CardDescription>
+          </CardHeader>
+        <CardContent>
+      <div className='space-y-4'>
+      {[
+        { 
+          title: 'Server Documentation Updated', 
+          time: '2 hours ago', 
+          type: 'update',
+          icon: FileText,
+          color: 'text-blue-500'
+        },
+        { 
+          title: 'New AI Chat Session', 
+          time: '4 hours ago', 
+          type: 'chat',
+          icon: MessageSquare,
+          color: 'text-green-500'
+        },
+        { 
+          title: 'Template Created', 
+          time: '1 day ago', 
+          type: 'create',
+          icon: Plus,
+          color: 'text-purple-500'
+        },
+        { 
+          title: 'Security Policy Updated', 
+          time: '2 days ago', 
+          type: 'update',
+          icon: FileText,
+          color: 'text-blue-500'
+        },
+        { 
+          title: 'Backup Plan Modified', 
+          time: '3 days ago', 
+          type: 'update',
+          icon: FileText,
+          color: 'text-blue-500'
+        },
+      ].map((activity, i) => {
+        const Icon = activity.icon
+        return (
+          <div 
+            key={i} 
+            className='flex items-start gap-4 rounded-lg p-3 transition-colors hover:bg-accent cursor-pointer'
+          >
+            <div className={`rounded-full bg-muted p-2 ${activity.color}`}>
+              <Icon className='h-4 w-4' />
+            </div>
+            <div className='flex-1 space-y-1'>
+              <p className='text-sm font-medium leading-none'>{activity.title}</p>
+              <p className='text-xs text-muted-foreground'>{activity.time}</p>
+            </div>
+            <Button variant='ghost' size='sm' className='h-8 text-xs'>
+              View
+            </Button>
+          </div>
+        )
+      })}
+    </div>
+  </CardContent>
+</Card>
+
+      <Dialog open={newDocDialog} onOpenChange={setNewDocDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Document</DialogTitle>
+            <DialogDescription>
+              Start a new documentation document from scratch
+            </DialogDescription>
+          </DialogHeader>
+          <div className='space-y-4 py-4'>
+            <div className='space-y-2'>
+              <Label htmlFor='doc-title'>Document Title</Label>
+              <Input id='doc-title' placeholder='e.g. Server Configuration' />
+            </div>
+            <div className='space-y-2'>
+              <Label htmlFor='doc-category'>Category</Label>
+              <Input id='doc-category' placeholder='e.g. Infrastructure' />
+            </div>
+          </div>
+          <div className='flex justify-end gap-2'>
+            <Button variant='outline' onClick={() => setNewDocDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleNewDocument}>Create Document</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={templatesDialog} onOpenChange={setTemplatesDialog}>
+        <DialogContent className='max-w-2xl'>
+          <DialogHeader>
+            <DialogTitle>Document Templates</DialogTitle>
+            <DialogDescription>
+              Choose a template to get started quickly
+            </DialogDescription>
+          </DialogHeader>
+          <div className='grid gap-4 py-4 md:grid-cols-2'>
+            {templates.map((template) => (
+              <Card 
+                key={template.id} 
+                className='cursor-pointer hover:border-primary transition-colors'
+                onClick={() => {
+                  toast.success(`Template ${template.name} selected!`)
+                  setTemplatesDialog(false)
+                }}
+              >
+                <CardHeader>
+                  <CardTitle className='flex items-center gap-2 text-base'>
+                    <span className='text-2xl'>{template.icon}</span>
+                    {template.name}
+                  </CardTitle>
+                  <CardDescription className='text-xs'>
+                    {template.description}
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+export default Dashboard

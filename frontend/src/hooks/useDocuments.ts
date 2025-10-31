@@ -1,407 +1,148 @@
-/**
- * useDocuments Hook
- * Custom React Hook für Document State Management (FIXED)
- */
+import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { documentService } from '../services/document.service';
-import {
-  Document,
-  CreateDocumentDTO,
-  UpdateDocumentDTO,
-  DocumentFilters,
-  DocumentStatus,
-  DocumentStats,
-} from '../types/document';
+const API_URL = 'http://localhost:3001/api'
 
-interface UseDocumentsReturn {
-  // State
-  documents: Document[];
-  loading: boolean;
-  error: string | null;
-  filters: DocumentFilters;
-  stats: DocumentStats | null;
-  
-  // Computed
-  filteredDocuments: Document[];
-  documentsByCategory: Record<string, Document[]>;
-  documentsByStatus: Record<DocumentStatus, Document[]>;
-  totalDocuments: number;
-  
-  // Methods
-  fetchDocuments: () => Promise<void>;
-  fetchDocumentById: (id: string) => Promise<Document | null>;
-  createDocument: (data: CreateDocumentDTO) => Promise<Document | null>;
-  updateDocument: (id: string, data: UpdateDocumentDTO) => Promise<Document | null>;
-  deleteDocument: (id: string) => Promise<boolean>;
-  fetchStats: () => Promise<void>;
-  
-  // Filter Methods
-  setFilters: (filters: Partial<DocumentFilters>) => void;
-  clearFilters: () => void;
-  filterByCategory: (category: string) => void;
-  filterByStatus: (status: DocumentStatus) => void;
-  filterByTags: (tags: string[]) => void;
-  searchDocuments: (searchTerm: string) => void;
-  
-  // Utility Methods
-  refreshDocuments: () => Promise<void>;
-  clearError: () => void;
+interface Document {
+  id: string  // UUID String
+  title: string
+  content: string
+  category: string
+  status: string
+  createdAt: string
+  updatedAt: string
+  userId?: string
+  version?: number
 }
 
-/**
- * useDocuments Custom Hook
- */
-export const useDocuments = (autoFetch: boolean = true): UseDocumentsReturn => {
-  // State
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-  const [filters, setFiltersState] = useState<DocumentFilters>({});
-  const [stats, setStats] = useState<DocumentStats | null>(null);
-  
-  // Ref to track if initial fetch happened
-  const initialFetchDone = useRef(false);
+export function useDocuments() {
+  const [documents, setDocuments] = useState<Document[]>([])
+  const [loading, setLoading] = useState(false)
 
-  /**
-   * Dokumente vom Backend laden
-   * FIXED: Entfernt filters aus dependencies
-   */
-  const fetchDocuments = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    
+  const fetchDocuments = async () => {
+    setLoading(true)
     try {
-      // Verwende leeres Objekt statt filters für client-seitige Filterung
-      const response = await documentService.getAll({});
-      setDocuments(response.documents);
-    } catch (err: any) {
-      const errorMessage = err.message || 'Fehler beim Laden der Dokumente';
-      setError(errorMessage);
-      console.error('Error fetching documents:', err);
-      setDocuments([]); // Set empty array on error
-    } finally {
-      setLoading(false);
-    }
-  }, []); // FIXED: Keine dependencies mehr
-
-  /**
-   * Einzelnes Dokument laden
-   */
-  const fetchDocumentById = useCallback(async (id: string): Promise<Document | null> => {
-    if (!id) {
-      setError('Ungültige Dokument-ID');
-      return null;
-    }
-
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const document = await documentService.getById(id);
-      return document;
-    } catch (err: any) {
-      const errorMessage = err.message || 'Fehler beim Laden des Dokuments';
-      setError(errorMessage);
-      console.error('Error fetching document:', err);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  /**
-   * Neues Dokument erstellen
-   */
-  const createDocument = useCallback(async (data: CreateDocumentDTO): Promise<Document | null> => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const newDocument = await documentService.create(data);
-      setDocuments(prev => [newDocument, ...prev]); // Add to beginning
-      return newDocument;
-    } catch (err: any) {
-      const errorMessage = err.message || 'Fehler beim Erstellen des Dokuments';
-      setError(errorMessage);
-      console.error('Error creating document:', err);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  /**
-   * Dokument aktualisieren
-   */
-  const updateDocument = useCallback(async (
-    id: string,
-    data: UpdateDocumentDTO
-  ): Promise<Document | null> => {
-    if (!id) {
-      setError('Ungültige Dokument-ID');
-      return null;
-    }
-
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const updatedDocument = await documentService.update(id, data);
-      setDocuments(prev =>
-        prev.map(doc => (doc.id === id ? updatedDocument : doc))
-      );
-      return updatedDocument;
-    } catch (err: any) {
-      const errorMessage = err.message || 'Fehler beim Aktualisieren des Dokuments';
-      setError(errorMessage);
-      console.error('Error updating document:', err);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  /**
-   * Dokument löschen
-   */
-  const deleteDocument = useCallback(async (id: string): Promise<boolean> => {
-    if (!id) {
-      setError('Ungültige Dokument-ID');
-      return false;
-    }
-
-    setLoading(true);
-    setError(null);
-    
-    try {
-      await documentService.delete(id);
-      setDocuments(prev => prev.filter(doc => doc.id !== id));
-      return true;
-    } catch (err: any) {
-      const errorMessage = err.message || 'Fehler beim Löschen des Dokuments';
-      setError(errorMessage);
-      console.error('Error deleting document:', err);
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  /**
-   * Statistiken laden
-   */
-  const fetchStats = useCallback(async () => {
-    try {
-      const statsData = await documentService.getStats();
-      setStats(statsData);
-    } catch (err: any) {
-      console.error('Error fetching stats:', err);
-      // Don't set error state for stats - it's not critical
-    }
-  }, []);
-
-  /**
-   * Filter setzen
-   */
-  const setFilters = useCallback((newFilters: Partial<DocumentFilters>) => {
-    setFiltersState(prev => ({ ...prev, ...newFilters }));
-  }, []);
-
-  /**
-   * Filter zurücksetzen
-   */
-  const clearFilters = useCallback(() => {
-    setFiltersState({});
-  }, []);
-
-  /**
-   * Nach Kategorie filtern
-   */
-  const filterByCategory = useCallback((category: string) => {
-    setFilters({ category });
-  }, [setFilters]);
-
-  /**
-   * Nach Status filtern
-   */
-  const filterByStatus = useCallback((status: DocumentStatus) => {
-    setFilters({ status });
-  }, [setFilters]);
-
-  /**
-   * Nach Tags filtern
-   */
-  const filterByTags = useCallback((tags: string[]) => {
-    setFilters({ tags });
-  }, [setFilters]);
-
-  /**
-   * Dokumente suchen
-   */
-  const searchDocuments = useCallback((searchTerm: string) => {
-    setFilters({ searchTerm });
-  }, [setFilters]);
-
-  /**
-   * Dokumente neu laden
-   */
-  const refreshDocuments = useCallback(async () => {
-    await fetchDocuments();
-  }, [fetchDocuments]);
-
-  /**
-   * Fehler zurücksetzen
-   */
-  const clearError = useCallback(() => {
-    setError(null);
-  }, []);
-
-  // Computed Properties
-
-  /**
-   * Gefilterte Dokumente (Client-seitig)
-   * FIXED: Bessere Type Safety
-   */
-  const filteredDocuments = useMemo(() => {
-    let result = [...documents];
-
-    // Suche
-    if (filters.searchTerm && filters.searchTerm.trim()) {
-      const term = filters.searchTerm.toLowerCase().trim();
-      result = result.filter(
-        doc =>
-          doc.title.toLowerCase().includes(term) ||
-          doc.content.toLowerCase().includes(term) ||
-          doc.category.toLowerCase().includes(term) ||
-          doc.tags.some(tag => tag.toLowerCase().includes(term))
-      );
-    }
-
-    // Kategorie
-    if (filters.category) {
-      result = result.filter(doc => doc.category === filters.category);
-    }
-
-    // Status
-    if (filters.status) {
-      result = result.filter(doc => doc.status === filters.status);
-    }
-
-    // Tags
-    if (filters.tags && filters.tags.length > 0) {
-      result = result.filter(doc =>
-        filters.tags!.some(tag => doc.tags.includes(tag))
-      );
-    }
-
-    // Sortierung - FIXED: Better type safety
-    if (filters.sortBy) {
-      result.sort((a, b) => {
-        const sortBy = filters.sortBy as keyof Document;
-        const aValue = a[sortBy];
-        const bValue = b[sortBy];
-        
-        // Handle different types
-        if (typeof aValue === 'string' && typeof bValue === 'string') {
-          const comparison = aValue.localeCompare(bValue);
-          return filters.sortOrder === 'asc' ? comparison : -comparison;
+      const response = await fetch(`${API_URL}/documents`)
+      
+      if (!response.ok) {
+        // Try to get error details from response
+        let errorMessage = 'Failed to load documents'
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorData.message || errorMessage
+          
+          // Show specific error details if available
+          if (errorData.details) {
+            errorMessage += `: ${errorData.details}`
+          }
+        } catch {
+          // If JSON parsing fails, use status text
+          errorMessage = `Failed to load documents (${response.status} ${response.statusText})`
         }
         
-        if (typeof aValue === 'number' && typeof bValue === 'number') {
-          return filters.sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
-        }
-        
-        // Fallback for dates
-        if (aValue < bValue) return filters.sortOrder === 'asc' ? -1 : 1;
-        if (aValue > bValue) return filters.sortOrder === 'asc' ? 1 : -1;
-        return 0;
-      });
+        throw new Error(errorMessage)
+      }
+      
+      const data = await response.json()
+      setDocuments(data)
+    } catch (error: any) {
+      console.error('Error fetching documents:', error)
+      
+      // More specific error messages
+      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        toast.error('Cannot connect to backend. Please check if the backend is running on http://localhost:3001')
+      } else if (error.message.includes('firewall') || error.message.includes('FIREWALL_ERROR') || error.code === 'FIREWALL_ERROR') {
+        toast.error('Database firewall error: Your IP address is not allowed. Please add your IP to Azure SQL Server firewall rules.', {
+          duration: 10000
+        })
+      } else if (error.message.includes('database') || error.message.includes('Prisma') || error.message.includes('Database connection')) {
+        toast.error('Database connection error. Please check database configuration.', {
+          duration: 8000
+        })
+      } else {
+        toast.error(error.message || 'Failed to load documents')
+      }
+    } finally {
+      setLoading(false)
     }
+  }
 
-    return result;
-  }, [documents, filters]);
+  const createDocument = async (doc: Partial<Document>) => {
+    try {
+      const response = await fetch(`${API_URL}/documents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(doc)
+      })
+      if (!response.ok) throw new Error('Failed to create document')
+      const newDoc = await response.json()
+      setDocuments([...documents, newDoc])
+      toast.success('Document created successfully!')
+      return newDoc
+    } catch (error) {
+      console.error('Error creating document:', error)
+      toast.error('Failed to create document')
+      throw error
+    }
+  }
 
-  /**
-   * Dokumente nach Kategorie gruppiert
-   */
-  const documentsByCategory = useMemo(() => {
-    return documents.reduce((acc, doc) => {
-      const category = doc.category || 'Uncategorized';
-      if (!acc[category]) {
-        acc[category] = [];
-      }
-      acc[category].push(doc);
-      return acc;
-    }, {} as Record<string, Document[]>);
-  }, [documents]);
+  const updateDocument = async (id: string, doc: Partial<Document>) => {
+    try {
+      const response = await fetch(`${API_URL}/documents/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(doc)
+      })
+      if (!response.ok) throw new Error('Failed to update document')
+      const updatedDoc = await response.json()
+      setDocuments(documents.map(d => d.id === id ? updatedDoc : d))
+      toast.success('Document updated successfully!')
+      return updatedDoc
+    } catch (error) {
+      console.error('Error updating document:', error)
+      toast.error('Failed to update document')
+      throw error
+    }
+  }
 
-  /**
-   * Dokumente nach Status gruppiert
-   */
-  const documentsByStatus = useMemo(() => {
-    return documents.reduce((acc, doc) => {
-      const status = doc.status || DocumentStatus.DRAFT;
-      if (!acc[status]) {
-        acc[status] = [];
-      }
-      acc[status].push(doc);
-      return acc;
-    }, {} as Record<DocumentStatus, Document[]>);
-  }, [documents]);
+  const deleteDocument = async (id: string) => {
+    try {
+      const response = await fetch(`${API_URL}/documents/${id}`, {
+        method: 'DELETE'
+      })
+      if (!response.ok) throw new Error('Failed to delete document')
+      setDocuments(documents.filter(d => d.id !== id))
+      toast.success('Document deleted successfully!')
+    } catch (error) {
+      console.error('Error deleting document:', error)
+      toast.error('Failed to delete document')
+      throw error
+    }
+  }
 
-  /**
-   * Gesamtanzahl der Dokumente
-   */
-  const totalDocuments = useMemo(() => documents.length, [documents.length]);
+  const getDocument = async (id: string) => {
+    try {
+      const response = await fetch(`${API_URL}/documents/${id}`)
+      if (!response.ok) throw new Error('Failed to fetch document')
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching document:', error)
+      toast.error('Failed to load document')
+      throw error
+    }
+  }
 
-  // Effects
-
-  /**
-   * Initial Load - FIXED: Only run once
-   */
   useEffect(() => {
-    if (autoFetch && !initialFetchDone.current) {
-      fetchDocuments();
-      initialFetchDone.current = true;
-    }
-  }, [autoFetch, fetchDocuments]);
+    fetchDocuments()
+  }, [])
 
-  // Return
   return {
-    // State
     documents,
     loading,
-    error,
-    filters,
-    stats,
-    
-    // Computed
-    filteredDocuments,
-    documentsByCategory,
-    documentsByStatus,
-    totalDocuments,
-    
-    // Methods
-    fetchDocuments,
-    fetchDocumentById,
     createDocument,
     updateDocument,
     deleteDocument,
-    fetchStats,
-    
-    // Filter Methods
-    setFilters,
-    clearFilters,
-    filterByCategory,
-    filterByStatus,
-    filterByTags,
-    searchDocuments,
-    
-    // Utility Methods
-    refreshDocuments,
-    clearError,
-  };
-};
-
-export default useDocuments;
+    getDocument,
+    refetch: fetchDocuments
+  }
+}

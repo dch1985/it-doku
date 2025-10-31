@@ -1,213 +1,84 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import { QueryProvider } from './providers/QueryProvider'
+import { AuthProvider } from './contexts/AuthContext'
+import { ChatProvider } from './contexts/ChatContext'
+import { MainLayout } from './layouts/MainLayout'
+import { ChatSidebar } from './features/chat/components/ChatSidebar'
+import { useThemeStore } from './stores/themeStore'
+import { useEffect, useState } from 'react'
+import { Toaster } from 'sonner'
+import { ErrorBoundary } from './components/ErrorBoundary'
+import { Dashboard, Documents, Settings, Analytics, DocumentDetail } from './router/lazyRoutes'
 
-// Dark Mode Hook
-const useDarkMode = () => {
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    const saved = localStorage.getItem('darkMode');
-    if (saved !== null) return JSON.parse(saved);
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
-  });
+type Page = 'dashboard' | 'documents' | 'settings' | 'analytics' | 'document-detail'
+
+function App() {
+  const theme = useThemeStore((state) => state.theme)
+  const [currentPage, setCurrentPage] = useState<Page>('dashboard')
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null)
 
   useEffect(() => {
-    localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
-    document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
-  }, [isDarkMode]);
+    const root = window.document.documentElement
+    root.classList.remove('light', 'dark')
 
-  const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
+    if (theme === 'system') {
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
+        ? 'dark'
+        : 'light'
+      root.classList.add(systemTheme)
+    } else {
+      root.classList.add(theme)
+    }
+  }, [theme])
 
-  return { isDarkMode, toggleDarkMode };
-};
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.slice(1)
+      if (hash === 'docs' || hash === 'documents') {
+        setCurrentPage('documents')
+      } else if (hash === 'settings') {
+        setCurrentPage('settings')
+      } else if (hash === 'analytics') {
+        setCurrentPage('analytics')
+      } else if (hash.startsWith('document/')) {
+        const id = hash.split('/')[1]  // UUID String, kein parseInt()
+        setSelectedDocumentId(id)
+        setCurrentPage('document-detail')
+      } else {
+        setCurrentPage('dashboard')
+      }
+    }
 
-// IT Topic Data
-interface TopicData {
-  id: string;
-  title: string;
-  icon: string;
-  description: string;
-  category: 'server' | 'network' | 'security' | 'backup' | 'monitoring' | 'troubleshoot';
-}
-
-const topicsData: TopicData[] = [
-  {
-    id: 'server',
-    title: 'Serveradministration',
-    icon: '🖥️',
-    description: 'Linux & Windows Server Management, Virtualisierung und Cloud-Services.',
-    category: 'server'
-  },
-  {
-    id: 'network',
-    title: 'Netzwerk',
-    icon: '🌐',
-    description: 'Switches, Router & Firewall Konfiguration, VPN und Netzwerksicherheit.',
-    category: 'network'
-  },
-  {
-    id: 'security',
-    title: 'Sicherheit',
-    icon: '🔒',
-    description: 'Security Guidelines, Penetration Testing und Compliance-Standards.',
-    category: 'security'
-  },
-  {
-    id: 'backup',
-    title: 'Backup & Recovery',
-    icon: '💾',
-    description: 'Datensicherung, Disaster Recovery und Business Continuity Planning.',
-    category: 'backup'
-  },
-  {
-    id: 'monitoring',
-    title: 'Monitoring',
-    icon: '📊',
-    description: 'System- & Netzwerk-Überwachung, Alerting und Performance-Analyse.',
-    category: 'monitoring'
-  },
-  {
-    id: 'troubleshoot',
-    title: 'Troubleshooting',
-    icon: '🔧',
-    description: 'Problemlösung, Diagnose-Tools und systematische Fehleranalyse.',
-    category: 'troubleshoot'
-  }
-];
-
-// Icons für Dark Mode Toggle
-const SunIcon: React.FC = () => (
-  <svg 
-    className="dark-mode-toggle-icon dark-mode-toggle-icon--sun" 
-    fill="currentColor" 
-    viewBox="0 0 20 20"
-  >
-    <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
-  </svg>
-);
-
-const MoonIcon: React.FC = () => (
-  <svg 
-    className="dark-mode-toggle-icon dark-mode-toggle-icon--moon" 
-    fill="currentColor" 
-    viewBox="0 0 20 20"
-  >
-    <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
-  </svg>
-);
-
-const PlusIcon: React.FC = () => (
-  <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-  </svg>
-);
-
-// Topic Card Component
-interface TopicCardProps {
-  topic: TopicData;
-  index: number;
-}
-
-const TopicCard: React.FC<TopicCardProps> = ({ topic, index }) => (
-  <div 
-    className={`topic-card topic-card--${topic.category} animate-fade-in-up`}
-    style={{ animationDelay: `${index * 100}ms` }}
-    tabIndex={0}
-    role="button"
-    aria-label={`${topic.title} dokumentation öffnen`}
-  >
-    <div className="topic-card-content">
-      <div className="topic-card-icon" role="img" aria-label={topic.title}>
-        {topic.icon}
-      </div>
-      <div>
-        <h3 className="topic-card-title">{topic.title}</h3>
-        <p className="topic-card-description">{topic.description}</p>
-      </div>
-    </div>
-  </div>
-);
-
-// Main App Component
-const App: React.FC = () => {
-  const { isDarkMode, toggleDarkMode } = useDarkMode();
+    handleHashChange()
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [])
 
   return (
-    <div className="app-layout">
-      {/* Header */}
-      <header className="app-header">
-        <div className="header-content">
-          <h1 className="header-logo">
-            IT Dokumentation
-          </h1>
-          
-          <div className="header-actions">
-            <button
-              className="dark-mode-toggle"
-              onClick={toggleDarkMode}
-              aria-label={`Zu ${isDarkMode ? 'hellem' : 'dunklem'} Modus wechseln`}
-              title={`${isDarkMode ? 'Heller' : 'Dunkler'} Modus`}
-            >
-              <SunIcon />
-              <MoonIcon />
-            </button>
-          </div>
-        </div>
-      </header>
+    <ErrorBoundary>
+      <AuthProvider>
+        <QueryProvider>
+          <ChatProvider>
+            <MainLayout>
+              {currentPage === 'dashboard' && <Dashboard />}
+              {currentPage === 'documents' && <Documents />}
+              {currentPage === 'settings' && <Settings />}
+              {currentPage === 'analytics' && <Analytics />}
+              {currentPage === 'document-detail' && selectedDocumentId && (
+                <DocumentDetail 
+                  documentId={selectedDocumentId} 
+                  onBack={() => {
+                    window.location.hash = 'documents'
+                  }} 
+                />
+              )}
+            </MainLayout>
+            <ChatSidebar />
+            <Toaster theme={theme === 'dark' ? 'dark' : 'light'} richColors position='top-right' />
+          </ChatProvider>
+        </QueryProvider>
+      </AuthProvider>
+    </ErrorBoundary>
+  )
+}
 
-      {/* Main Content */}
-      <main className="app-main">
-        {/* Hero Section */}
-        <section className="hero-section">
-          <div className="container">
-            <div className="hero-content">
-              <h2 className="hero-title">
-                Willkommen zur IT-Dokumentation
-              </h2>
-              <p className="hero-description">
-                Zentrale Anlaufstelle für alle technischen Dokumentationen, 
-                Anleitungen und Best Practices. Professionell organisiert für 
-                maximale Effizienz in der IT-Administration.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Topics Grid */}
-        <section className="main-content">
-          <div className="topics-grid">
-            {topicsData.map((topic, index) => (
-              <TopicCard 
-                key={topic.id} 
-                topic={topic} 
-                index={index}
-              />
-            ))}
-          </div>
-        </section>
-
-        {/* Status Section */}
-        <section className="main-content">
-          <div className="container">
-            <div className="text-center">
-              <h3 style={{ marginBottom: 'var(--space-lg)' }}>System Status</h3>
-              <div className="flex justify-center gap-md flex-wrap">
-                <span className="badge badge--success">Alle Services Online</span>
-                <span className="badge badge--info">Wartung geplant: 23:00</span>
-                <span className="badge badge--warning">Updates verfügbar</span>
-              </div>
-            </div>
-          </div>
-        </section>
-      </main>
-
-      {/* Floating Action Button */}
-      <button 
-        className="fab"
-        aria-label="Neue Dokumentation hinzufügen"
-        title="Neue Dokumentation"
-      >
-        <PlusIcon />
-      </button>
-    </div>
-  );
-};
-
-export default App;
+export default App

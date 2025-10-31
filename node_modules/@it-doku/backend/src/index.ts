@@ -6,21 +6,39 @@ import documentsRouter from './routes/documents.js'
 import templatesRouter from './routes/templates.js'
 import githubRouter from './routes/github.js';
 import uploadRouter from './routes/upload.js';
+import authRouter from './routes/auth.js';
+import tenantsRouter from './routes/tenants.js';
+import {
+  loggerMiddleware,
+  errorLogger,
+  errorHandler,
+  notFoundHandler,
+  apiLimiter,
+  authLimiter,
+  chatLimiter,
+  uploadLimiter,
+  authenticate
+} from './middleware/index.js';
 
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || process.env.WEBSITES_PORT || 8080
 
-// Middleware
-app.use(cors());
+// Security & CORS
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  credentials: true
+}));
 app.use(express.json());
 
-// Logging
-app.use((req, res, next) => {
-  console.log('[' + new Date().toISOString() + '] ' + req.method + ' ' + req.url);
-  next();
-});
+// Request logging
+app.use(loggerMiddleware);
+
+// Rate limiting
+app.use('/api/', apiLimiter);
+app.use('/api/chat', chatLimiter);
+app.use('/api/upload', uploadLimiter);
 
 // Routes
 app.get('/api/health', (req, res) => {
@@ -45,6 +63,12 @@ app.get('/api/docs', (req, res) => {
   });
 });
 
+// Auth Routes (before other routes)
+app.use('/api/auth', authLimiter, authRouter);
+
+// Tenant Routes (after auth, before tenant-specific routes)
+app.use('/api/tenants', authenticate, tenantsRouter);
+
 // Chat Route
 app.use('/api/chat', chatRouter);
 
@@ -60,17 +84,37 @@ app.use('/api/github', githubRouter)
 // Upload Routes
 app.use('/api/upload', uploadRouter)
 
-// 404 Handler
-app.use((req, res) => {
-  res.status(404).json({
-    error: 'Not Found',
-    path: req.url
-  });
-});
+// Error handling - must be last
+app.use(notFoundHandler);
+app.use(errorLogger);
+app.use(errorHandler);
 
 // Start Server
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log('Backend server running on http://localhost:' + PORT);
   console.log('Azure OpenAI configured:', !!process.env.AZURE_OPENAI_KEY);
   console.log('Chat endpoint: http://localhost:' + PORT + '/api/chat');
+});
+
+// Handle server errors (e.g., port already in use)
+server.on('error', (error: NodeJS.ErrnoException) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`\n❌ Port ${PORT} is already in use!`);
+    console.error('Please either:');
+    console.error(`  1. Stop the process using port ${PORT}`);
+    console.error('  2. Change PORT in .env file');
+    console.error(`  3. Use a different port: PORT=3002 npm run dev\n`);
+    process.exit(1);
+  } else {
+    console.error('Server error:', error);
+    process.exit(1);
+  }
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM signal received: closing HTTP server');
+  server.close(() => {
+    console.log('HTTP server closed');
+  });
 });

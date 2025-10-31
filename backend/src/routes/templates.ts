@@ -28,45 +28,45 @@ router.post('/seed', async (req: Request, res: Response) => {
     const templates = [
       {
         name: 'Server Dokumentation',
-        icon: '🖥️',
         description: 'Vollstaendige Server-Dokumentation',
         category: 'Infrastructure',
-        content: '<h1>Server Dokumentation</h1><p>Template fuer Server-Dokumentation...</p>'
+        content: '<h1>Server Dokumentation</h1><p>Template fuer Server-Dokumentation...</p>',
+        structure: JSON.stringify({ sections: ['basic-info', 'hardware', 'software', 'services'] })
       },
       {
         name: 'Netzwerk-Diagramm',
-        icon: '🌐',
         description: 'Netzwerk-Topologie und Konfiguration',
         category: 'Network',
-        content: '<h1>Netzwerk-Diagramm</h1><p>Template fuer Netzwerk-Dokumentation...</p>'
+        content: '<h1>Netzwerk-Diagramm</h1><p>Template fuer Netzwerk-Dokumentation...</p>',
+        structure: JSON.stringify({ sections: ['topology', 'addressing', 'devices'] })
       },
       {
         name: 'Backup-Plan',
-        icon: '💾',
         description: 'Backup-Strategie und Wiederherstellung',
         category: 'Operations',
-        content: '<h1>Backup-Plan</h1><p>Template fuer Backup-Dokumentation...</p>'
+        content: '<h1>Backup-Plan</h1><p>Template fuer Backup-Dokumentation...</p>',
+        structure: JSON.stringify({ sections: ['strategy', 'schedule', 'retention'] })
       },
       {
         name: 'Runbook',
-        icon: '📖',
         description: 'Schritt-fuer-Schritt Anleitungen',
         category: 'Operations',
-        content: '<h1>Runbook</h1><p>Template fuer Runbook-Dokumentation...</p>'
+        content: '<h1>Runbook</h1><p>Template fuer Runbook-Dokumentation...</p>',
+        structure: JSON.stringify({ sections: ['procedure', 'steps', 'troubleshooting'] })
       },
       {
         name: 'Security Policy',
-        icon: '🔒',
         description: 'Sicherheitsrichtlinien',
         category: 'Security',
-        content: '<h1>Security Policy</h1><p>Template fuer Security-Dokumentation...</p>'
+        content: '<h1>Security Policy</h1><p>Template fuer Security-Dokumentation...</p>',
+        structure: JSON.stringify({ sections: ['policy', 'controls', 'compliance'] })
       },
       {
         name: 'Change Log',
-        icon: '📝',
         description: 'Aenderungsprotokoll',
         category: 'Documentation',
-        content: '<h1>Change Log</h1><p>Template fuer Change Log...</p>'
+        content: '<h1>Change Log</h1><p>Template fuer Change Log...</p>',
+        structure: JSON.stringify({ sections: ['changes', 'history', 'notes'] })
       }
     ]
     

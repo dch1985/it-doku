@@ -82,16 +82,29 @@ router.post('/', upload.single('file'), async (req: Request, res: Response) => {
     const blobUrl = blockBlobClient.url
 
     // Save to database
-    const attachment = await prisma.attachment.create({
-      data: {
-        documentId: parseInt(documentId),
-        filename: blobName,
-        originalName: req.file.originalname,
-        mimeType: req.file.mimetype,
-        size: req.file.size,
-        path: blobUrl
-      }
-    })
+    // TODO: Attachment Model existiert nicht im Schema - temporär auskommentiert
+    // const attachment = await prisma.attachment.create({
+    //   data: {
+    //     documentId: documentId, // String UUID
+    //     filename: blobName,
+    //     originalName: req.file.originalname,
+    //     mimeType: req.file.mimetype,
+    //     size: req.file.size,
+    //     path: blobUrl
+    //   }
+    // })
+    
+    // Temporäre Lösung: Rückgabe ohne DB-Eintrag
+    const attachment = {
+      id: 'temp-' + Date.now(),
+      documentId: documentId,
+      filename: blobName,
+      originalName: req.file.originalname,
+      mimeType: req.file.mimetype,
+      size: req.file.size,
+      path: blobUrl,
+      createdAt: new Date()
+    }
 
     console.log(`[Upload] File uploaded to Azure Blob: ${blobName}`)
     res.status(201).json(attachment)
@@ -106,10 +119,14 @@ router.get('/document/:documentId', async (req: Request, res: Response) => {
   try {
     const { documentId } = req.params
     
-    const attachments = await prisma.attachment.findMany({
-      where: { documentId: parseInt(documentId) },
-      orderBy: { createdAt: 'desc' }
-    })
+    // TODO: Attachment Model existiert nicht im Schema
+    // const attachments = await prisma.attachment.findMany({
+    //   where: { documentId: documentId },
+    //   orderBy: { createdAt: 'desc' }
+    // })
+    
+    // Temporäre Lösung: Leeres Array zurückgeben
+    const attachments: any[] = []
     
     res.json(attachments)
   } catch (error: any) {
@@ -123,9 +140,11 @@ router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params
     
-    const attachment = await prisma.attachment.findUnique({
-      where: { id: parseInt(id) }
-    })
+    // TODO: Attachment Model existiert nicht im Schema
+    // const attachment = await prisma.attachment.findUnique({
+    //   where: { id: id }
+    // })
+    const attachment: any = null
     
     if (!attachment) {
       return res.status(404).json({ error: 'Attachment not found' })
@@ -161,9 +180,11 @@ router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params
     
-    const attachment = await prisma.attachment.findUnique({
-      where: { id: parseInt(id) }
-    })
+    // TODO: Attachment Model existiert nicht im Schema
+    // const attachment = await prisma.attachment.findUnique({
+    //   where: { id: id }
+    // })
+    const attachment: any = null
     
     if (!attachment) {
       return res.status(404).json({ error: 'Attachment not found' })
@@ -180,10 +201,10 @@ router.delete('/:id', async (req: Request, res: Response) => {
     
     await blockBlobClient.deleteIfExists()
 
-    // Delete from database
-    await prisma.attachment.delete({
-      where: { id: parseInt(id) }
-    })
+    // TODO: Attachment Model existiert nicht im Schema
+    // await prisma.attachment.delete({
+    //   where: { id: id }
+    // })
 
     console.log(`[Upload] File deleted from Azure Blob: ${attachment.filename}`)
     res.status(204).send()

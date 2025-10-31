@@ -31,7 +31,7 @@ export class DocumentController {
 
   async getById(req: Request, res: Response) {
     try {
-      const id = parseInt(req.params.id);
+      const id = req.params.id; // String UUID, kein parseInt()
       const document = await documentService.getDocumentById(id);
       if (!document) {
         return res.status(404).json({ success: false, error: 'Document not found' });
@@ -54,7 +54,7 @@ export class DocumentController {
 
   async update(req: Request, res: Response) {
     try {
-      const id = parseInt(req.params.id);
+      const id = req.params.id; // String UUID, kein parseInt()
       const document = await documentService.updateDocument(id, req.body);
       res.json({ success: true, data: document });
     } catch (error) {
@@ -64,7 +64,7 @@ export class DocumentController {
 
   async delete(req: Request, res: Response) {
     try {
-      const id = parseInt(req.params.id);
+      const id = req.params.id; // String UUID, kein parseInt()
       await documentService.deleteDocument(id);
       res.json({ success: true, message: 'Document deleted' });
     } catch (error) {

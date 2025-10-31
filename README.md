@@ -44,7 +44,9 @@
 ### Backend
 - **Express.js** with TypeScript
 - **Prisma ORM** for database management
-- **SQLite** for data persistence
+- **SQL Server** for data persistence (Azure SQL)
+- **Azure AD B2C** for authentication
+- **JWT** for token validation
 - **Multer** for file uploads
 - **Azure OpenAI** for AI capabilities
 - **Octokit** for GitHub API integration
@@ -56,6 +58,8 @@
 ### Prerequisites
 - Node.js 18+ 
 - npm or yarn
+- Azure SQL Server (or compatible SQL Server database)
+- Azure AD B2C App Registration (for authentication)
 - Azure OpenAI API key (optional, for AI features)
 - GitHub Personal Access Token (optional, for GitHub integration)
 
@@ -74,12 +78,15 @@ cp .env.example .env
 
 # Configure environment variables
 # Edit .env and add your API keys:
+# DATABASE_URL=sqlserver://...
 # AZURE_OPENAI_KEY=your_key_here
 # AZURE_OPENAI_ENDPOINT=your_endpoint_here
+# AZURE_TENANT_ID=your_tenant_id
+# AZURE_CLIENT_ID=your_client_id
 # GITHUB_TOKEN=your_github_token_here (optional)
 
 # Run Prisma migrations
-npx prisma migrate dev
+npx prisma migrate dev --name init
 npx prisma generate
 
 # Start backend server
@@ -89,8 +96,17 @@ npm run dev
 ### Frontend Setup
 ```bash
 # Install frontend dependencies
-cd ../frontend-new
+cd ../frontend
 npm install
+
+# Create .env file
+cp .env.example .env
+
+# Configure environment variables
+# Edit .env and add:
+# VITE_API_URL=http://localhost:3001/api
+# VITE_AZURE_CLIENT_ID=your_client_id
+# VITE_AZURE_TENANT_ID=your_tenant_id
 
 # Start development server
 npm run dev
@@ -146,12 +162,25 @@ it-doku/
 
 ## 🔌 API Endpoints
 
+### Authentication
+- `GET /api/auth/me` - Get current authenticated user
+- `POST /api/auth/logout` - Logout
+- `GET /api/auth/verify` - Verify token
+
+### Tenants
+- `GET /api/tenants` - List user's tenants
+- `GET /api/tenants/:id` - Get tenant details
+- `POST /api/tenants` - Create new tenant
+- `PATCH /api/tenants/:id` - Update tenant (OWNER/ADMIN only)
+
 ### Documents
-- `GET /api/documents` - List all documents
+- `GET /api/documents` - List all documents (filtered by tenant)
 - `GET /api/documents/:id` - Get document by ID
 - `POST /api/documents` - Create new document
 - `PUT /api/documents/:id` - Update document
 - `DELETE /api/documents/:id` - Delete document
+
+> **Note:** All document endpoints require `X-Tenant-ID` or `X-Tenant-Slug` header for tenant isolation.
 
 ### File Upload
 - `POST /api/upload` - Upload file attachment
@@ -167,7 +196,7 @@ it-doku/
 - `GET /api/github/readme/:owner/:repo` - Get repository README
 
 ### Templates
-- `GET /api/templates` - List all templates
+- `GET /api/templates` - List all templates (tenant-aware)
 - `GET /api/templates/:id` - Get template by ID
 
 ---
@@ -239,6 +268,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service) for AI capabilities
 
 ---
+
+## 📚 Documentation
+
+### Implementation Guides
+- [Phase 1 & 2: Authentication & Multi-Tenancy](docs/PHASE_1_2_IMPLEMENTATION.md)
+- [Troubleshooting Guide](docs/TROUBLESHOOTING.md)
+- [Gap Analysis](docs/GAP_ANALYSIS.md)
 
 ## 📧 Support
 

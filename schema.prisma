@@ -1,0 +1,269 @@
+// This is your Prisma schema file
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// USER MANAGEMENT
+// ==========================================
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  name          String
+  password      String?
+  role          UserRole       @default(USER)
+  avatar        String?
+  
+  // Relations
+  documents     Document[]
+  conversations Conversation[]
+  apiKeys       ApiKey[]
+  
+  // Metadata
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  lastLoginAt   DateTime?
+  
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  USER
+  VIEWER
+}
+
+// ==========================================
+// DOCUMENTS & TEMPLATES
+// ==========================================
+model Document {
+  id          String           @id @default(uuid())
+  title       String
+  content     String           @db.Text
+  category    DocumentCategory @default(DOCUMENTATION)
+  tags        String[]
+  
+  // Versioning
+  version     Int              @default(1)
+  parentId    String?
+  parent      Document?        @relation("DocumentVersions", fields: [parentId], references: [id])
+  versions    Document[]       @relation("DocumentVersions")
+  
+  // Metadata
+  metadata    Json?
+  status      DocumentStatus   @default(DRAFT)
+  visibility  Visibility       @default(PRIVATE)
+  
+  // AI Generated
+  isAiGenerated Boolean        @default(false)
+  aiModel       String?
+  promptUsed    String?        @db.Text
+  
+  // Relations
+  userId        String
+  user          User           @relation(fields: [userId], references: [id])
+  knowledgeNodes KnowledgeNode[]
+  
+  // Timestamps
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  publishedAt DateTime?
+  
+  @@index([userId])
+  @@index([category])
+  @@index([status])
+  @@map("documents")
+}
+
+enum DocumentCategory {
+  DOCUMENTATION
+  CODE_ANALYSIS
+  TEMPLATE
+  KNOWLEDGE_BASE
+  MEETING_NOTES
+  TUTORIAL
+  API_SPEC
+}
+
+enum DocumentStatus {
+  DRAFT
+  REVIEW
+  PUBLISHED
+  ARCHIVED
+}
+
+enum Visibility {
+  PRIVATE
+  TEAM
+  PUBLIC
+}
+
+// ==========================================
+// TEMPLATES
+// ==========================================
+model Template {
+  id          String         @id @default(uuid())
+  name        String
+  description String?
+  category    String
+  content     String         @db.Text
+  structure   Json           // Template structure definition
+  
+  // Metadata
+  tags        String[]
+  isNistCompliant Boolean    @default(false)
+  nistFramework   String?    // e.g., "800-53", "CSF"
+  
+  // Usage
+  usageCount  Int            @default(0)
+  
+  // Timestamps
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  
+  @@map("templates")
+}
+
+// ==========================================
+// AI CONVERSATIONS
+// ==========================================
+model Conversation {
+  id          String    @id @default(uuid())
+  title       String
+  
+  // Relations
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  messages    Message[]
+  
+  // Context & Memory
+  context     Json?     // Persistent context for the conversation
+  metadata    Json?     // Stats, tokens used, etc.
+  
+  // Timestamps
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@index([userId])
+  @@index([updatedAt])
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  role           MessageRole
+  content        String       @db.Text
+  
+  // Relations
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  
+  // Metadata
+  metadata       Json?        // Sources, citations, token usage, model info
+  
+  // Timestamps
+  createdAt      DateTime     @default(now())
+  
+  @@index([conversationId])
+  @@map("messages")
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+// ==========================================
+// KNOWLEDGE GRAPH
+// ==========================================
+model KnowledgeNode {
+  id          String   @id @default(uuid())
+  content     String   @db.Text
+  type        NodeType
+  
+  // Vector Embeddings (for semantic search)
+  embedding   Float[]  // Will be stored as array
+  
+  // Relations
+  documentId  String?
+  document    Document? @relation(fields: [documentId], references: [id])
+  
+  // Graph Connections
+  connections String[] // IDs of connected nodes
+  tags        String[]
+  
+  // Metadata
+  metadata    Json?
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([documentId])
+  @@index([type])
+  @@map("knowledge_nodes")
+}
+
+enum NodeType {
+  CONCEPT
+  CODE
+  PERSON
+  TECHNOLOGY
+  PROCESS
+  ENTITY
+}
+
+// ==========================================
+// API MANAGEMENT
+// ==========================================
+model ApiKey {
+  id          String    @id @default(uuid())
+  name        String
+  key         String    @unique
+  
+  // Relations
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  
+  // Usage tracking
+  lastUsedAt  DateTime?
+  usageCount  Int       @default(0)
+  
+  // Security
+  expiresAt   DateTime?
+  isActive    Boolean   @default(true)
+  
+  // Timestamps
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@index([userId])
+  @@map("api_keys")
+}
+
+// ==========================================
+// ANALYTICS & LOGGING
+// ==========================================
+model ActivityLog {
+  id          String       @id @default(uuid())
+  userId      String?
+  action      String
+  resource    String
+  resourceId  String?
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  
+  createdAt   DateTime     @default(now())
+  
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
