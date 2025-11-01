@@ -8,6 +8,7 @@ import githubRouter from './routes/github.js';
 import uploadRouter from './routes/upload.js';
 import authRouter from './routes/auth.js';
 import tenantsRouter from './routes/tenants.js';
+import analyticsRouter from './routes/analytics.js';
 import {
   loggerMiddleware,
   errorLogger,
@@ -19,6 +20,7 @@ import {
   uploadLimiter,
   authenticate
 } from './middleware/index.js';
+import { devAuthenticate } from './middleware/auth.dev.middleware.js';
 
 dotenv.config();
 
@@ -26,9 +28,29 @@ const app = express();
 const PORT = process.env.PORT || process.env.WEBSITES_PORT || 8080
 
 // Security & CORS
+// Allow multiple origins for development (Vite can use different ports)
+const allowedOrigins = process.env.FRONTEND_URL 
+  ? [process.env.FRONTEND_URL]
+  : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'];
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  credentials: true
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      // In development, log the origin for debugging
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[CORS] Blocked origin: ${origin}. Allowed origins: ${allowedOrigins.join(', ')}`);
+      }
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-ID', 'X-Tenant-Slug'],
 }));
 app.use(express.json());
 
@@ -64,25 +86,47 @@ app.get('/api/docs', (req, res) => {
 });
 
 // Auth Routes (before other routes)
-app.use('/api/auth', authLimiter, authRouter);
+// Apply rate limiter to auth routes except dev-login
+app.use('/api/auth', (req, res, next) => {
+  // Skip rate limiting for dev-login if dev auth is enabled
+  const isDevLogin = req.path === '/dev-login' || req.path.endsWith('/dev-login');
+  const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
+  
+  if (isDevLogin && isDevMode) {
+    console.log('[Auth] Skipping rate limiter for dev-login (dev mode enabled)');
+    return next();
+  }
+  // Apply rate limiter for other auth routes
+  return authLimiter(req, res, next);
+});
+app.use('/api/auth', authRouter);
 
-// Tenant Routes (after auth, before tenant-specific routes)
-app.use('/api/tenants', authenticate, tenantsRouter);
+// Development Mode: Use dev authentication if enabled
+// Works if NODE_ENV=development OR DEV_AUTH_ENABLED=true
+const useDevAuth = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
+if (useDevAuth) {
+  console.log('⚠️  Development Auth Mode ENABLED - Using mock authentication');
+  // Apply dev auth to all authenticated routes
+  app.use('/api/tenants', devAuthenticate, tenantsRouter);
+  app.use('/api/documents', devAuthenticate, documentsRouter);
+  app.use('/api/templates', devAuthenticate, templatesRouter);
+  app.use('/api/analytics', devAuthenticate, analyticsRouter);
+  app.use('/api/github', devAuthenticate, githubRouter);
+  app.use('/api/upload', devAuthenticate, uploadRouter);
+  app.use('/api/chat', devAuthenticate, chatRouter);
+} else {
+  // Production: Use real Azure AD authentication
+  app.use('/api/tenants', authenticate, tenantsRouter);
+  app.use('/api/documents', authenticate, documentsRouter);
+  app.use('/api/templates', authenticate, templatesRouter);
+  app.use('/api/analytics', authenticate, analyticsRouter);
+  app.use('/api/github', authenticate, githubRouter);
+  app.use('/api/upload', authenticate, uploadRouter);
+  app.use('/api/chat', authenticate, chatRouter);
+}
 
-// Chat Route
-app.use('/api/chat', chatRouter);
-
-// Documents Routes
-app.use('/api/documents', documentsRouter)
-
-// Templates Routes
-app.use('/api/templates', templatesRouter)
-
-// GitHub Routes
-app.use('/api/github', githubRouter)
-
-// Upload Routes
-app.use('/api/upload', uploadRouter)
+// Routes are applied above in dev/prod mode blocks
+// (Routes are conditionally applied based on dev mode above)
 
 // Error handling - must be last
 app.use(notFoundHandler);

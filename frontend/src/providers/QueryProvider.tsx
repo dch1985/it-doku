@@ -12,10 +12,13 @@ const queryClient = new QueryClient({
 })
 
 export function QueryProvider({ children }: { children: ReactNode }) {
+  const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development'
+  
   return (
     <QueryClientProvider client={queryClient}>
       {children}
-      <ReactQueryDevtools initialIsOpen={false} />
+      {/* Only show DevTools in development mode */}
+      {isDev && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
   )
 }

@@ -20,6 +20,7 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
+    dedupe: ['react', 'react-dom'], // Ensure single React instance
   },
 
   build: {
@@ -65,5 +66,6 @@ export default defineConfig({
   // Optimize Deps
   optimizeDeps: {
     include: ['react', 'react-dom', 'zustand'],
+    exclude: ['@azure/msal-browser', '@azure/msal-react'], // Exclude MSAL in dev mode
   },
 })

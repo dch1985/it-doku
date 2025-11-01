@@ -1,7 +1,14 @@
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
+import { useTenantStore } from '@/stores/tenantStore'
 
-const API_URL = 'http://localhost:3001/api'
+// Helper function to get API URL (handles both with and without /api)
+const getApiUrl = () => {
+  const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+  return baseURL.endsWith('/api') ? baseURL : `${baseURL}/api`;
+};
+
+const API_URL = getApiUrl();
 
 interface Document {
   id: string  // UUID String
@@ -18,11 +25,24 @@ interface Document {
 export function useDocuments() {
   const [documents, setDocuments] = useState<Document[]>([])
   const [loading, setLoading] = useState(false)
+  const { currentTenant } = useTenantStore()
 
   const fetchDocuments = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`${API_URL}/documents`)
+      // Build headers with tenant information
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      }
+      
+      // Add tenant header if available
+      if (currentTenant) {
+        headers['X-Tenant-ID'] = currentTenant.id
+      }
+      
+      const response = await fetch(`${API_URL}/documents`, {
+        headers,
+      })
       
       if (!response.ok) {
         // Try to get error details from response
@@ -69,15 +89,38 @@ export function useDocuments() {
 
   const createDocument = async (doc: Partial<Document>) => {
     try {
+      // Build headers with tenant information
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      }
+      
+      // Add tenant header if available
+      if (currentTenant) {
+        headers['X-Tenant-ID'] = currentTenant.id
+      }
+      
       const response = await fetch(`${API_URL}/documents`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(doc)
       })
-      if (!response.ok) throw new Error('Failed to create document')
+      
+      if (!response.ok) {
+        // Try to get error details from response
+        let errorMessage = 'Failed to create document'
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.message || errorData.error || errorMessage
+        } catch {
+          errorMessage = `Failed to create document (${response.status} ${response.statusText})`
+        }
+        throw new Error(errorMessage)
+      }
+      
       const newDoc = await response.json()
+      // Add to documents list immediately for instant UI update
       setDocuments([...documents, newDoc])
-      toast.success('Document created successfully!')
+      toast.success('Dokument erfolgreich erstellt!')
       return newDoc
     } catch (error) {
       console.error('Error creating document:', error)
@@ -88,12 +131,34 @@ export function useDocuments() {
 
   const updateDocument = async (id: string, doc: Partial<Document>) => {
     try {
+      // Build headers with tenant information
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      }
+      
+      // Add tenant header if available
+      if (currentTenant) {
+        headers['X-Tenant-ID'] = currentTenant.id
+      }
+      
       const response = await fetch(`${API_URL}/documents/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(doc)
       })
-      if (!response.ok) throw new Error('Failed to update document')
+      
+      if (!response.ok) {
+        // Try to get error details from response
+        let errorMessage = 'Failed to update document'
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.message || errorData.error || errorMessage
+        } catch {
+          errorMessage = `Failed to update document (${response.status} ${response.statusText})`
+        }
+        throw new Error(errorMessage)
+      }
+      
       const updatedDoc = await response.json()
       setDocuments(documents.map(d => d.id === id ? updatedDoc : d))
       toast.success('Document updated successfully!')
@@ -107,10 +172,31 @@ export function useDocuments() {
 
   const deleteDocument = async (id: string) => {
     try {
+      // Build headers with tenant information
+      const headers: HeadersInit = {}
+      
+      // Add tenant header if available
+      if (currentTenant) {
+        headers['X-Tenant-ID'] = currentTenant.id
+      }
+      
       const response = await fetch(`${API_URL}/documents/${id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers,
       })
-      if (!response.ok) throw new Error('Failed to delete document')
+      
+      if (!response.ok) {
+        // Try to get error details from response
+        let errorMessage = 'Failed to delete document'
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.message || errorData.error || errorMessage
+        } catch {
+          errorMessage = `Failed to delete document (${response.status} ${response.statusText})`
+        }
+        throw new Error(errorMessage)
+      }
+      
       setDocuments(documents.filter(d => d.id !== id))
       toast.success('Document deleted successfully!')
     } catch (error) {
@@ -122,7 +208,17 @@ export function useDocuments() {
 
   const getDocument = async (id: string) => {
     try {
-      const response = await fetch(`${API_URL}/documents/${id}`)
+      // Build headers with tenant information
+      const headers: HeadersInit = {}
+      
+      // Add tenant header if available
+      if (currentTenant) {
+        headers['X-Tenant-ID'] = currentTenant.id
+      }
+      
+      const response = await fetch(`${API_URL}/documents/${id}`, {
+        headers,
+      })
       if (!response.ok) throw new Error('Failed to fetch document')
       return await response.json()
     } catch (error) {
@@ -133,8 +229,19 @@ export function useDocuments() {
   }
 
   useEffect(() => {
-    fetchDocuments()
-  }, [])
+    // In dev mode, fetch documents even without tenant
+    const isDevMode = import.meta.env.VITE_DEV_AUTH_ENABLED === 'true'
+    
+    if (currentTenant?.id || isDevMode) {
+      fetchDocuments()
+    } else {
+      // Clear documents if no tenant is selected (and not in dev mode)
+      setDocuments([])
+      setLoading(false)
+    }
+    // Note: fetchDocuments is stable and doesn't need to be in deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTenant?.id]) // Only depend on tenant ID to avoid unnecessary re-renders
 
   return {
     documents,

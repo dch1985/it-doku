@@ -1,7 +1,7 @@
 ﻿import { useSidebarStore } from '@/stores/sidebarStore'
 import { useThemeStore } from '@/stores/themeStore'
 import { useAppStore } from '@/stores/useAppStore'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuthWrapper } from '@/hooks/useAuthWrapper'
 import { Button } from '@/components/ui/button'
 import { SearchBar } from '@/components/SearchBar'
 import { TenantSelector } from '@/components/TenantSelector'
@@ -131,8 +131,9 @@ function ThemeToggle() {
 }
 
 function UserProfile() {
-  const { isAuthenticated, user, login, logout } = useAuth()
-  const appUser = useAppStore((state) => state.user)
+      // Use the wrapper hook that automatically selects the correct auth provider
+      const { isAuthenticated, user, login, logout } = useAuthWrapper();
+      const appUser = useAppStore((state) => state.user)
 
   if (!isAuthenticated) {
     return (
@@ -160,7 +161,7 @@ function UserProfile() {
           </Avatar>
           <div className='flex-1 text-left'>
             <p className='text-sm font-medium'>{displayName}</p>
-            <p className='text-xs text-muted-foreground'>{appUser?.email || user?.username}</p>
+            <p className='text-xs text-muted-foreground'>{appUser?.email || (user && 'username' in user ? user.username : user.email)}</p>
           </div>
         </Button>
       </DropdownMenuTrigger>
@@ -168,7 +169,7 @@ function UserProfile() {
         <DropdownMenuLabel>
           <div className='flex flex-col space-y-1'>
             <p className='text-sm font-medium leading-none'>{displayName}</p>
-            <p className='text-xs leading-none text-muted-foreground'>{appUser?.email || user?.username}</p>
+            <p className='text-xs leading-none text-muted-foreground'>{appUser?.email || (user && 'username' in user ? user.username : user.email)}</p>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

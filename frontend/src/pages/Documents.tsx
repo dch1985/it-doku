@@ -17,13 +17,19 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useDocuments } from '@/hooks/useDocuments'
+import { useTemplates } from '@/hooks/useTemplates'
+import { TemplateForm } from '@/components/TemplateForm'
 
 export function Documents() {
   const [searchQuery, setSearchQuery] = useState('')
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
+  const [selectedTemplate, setSelectedTemplate] = useState<any>(null)
+  const [templateFormOpen, setTemplateFormOpen] = useState(false)
   const [newDocTitle, setNewDocTitle] = useState('')
   const [newDocCategory, setNewDocCategory] = useState('DOCUMENTATION')
   const { documents, loading, deleteDocument, createDocument, refetch } = useDocuments()
+  const { templates, loading: templatesLoading, useTemplate, seedTemplates } = useTemplates()
 
   const filteredDocuments = documents.filter(doc =>
     doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -46,15 +52,25 @@ export function Documents() {
 
   const handleCreateDocument = async () => {
     if (!newDocTitle.trim()) {
-      toast.error('Please enter a document title')
+      toast.error('Bitte geben Sie einen Dokument-Titel ein')
       return
     }
 
     try {
+      // If category is TEMPLATE, show template selection dialog
+      if (newDocCategory === 'TEMPLATE') {
+        // Close create dialog and open template dialog
+        setCreateDialogOpen(false)
+        setTemplateDialogOpen(true)
+        return
+      }
+
+      // For other categories, create document with category-based template
       const newDoc = await createDocument({
         title: newDocTitle,
         category: newDocCategory,
-        content: `<h1>${newDocTitle}</h1><p>Start writing your documentation...</p>`
+        // content will be empty - backend will apply category template automatically
+        content: ''
       })
       setCreateDialogOpen(false)
       setNewDocTitle('')
@@ -66,7 +82,7 @@ export function Documents() {
         window.location.hash = `document/${newDoc.id}`
       }
       
-      toast.success('Document created successfully!')
+      toast.success('Dokument erfolgreich erstellt!')
     } catch (error) {
       // Error already handled in hook
     }
@@ -106,14 +122,25 @@ export function Documents() {
             Manage and organize all your IT documentation
           </p>
         </div>
-        <Button 
-          size='lg' 
-          onClick={() => setCreateDialogOpen(true)}
-          className='gap-2'
-        >
-          <Plus className='h-5 w-5' />
-          New Document
-        </Button>
+        <div className='flex gap-2'>
+          <Button 
+            size='lg' 
+            variant='outline'
+            onClick={() => setTemplateDialogOpen(true)}
+            className='gap-2'
+          >
+            <FileText className='h-5 w-5' />
+            From Template
+          </Button>
+          <Button 
+            size='lg' 
+            onClick={() => setCreateDialogOpen(true)}
+            className='gap-2'
+          >
+            <Plus className='h-5 w-5' />
+            New Document
+          </Button>
+        </div>
       </div>
 
       {/* Create Document Dialog */}
@@ -170,6 +197,109 @@ export function Documents() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Template Selection Dialog */}
+      <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
+        <DialogContent className='sm:max-w-[600px] max-h-[80vh] overflow-y-auto'>
+          <DialogHeader>
+            <DialogTitle>Create Document from Template</DialogTitle>
+            <DialogDescription>
+              Select a template to create a new document
+            </DialogDescription>
+          </DialogHeader>
+          {templatesLoading ? (
+            <div className='flex items-center justify-center py-8'>
+              <div className='text-lg'>Loading templates...</div>
+            </div>
+          ) : templates.length === 0 ? (
+            <div className='flex flex-col items-center justify-center py-8 space-y-4'>
+              <p className='text-muted-foreground'>No templates available</p>
+              <p className='text-xs text-muted-foreground mb-4'>
+                Templates werden nur geladen, wenn ein Tenant ausgewählt ist oder im Dev-Mode.
+              </p>
+              <Button
+                variant='outline'
+                onClick={async () => {
+                  try {
+                    await seedTemplates(false)
+                  } catch (error) {
+                    // Error handled in hook
+                  }
+                }}
+              >
+                Templates erstellen
+              </Button>
+            </div>
+          ) : (
+            <div className='grid gap-3 py-4'>
+              {templates.map((template) => (
+                <Card 
+                  key={template.id} 
+                  className='cursor-pointer hover:border-primary transition-colors'
+                  onClick={() => {
+                    setSelectedTemplate(template)
+                    setTemplateFormOpen(true)
+                    setTemplateDialogOpen(false)
+                  }}
+                >
+                  <CardContent className='p-4'>
+                    <div className='flex items-start justify-between'>
+                      <div className='flex-1'>
+                        <div className='flex items-center gap-2 mb-1'>
+                          <h4 className='font-semibold'>{template.name}</h4>
+                          {template.isNistCompliant && (
+                            <Badge variant='default' className='text-xs'>NIST</Badge>
+                          )}
+                        </div>
+                        <p className='text-sm text-muted-foreground line-clamp-2'>
+                          {template.description || 'No description'}
+                        </p>
+                        <div className='flex items-center gap-2 mt-2'>
+                          <Badge variant='outline' className='text-xs'>{template.category}</Badge>
+                          {template.nistFramework && (
+                            <Badge variant='outline' className='text-xs'>
+                              {template.nistFramework}
+                            </Badge>
+                          )}
+                          <span className='text-xs text-muted-foreground'>
+                            {template.usageCount} uses
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Template Form Dialog */}
+      {selectedTemplate && (
+        <TemplateForm
+          template={selectedTemplate}
+          open={templateFormOpen}
+          onClose={() => {
+            setTemplateFormOpen(false)
+            setSelectedTemplate(null)
+          }}
+          onSubmit={async (title, customFields) => {
+            try {
+              const document = await useTemplate(selectedTemplate.id, title, customFields)
+              await refetch() // Refresh documents list
+              // Navigate to the new document
+              if (document?.id) {
+                window.location.hash = `document/${document.id}`
+              }
+              toast.success(`Dokument "${title}" erfolgreich erstellt!`)
+            } catch (error) {
+              // Error handled in hook
+              throw error
+            }
+          }}
+        />
+      )}
 
       <Card>
         <CardHeader>

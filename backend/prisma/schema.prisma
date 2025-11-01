@@ -120,8 +120,8 @@ model Document {
   promptUsed    String?        @db.NVarChar(Max)
   
   // Relations
-  tenantId      String
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId      String?        // Temporarily nullable for migration - will be required after
+  tenant        Tenant?         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userId        String
   user          User           @relation(fields: [userId], references: [id])
   knowledgeNodes KnowledgeNode[]

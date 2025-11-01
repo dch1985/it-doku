@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import {
   useMsal,
   useIsAuthenticated,
@@ -16,7 +16,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { instance, accounts, inProgress } = useMsal();
@@ -38,7 +38,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
 
           // Fetch user info from backend
-          const backendResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/auth/me`, {
+          // VITE_API_URL might already include /api, so we check and construct the URL properly
+          const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+          const apiURL = baseURL.endsWith('/api') ? baseURL : `${baseURL}/api`;
+          const backendResponse = await fetch(`${apiURL}/auth/me`, {
             headers: {
               Authorization: `Bearer ${response.accessToken}`,
             },

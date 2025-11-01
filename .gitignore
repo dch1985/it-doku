@@ -52,6 +52,14 @@ Thumbs.db
 node_modules/.prisma/
 node_modules
 
+# Build artifacts
+*.tsbuildinfo
+**/tsconfig.*.tsbuildinfo
+frontend/tsconfig.app.tsbuildinfo
+
+# Vite cache metadata
+**/.vite/deps/_metadata.json
+
 # Sensitive files - DO NOT COMMIT
 *.txt
 *.key

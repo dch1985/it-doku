@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTenantStore } from '@/stores/tenantStore';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuthWrapper } from '@/hooks/useAuthWrapper';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -13,10 +13,18 @@ import {
 import { Building2, Check, Plus, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// Helper function to get API URL (handles both with and without /api)
+const getApiUrl = () => {
+  const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  return baseURL.endsWith('/api') ? baseURL : `${baseURL}/api`;
+};
+
+const API_URL = getApiUrl();
 
 export function TenantSelector() {
-  const { isAuthenticated } = useAuth();
+  // Use the wrapper hook that automatically selects the correct auth provider
+  const { isAuthenticated } = useAuthWrapper();
+  const isDevMode = import.meta.env.VITE_DEV_AUTH_ENABLED === 'true';
   const { currentTenant, tenants, isLoading, setCurrentTenant, setTenants, setLoading, setError } = useTenantStore();
   const [isOpen, setIsOpen] = useState(false);
 
@@ -31,13 +39,17 @@ export function TenantSelector() {
       setError(null);
 
       try {
-        // Get access token from MSAL (would need to be implemented in AuthContext)
-        const token = localStorage.getItem('msal-access-token') || '';
+        // In dev mode, we don't need a token - the backend uses dev auth
+        let headers: HeadersInit = {};
+        if (!isDevMode) {
+          const token = localStorage.getItem('msal-access-token') || '';
+          if (token) {
+            headers.Authorization = `Bearer ${token}`;
+          }
+        }
         
         const response = await fetch(`${API_URL}/tenants`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers,
         });
 
         if (!response.ok) {

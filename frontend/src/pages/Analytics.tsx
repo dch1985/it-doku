@@ -2,41 +2,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { TrendingUp, FileText, Clock, Calendar } from 'lucide-react'
+import { useAnalytics } from '@/hooks/useAnalytics'
 
-const documentGrowthData = [
-  { month: 'Jan', documents: 45, users: 12 },
-  { month: 'Feb', documents: 52, users: 15 },
-  { month: 'Mar', documents: 61, users: 18 },
-  { month: 'Apr', documents: 73, users: 22 },
-  { month: 'Mai', documents: 89, users: 28 },
-  { month: 'Jun', documents: 102, users: 31 },
-  { month: 'Jul', documents: 124, users: 35 },
-  { month: 'Aug', documents: 156, users: 38 },
-  { month: 'Sep', documents: 178, users: 40 },
-  { month: 'Okt', documents: 203, users: 42 },
-  { month: 'Nov', documents: 227, users: 44 },
-  { month: 'Dez', documents: 245, users: 42 },
-]
-
-const categoryData = [
-  { name: 'Infrastructure', value: 89, color: '#3b82f6' },
-  { name: 'Security', value: 67, color: '#ef4444' },
-  { name: 'Network', value: 43, color: '#10b981' },
-  { name: 'Development', value: 32, color: '#f59e0b' },
-  { name: 'Operations', value: 14, color: '#8b5cf6' },
-]
-
-const activityByHourData = [
-  { hour: '00:00', activity: 2 },
-  { hour: '03:00', activity: 1 },
-  { hour: '06:00', activity: 5 },
-  { hour: '09:00', activity: 45 },
-  { hour: '12:00', activity: 38 },
-  { hour: '15:00', activity: 52 },
-  { hour: '18:00', activity: 28 },
-  { hour: '21:00', activity: 15 },
-]
-
+// Placeholder data for AI usage (can be replaced later with real data)
 const aiUsageByTypeData = [
   { type: 'Documentation', queries: 487 },
   { type: 'Code Review', queries: 312 },
@@ -45,14 +13,37 @@ const aiUsageByTypeData = [
   { type: 'Search', queries: 62 },
 ]
 
-const userEngagementData = [
-  { week: 'Week 1', active: 38, new: 5 },
-  { week: 'Week 2', active: 40, new: 3 },
-  { week: 'Week 3', active: 41, new: 4 },
-  { week: 'Week 4', active: 42, new: 2 },
-]
-
 export function Analytics() {
+  const { data, isLoading } = useAnalytics()
+
+  // Use real data if available, otherwise use empty arrays
+  const documentGrowthData = data?.charts?.documentGrowth || []
+  const categoryData = data?.charts?.categoryDistribution || []
+  const activityByHourData = data?.charts?.activityByHour || []
+  const userEngagementData = data?.charts?.userEngagement || []
+  
+  const stats = data?.stats || {
+    growthRate: 0,
+    avgResponseTime: 0,
+    documentsPerUser: 0,
+    peakHour: '09:00'
+  }
+
+  if (isLoading) {
+    return (
+      <div className='space-y-6'>
+        <div>
+          <h2 className='text-3xl font-bold tracking-tight'>Analytics</h2>
+          <p className='text-muted-foreground'>
+            Deep insights into your documentation and AI usage
+          </p>
+        </div>
+        <div className='flex items-center justify-center py-12'>
+          <div className='text-lg text-muted-foreground'>Loading analytics...</div>
+        </div>
+      </div>
+    )
+  }
   return (
     <div className='space-y-6'>
       <div>
@@ -69,7 +60,7 @@ export function Analytics() {
             <TrendingUp className='h-4 w-4 text-muted-foreground' />
           </CardHeader>
           <CardContent>
-            <div className='text-2xl font-bold'>+18.2%</div>
+            <div className='text-2xl font-bold'>{stats.growthRate >= 0 ? '+' : ''}{stats.growthRate.toFixed(1)}%</div>
             <p className='text-xs text-muted-foreground'>vs. last month</p>
           </CardContent>
         </Card>
@@ -80,7 +71,7 @@ export function Analytics() {
             <Clock className='h-4 w-4 text-muted-foreground' />
           </CardHeader>
           <CardContent>
-            <div className='text-2xl font-bold'>2.4s</div>
+            <div className='text-2xl font-bold'>{stats.avgResponseTime.toFixed(1)}s</div>
             <p className='text-xs text-muted-foreground'>AI chat responses</p>
           </CardContent>
         </Card>
@@ -91,7 +82,7 @@ export function Analytics() {
             <FileText className='h-4 w-4 text-muted-foreground' />
           </CardHeader>
           <CardContent>
-            <div className='text-2xl font-bold'>5.8</div>
+            <div className='text-2xl font-bold'>{stats.documentsPerUser.toFixed(1)}</div>
             <p className='text-xs text-muted-foreground'>Average per user</p>
           </CardContent>
         </Card>
@@ -102,7 +93,7 @@ export function Analytics() {
             <Calendar className='h-4 w-4 text-muted-foreground' />
           </CardHeader>
           <CardContent>
-            <div className='text-2xl font-bold'>15:00</div>
+            <div className='text-2xl font-bold'>{stats.peakHour}</div>
             <p className='text-xs text-muted-foreground'>Most active time</p>
           </CardContent>
         </Card>
@@ -125,7 +116,7 @@ export function Analytics() {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width='100%' height={300}>
-                  <AreaChart data={documentGrowthData}>
+                  <AreaChart data={documentGrowthData.length > 0 ? documentGrowthData : [{ month: 'No Data', documents: 0, users: 0 }]}>
                     <CartesianGrid strokeDasharray='3 3' className='stroke-muted' />
                     <XAxis dataKey='month' className='text-xs' />
                     <YAxis className='text-xs' />
@@ -165,23 +156,29 @@ export function Analytics() {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width='100%' height={300}>
-                  <PieChart>
-                    <Pie
-                      data={categoryData}
-                      cx='50%'
-                      cy='50%'
-                      labelLine={false}
-                      label={({ name, percent }: any) => `${name} ${((percent as number) * 100).toFixed(0)}%`}
-                      outerRadius={80}
-                      fill='#8884d8'
-                      dataKey='value'
-                    >
-                      {categoryData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
+                  {categoryData.length > 0 ? (
+                    <PieChart>
+                      <Pie
+                        data={categoryData}
+                        cx='50%'
+                        cy='50%'
+                        labelLine={false}
+                        label={({ name, percent }: any) => `${name} ${((percent as number) * 100).toFixed(0)}%`}
+                        outerRadius={80}
+                        fill='#8884d8'
+                        dataKey='value'
+                      >
+                        {categoryData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  ) : (
+                    <div className='flex items-center justify-center h-full text-muted-foreground'>
+                      No category data available
+                    </div>
+                  )}
                 </ResponsiveContainer>
               </CardContent>
             </Card>
@@ -194,7 +191,7 @@ export function Analytics() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width='100%' height={300}>
-                <BarChart data={activityByHourData}>
+                <BarChart data={activityByHourData.length > 0 ? activityByHourData : [{ hour: 'No Data', activity: 0 }]}>
                   <CartesianGrid strokeDasharray='3 3' className='stroke-muted' />
                   <XAxis dataKey='hour' className='text-xs' />
                   <YAxis className='text-xs' />
@@ -220,8 +217,8 @@ export function Analytics() {
                 <CardDescription>Monthly document creation over time</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width='100%' height={300}>
-                  <LineChart data={documentGrowthData}>
+              <ResponsiveContainer width='100%' height={300}>
+                <LineChart data={documentGrowthData.length > 0 ? documentGrowthData : [{ month: 'No Data', documents: 0 }]}>
                     <CartesianGrid strokeDasharray='3 3' className='stroke-muted' />
                     <XAxis dataKey='month' className='text-xs' />
                     <YAxis className='text-xs' />
@@ -250,8 +247,8 @@ export function Analytics() {
                 <CardDescription>Most popular documentation categories</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width='100%' height={300}>
-                  <BarChart data={categoryData} layout='vertical'>
+              <ResponsiveContainer width='100%' height={300}>
+                <BarChart data={categoryData.length > 0 ? categoryData : [{ name: 'No Data', value: 0 }]} layout='vertical'>
                     <CartesianGrid strokeDasharray='3 3' className='stroke-muted' />
                     <XAxis type='number' className='text-xs' />
                     <YAxis dataKey='name' type='category' className='text-xs' width={100} />
@@ -334,7 +331,7 @@ export function Analytics() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width='100%' height={300}>
-                <BarChart data={userEngagementData}>
+                <BarChart data={userEngagementData.length > 0 ? userEngagementData : [{ week: 'No Data', active: 0, new: 0 }]}>
                   <CartesianGrid strokeDasharray='3 3' className='stroke-muted' />
                   <XAxis dataKey='week' className='text-xs' />
                   <YAxis className='text-xs' />

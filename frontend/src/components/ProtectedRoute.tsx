@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuthWrapper } from '@/hooks/useAuthWrapper';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LogIn } from 'lucide-react';
@@ -10,7 +10,9 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading, login, user } = useAuth();
+  const auth = useAuthWrapper();
+  const { isAuthenticated, login, user } = auth;
+  const isLoading = auth.loading || auth.isLoading || false;
 
   if (isLoading) {
     return (

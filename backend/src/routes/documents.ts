@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { prisma } from '../lib/prisma.js'
 import { tenantMiddleware, optionalTenantMiddleware } from '../middleware/tenant.middleware.js'
+import { getCategoryTemplate, applyCategoryTemplate } from '../templates/categoryTemplates.js'
 
 const router = Router()
 
@@ -10,6 +11,17 @@ router.use(tenantMiddleware)
 // Get all documents
 router.get('/', async (req: Request, res: Response) => {
   try {
+    // In dev mode, allow requests without tenant (for testing)
+    // Works if NODE_ENV=development OR DEV_AUTH_ENABLED=true
+    const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
+    if (!req.tenant && isDevMode) {
+      console.log('[Documents] Dev mode: Fetching all documents without tenant filter');
+      const documents = await prisma.document.findMany({
+        orderBy: { updatedAt: 'desc' }
+      })
+      return res.json(documents)
+    }
+    
     if (!req.tenant) {
       throw new Error('Tenant context required')
     }
@@ -56,11 +68,41 @@ router.get('/', async (req: Request, res: Response) => {
 // Get single document
 router.get('/:id', async (req: Request, res: Response) => {
   try {
+    // In dev mode, allow requests without tenant (for testing)
+    // Works if NODE_ENV=development OR DEV_AUTH_ENABLED=true
+    const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
+    if (!req.tenant && isDevMode) {
+      console.log('[Documents] Dev mode: Fetching document without tenant filter');
+      const { id } = req.params;
+      const document = await prisma.document.findFirst({
+        where: { id: id },
+        include: { versions: true }
+      });
+      if (!document) {
+        return res.status(404).json({ 
+          error: 'Document not found',
+          message: 'Document does not exist'
+        });
+      }
+      return res.json(document);
+    }
+    
     if (!req.tenant) {
-      throw new Error('Tenant context required')
+      return res.status(400).json({ 
+        error: 'Tenant context required',
+        message: 'Please ensure you have selected a tenant'
+      })
     }
 
     const { id } = req.params
+    
+    // Validate ID format (should be UUID)
+    if (!id || typeof id !== 'string' || id.length < 10) {
+      return res.status(400).json({ 
+        error: 'Invalid document ID',
+        message: 'Document ID must be a valid UUID'
+      })
+    }
     
     const document = await prisma.document.findFirst({
       where: {
@@ -71,40 +113,126 @@ router.get('/:id', async (req: Request, res: Response) => {
     })
     
     if (!document) {
-      return res.status(404).json({ error: 'Document not found' })
+      return res.status(404).json({ 
+        error: 'Document not found',
+        message: 'Document does not exist or you do not have access to it'
+      })
     }
     
     res.json(document)
-  } catch (error) {
+  } catch (error: any) {
     console.error('[Documents] Error:', error)
-    res.status(500).json({ error: 'Failed to fetch document' })
+    
+    // Handle Prisma errors
+    if (error.code === 'P2023') {
+      return res.status(400).json({ 
+        error: 'Invalid document ID',
+        message: 'The provided document ID format is invalid'
+      })
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to fetch document',
+      message: error.message || 'An unexpected error occurred'
+    })
   }
 })
 
 // Create document
 router.post('/', async (req: Request, res: Response) => {
   try {
-    if (!req.tenant || !req.user) {
-      throw new Error('Tenant and user context required')
+    // In dev mode, allow requests without tenant (for testing)
+    const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
+    
+    // User context is always required
+    if (!req.user) {
+      return res.status(401).json({ 
+        error: 'Authentication required',
+        message: 'Please log in to create documents'
+      })
+    }
+    
+    // In production mode, tenant is required
+    if (!isDevMode && !req.tenant) {
+      return res.status(400).json({ 
+        error: 'Tenant context required',
+        message: 'Please ensure you have selected a tenant'
+      })
     }
 
     const { title, content, category } = req.body
     
+    // Validate title
+    if (!title || typeof title !== 'string' || title.trim().length === 0) {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        message: 'Document title is required'
+      })
+    }
+
+    if (title.length > 200) {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        message: 'Document title must be less than 200 characters'
+      })
+    }
+
+    // Validate category if provided
+    const validCategories = ['DOCUMENTATION', 'CODE_ANALYSIS', 'TEMPLATE', 'KNOWLEDGE_BASE', 'MEETING_NOTES', 'TUTORIAL', 'API_SPEC']
+    const documentCategory = category ? category.toUpperCase() : 'DOCUMENTATION'
+    
+    if (category && !validCategories.includes(documentCategory)) {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        message: `Invalid category. Must be one of: ${validCategories.join(', ')}`
+      })
+    }
+    
+    // Apply category-based template if no content provided
+    let documentContent = content || ''
+    if (!content || content.trim().length === 0) {
+      const categoryTemplate = getCategoryTemplate(documentCategory)
+      if (categoryTemplate) {
+        documentContent = applyCategoryTemplate(categoryTemplate, title.trim())
+      } else {
+        // Fallback for categories without templates
+        documentContent = `<h1>${title.trim()}</h1><p>Start writing...</p>`
+      }
+    }
+    
     const document = await prisma.document.create({
       data: {
-        title,
-        content: content || '',
-        category: category || 'DOCUMENTATION',
-        tenantId: req.tenant.id, // Tenant isolation
+        title: title.trim(),
+        content: documentContent,
+        category: documentCategory,
+        tenantId: req.tenant?.id || null, // Tenant isolation (null in dev mode)
         userId: req.user.id, // Current user
         status: 'DRAFT' // Uppercase wie im Schema definiert
       }
     })
     
     res.status(201).json(document)
-  } catch (error) {
-    console.error('[Documents] Error:', error)
-    res.status(500).json({ error: 'Failed to create document' })
+  } catch (error: any) {
+    console.error('[Documents] Error creating document:', error)
+    console.error('[Documents] Error details:', {
+      message: error.message,
+      code: error.code,
+      meta: error.meta
+    })
+    
+    // Handle Prisma errors
+    if (error.code === 'P2002') {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        message: 'A document with this title already exists for this tenant'
+      })
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to create document',
+      message: error.message || 'An unexpected error occurred',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    })
   }
 })
 
@@ -112,7 +240,10 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     if (!req.tenant) {
-      throw new Error('Tenant context required')
+      return res.status(400).json({ 
+        error: 'Tenant context required',
+        message: 'Please ensure you have selected a tenant'
+      })
     }
 
     const { id } = req.params
@@ -127,45 +258,77 @@ router.put('/:id', async (req: Request, res: Response) => {
     })
 
     if (!existingDoc) {
-      return res.status(404).json({ error: 'Document not found' })
+      return res.status(404).json({ 
+        error: 'Document not found',
+        message: 'Document does not exist or you do not have access to it'
+      })
+    }
+
+    // Validation
+    if (title !== undefined) {
+      if (typeof title !== 'string' || title.trim().length === 0) {
+        return res.status(400).json({ 
+          error: 'Validation failed',
+          message: 'Title must be a non-empty string'
+        })
+      }
+      if (title.length > 500) {
+        return res.status(400).json({ 
+          error: 'Validation failed',
+          message: 'Title must be less than 500 characters'
+        })
+      }
+    }
+
+    // Validate category if provided
+    if (category) {
+      const validCategories = ['DOCUMENTATION', 'CODE_ANALYSIS', 'TEMPLATE', 'KNOWLEDGE_BASE', 'MEETING_NOTES', 'TUTORIAL', 'API_SPEC']
+      if (!validCategories.includes(category.toUpperCase())) {
+        return res.status(400).json({ 
+          error: 'Validation failed',
+          message: `Invalid category. Must be one of: ${validCategories.join(', ')}`
+        })
+      }
+    }
+
+    // Validate status if provided
+    if (status) {
+      const validStatuses = ['DRAFT', 'REVIEW', 'PUBLISHED', 'ARCHIVED']
+      if (!validStatuses.includes(status.toUpperCase())) {
+        return res.status(400).json({ 
+          error: 'Validation failed',
+          message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+        })
+      }
     }
     
     const document = await prisma.document.update({
       where: { id: id },
       data: {
-        ...(title && { title }),
+        ...(title && { title: title.trim() }),
         ...(content !== undefined && { content }),
-        ...(category && { category }),
+        ...(category && { category: category.toUpperCase() }),
         ...(status && { status: status.toUpperCase() }), // Ensure uppercase
         version: { increment: 1 } // Increment version number
       }
     })
     
-    // Version-History: Erstelle neue Version als neues Document mit parentId
-    // (Schema verwendet parentId-Relation für Versions)
-    if (document) {
-      const versionCount = await prisma.document.count({
-        where: { parentId: document.parentId || document.id }
+    res.json(document)
+  } catch (error: any) {
+    console.error('[Documents] Error:', error)
+    
+    // Handle Prisma errors
+    if (error.code === 'P2025') {
+      return res.status(404).json({ 
+        error: 'Document not found',
+        message: 'The document you are trying to update does not exist'
       })
-      
-      // Optional: Version als neues Document speichern (wenn gewünscht)
-      // await prisma.document.create({
-      //   data: {
-      //     title: document.title,
-      //     content: document.content,
-      //     category: document.category,
-      //     userId: document.userId,
-      //     parentId: document.parentId || document.id,
-      //     status: document.status,
-      //     version: document.version
-      //   }
-      // })
     }
     
-    res.json(document)
-  } catch (error) {
-    console.error('[Documents] Error:', error)
-    res.status(500).json({ error: 'Failed to update document' })
+    res.status(500).json({ 
+      error: 'Failed to update document',
+      message: error.message || 'An unexpected error occurred'
+    })
   }
 })
 
@@ -173,7 +336,10 @@ router.put('/:id', async (req: Request, res: Response) => {
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
     if (!req.tenant) {
-      throw new Error('Tenant context required')
+      return res.status(400).json({ 
+        error: 'Tenant context required',
+        message: 'Please ensure you have selected a tenant'
+      })
     }
 
     const { id } = req.params
@@ -187,7 +353,10 @@ router.delete('/:id', async (req: Request, res: Response) => {
     })
 
     if (!existingDoc) {
-      return res.status(404).json({ error: 'Document not found' })
+      return res.status(404).json({ 
+        error: 'Document not found',
+        message: 'Document does not exist or you do not have access to it'
+      })
     }
     
     await prisma.document.delete({
@@ -195,9 +364,21 @@ router.delete('/:id', async (req: Request, res: Response) => {
     })
     
     res.status(204).send()
-  } catch (error) {
+  } catch (error: any) {
     console.error('[Documents] Error:', error)
-    res.status(500).json({ error: 'Failed to delete document' })
+    
+    // Handle Prisma errors
+    if (error.code === 'P2025') {
+      return res.status(404).json({ 
+        error: 'Document not found',
+        message: 'The document you are trying to delete does not exist'
+      })
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to delete document',
+      message: error.message || 'An unexpected error occurred'
+    })
   }
 })
 

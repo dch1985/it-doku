@@ -39,7 +39,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setIsLoading(true)
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/chat`, {
+      // VITE_API_URL might already include /api, so we check and construct the URL properly
+      const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const apiURL = baseURL.endsWith('/api') ? baseURL : `${baseURL}/api`;
+      const response = await fetch(`${apiURL}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

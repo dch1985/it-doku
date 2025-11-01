@@ -1,5 +1,6 @@
 ﻿import { QueryProvider } from './providers/QueryProvider'
 import { AuthProvider } from './contexts/AuthContext'
+import { DevAuthProvider } from './contexts/DevAuthContext'
 import { ChatProvider } from './contexts/ChatContext'
 import { MainLayout } from './layouts/MainLayout'
 import { ChatSidebar } from './features/chat/components/ChatSidebar'
@@ -53,32 +54,36 @@ function App() {
     return () => window.removeEventListener('hashchange', handleHashChange)
   }, [])
 
+  // Check if dev auth is enabled
+  const isDevMode = import.meta.env.VITE_DEV_AUTH_ENABLED === 'true';
+  const AuthWrapper = isDevMode ? DevAuthProvider : AuthProvider;
+
   return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <QueryProvider>
-          <ChatProvider>
-            <MainLayout>
-              {currentPage === 'dashboard' && <Dashboard />}
-              {currentPage === 'documents' && <Documents />}
-              {currentPage === 'settings' && <Settings />}
-              {currentPage === 'analytics' && <Analytics />}
-              {currentPage === 'document-detail' && selectedDocumentId && (
-                <DocumentDetail 
-                  documentId={selectedDocumentId} 
-                  onBack={() => {
-                    window.location.hash = 'documents'
-                  }} 
-                />
-              )}
-            </MainLayout>
-            <ChatSidebar />
-            <Toaster theme={theme === 'dark' ? 'dark' : 'light'} richColors position='top-right' />
-          </ChatProvider>
-        </QueryProvider>
-      </AuthProvider>
-    </ErrorBoundary>
-  )
+        <ErrorBoundary>
+          <AuthWrapper>
+            <QueryProvider>
+              <ChatProvider>
+                <MainLayout>
+                  {currentPage === 'dashboard' && <Dashboard />}
+                  {currentPage === 'documents' && <Documents />}
+                  {currentPage === 'settings' && <Settings />}
+                  {currentPage === 'analytics' && <Analytics />}
+                  {currentPage === 'document-detail' && selectedDocumentId && (
+                    <DocumentDetail 
+                      documentId={selectedDocumentId} 
+                      onBack={() => {
+                        window.location.hash = 'documents'
+                      }} 
+                    />
+                  )}
+                </MainLayout>
+                <ChatSidebar />
+                <Toaster theme={theme === 'dark' ? 'dark' : 'light'} richColors position='top-right' />
+              </ChatProvider>
+            </QueryProvider>
+          </AuthWrapper>
+        </ErrorBoundary>
+      )
 }
 
 export default App

@@ -4,9 +4,19 @@ import { Card, CardContent } from '@/components/ui/card'
 import { toast } from 'sonner'
 import { Upload, FileText, Download, Trash2 } from 'lucide-react'
 
+// Helper function to get API URL (handles both with and without /api)
+const getApiUrl = () => {
+  const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+  return baseURL.endsWith('/api') ? baseURL : `${baseURL}/api`;
+};
+
+const API_URL = getApiUrl();
+
 interface FileUploadProps {
-  documentId: string  // UUID String
+  documentId?: string  // UUID String (optional - can upload without document)
   onUploadComplete?: () => void
+  showUploadButton?: boolean // Show upload button by default
+  onFileSelect?: (files: File[]) => void // Callback when files are selected (for pending uploads)
 }
 
 interface Attachment {
@@ -31,12 +41,21 @@ export function FileUpload({ documentId, onUploadComplete }: FileUploadProps) {
   const fetchAttachments = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`http://localhost:3001/api/upload/document/${documentId}`)
-      if (!response.ok) throw new Error('Failed to fetch attachments')
+      const response = await fetch(`${API_URL}/upload/document/${documentId}`)
+      if (!response.ok) {
+        // If 404, no attachments exist yet - that's ok
+        if (response.status === 404) {
+          setAttachments([])
+          return
+        }
+        throw new Error('Failed to fetch attachments')
+      }
       const data = await response.json()
       setAttachments(data)
     } catch (error) {
       console.error('Error fetching attachments:', error)
+      // Silently fail and show empty list
+      setAttachments([])
     } finally {
       setLoading(false)
     }
@@ -57,7 +76,7 @@ export function FileUpload({ documentId, onUploadComplete }: FileUploadProps) {
     formData.append('documentId', documentId)  // UUID String, kein toString() nötig
 
     try {
-      const response = await fetch('http://localhost:3001/api/upload', {
+      const response = await fetch(`${API_URL}/upload`, {
         method: 'POST',
         body: formData
       })
@@ -84,7 +103,7 @@ export function FileUpload({ documentId, onUploadComplete }: FileUploadProps) {
 
   const handleDownload = async (attachment: Attachment) => {
     try {
-      const response = await fetch(`http://localhost:3001/api/upload/${attachment.id}`)
+      const response = await fetch(`${API_URL}/upload/${attachment.id}`)
       if (!response.ok) throw new Error('Download failed')
       
       const blob = await response.blob()
@@ -108,7 +127,7 @@ export function FileUpload({ documentId, onUploadComplete }: FileUploadProps) {
     if (!confirm('Are you sure you want to delete this attachment?')) return
 
     try {
-      const response = await fetch(`http://localhost:3001/api/upload/${attachmentId}`, {
+      const response = await fetch(`${API_URL}/upload/${attachmentId}`, {
         method: 'DELETE'
       })
 

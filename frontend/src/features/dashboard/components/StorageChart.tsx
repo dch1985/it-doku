@@ -1,22 +1,35 @@
 ﻿import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-
-const data = [
-  { month: 'Jan', storage: 0.3 },
-  { month: 'Feb', storage: 0.5 },
-  { month: 'Mar', storage: 0.7 },
-  { month: 'Apr', storage: 0.9 },
-  { month: 'Mai', storage: 1.2 },
-  { month: 'Jun', storage: 1.5 },
-  { month: 'Jul', storage: 1.7 },
-  { month: 'Aug', storage: 1.9 },
-  { month: 'Sep', storage: 2.1 },
-  { month: 'Okt', storage: 2.3 },
-  { month: 'Nov', storage: 2.4 },
-  { month: 'Dez', storage: 2.4 },
-]
+import { useAnalytics } from '@/hooks/useAnalytics'
 
 export function StorageChart() {
+  const { data: analyticsData, isLoading } = useAnalytics()
+  
+  // For now, show placeholder - Storage data can be calculated from attachments later
+  // Using document growth as approximation for storage growth
+  const chartData = analyticsData?.charts?.documentGrowth || []
+  const storageData = chartData.length > 0
+    ? chartData.map(item => ({ 
+        month: item.month, 
+        storage: Math.round((item.documents * 0.01) * 100) / 100 // Approximate: 0.01 GB per document
+      }))
+    : [{ month: 'No Data', storage: 0 }]
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Speicher-Nutzung</CardTitle>
+          <CardDescription>Storage-Entwicklung in GB</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className='flex items-center justify-center h-[300px] text-muted-foreground'>
+            Loading...
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
   return (
     <Card>
       <CardHeader>
@@ -25,7 +38,7 @@ export function StorageChart() {
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width='100%' height={300}>
-          <AreaChart data={data}>
+          <AreaChart data={storageData}>
             <CartesianGrid strokeDasharray='3 3' className='stroke-muted' />
             <XAxis dataKey='month' className='text-xs' />
             <YAxis className='text-xs' />

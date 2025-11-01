@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma.js';
-import { authenticate } from '../middleware/auth.middleware.js';
 import { tenantMiddleware, requireTenantRole } from '../middleware/tenant.middleware.js';
 import { ApplicationError } from '../middleware/errorHandler.js';
 
@@ -9,8 +8,9 @@ const router = Router();
 /**
  * GET /api/tenants
  * Get all tenants for current user
+ * Note: Authentication is applied at route level in index.ts
  */
-router.get('/', authenticate, async (req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
     if (!req.user) {
       throw new ApplicationError('User not authenticated', 401);
@@ -53,8 +53,9 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
 /**
  * GET /api/tenants/:id
  * Get single tenant details
+ * Note: Authentication is applied at route level in index.ts
  */
-router.get('/:id', authenticate, async (req: Request, res: Response) => {
+router.get('/:id', async (req: Request, res: Response) => {
   try {
     if (!req.user) {
       throw new ApplicationError('User not authenticated', 401);
@@ -103,8 +104,9 @@ router.get('/:id', authenticate, async (req: Request, res: Response) => {
 /**
  * POST /api/tenants
  * Create new tenant
+ * Note: Authentication is applied at route level in index.ts
  */
-router.post('/', authenticate, async (req: Request, res: Response) => {
+router.post('/', async (req: Request, res: Response) => {
   try {
     if (!req.user) {
       throw new ApplicationError('User not authenticated', 401);
@@ -175,8 +177,9 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
 /**
  * PATCH /api/tenants/:id
  * Update tenant (only OWNER/ADMIN)
+ * Note: Authentication is applied at route level in index.ts
  */
-router.patch('/:id', authenticate, tenantMiddleware, requireTenantRole('OWNER', 'ADMIN'), async (req: Request, res: Response) => {
+router.patch('/:id', tenantMiddleware, requireTenantRole('OWNER', 'ADMIN'), async (req: Request, res: Response) => {
   try {
     if (!req.tenant || !req.user) {
       throw new ApplicationError('Tenant and user context required', 400);

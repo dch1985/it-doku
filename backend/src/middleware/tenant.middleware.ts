@@ -59,7 +59,15 @@ export const tenantMiddleware = async (
       if (req.path === '/api/health' || req.path === '/api/docs' || req.path.startsWith('/api/auth')) {
         return next();
       }
-      throw new ApplicationError('Tenant identifier required', 400);
+      // In dev mode, if no tenant is provided but user is authenticated, we can continue
+      // This allows testing without tenant selection
+      // Works if NODE_ENV=development OR DEV_AUTH_ENABLED=true
+      const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
+      if (isDevMode && req.user) {
+        console.log('[Tenant Middleware] Dev mode: Allowing request without tenant');
+        return next();
+      }
+      throw new ApplicationError('Tenant identifier required. Please provide X-Tenant-ID or X-Tenant-Slug header.', 400);
     }
 
     // Find tenant by ID or slug

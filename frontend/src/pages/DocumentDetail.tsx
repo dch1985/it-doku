@@ -5,9 +5,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { DocumentEditor } from '@/components/DocumentEditor'
-import { FileUpload } from '@/components/FileUpload'
 import { toast } from 'sonner'
-import { ArrowLeft, Save, Eye, Edit, Download, Trash2, Paperclip } from 'lucide-react'
+import { ArrowLeft, Save, Eye, Edit, Download, Trash2 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDocuments } from '@/hooks/useDocuments'
 
@@ -131,10 +130,6 @@ export function DocumentDetail({ documentId, onBack }: DocumentDetailProps) {
           </TabsTrigger>
           <TabsTrigger value='metadata'>Metadata</TabsTrigger>
           <TabsTrigger value='history'>History</TabsTrigger>
-          <TabsTrigger value='attachments'>
-            <Paperclip className='mr-2 h-4 w-4' />
-            Attachments
-          </TabsTrigger>
         </TabsList>
 
         <TabsContent value='content' className='space-y-4'>
@@ -148,7 +143,7 @@ export function DocumentDetail({ documentId, onBack }: DocumentDetailProps) {
                 />
               ) : (
                 <div 
-                  className='prose prose-sm sm:prose lg:prose-lg xl:prose-2xl max-w-none'
+                  className='prose prose-sm sm:prose lg:prose-lg xl:prose-2xl max-w-none template-content'
                   dangerouslySetInnerHTML={{ __html: content }}
                 />
               )}
@@ -233,17 +228,6 @@ export function DocumentDetail({ documentId, onBack }: DocumentDetailProps) {
           </Card>
         </TabsContent>
 
-        <TabsContent value='attachments' className='space-y-4'>
-          <Card>
-            <CardHeader>
-              <CardTitle>Attachments</CardTitle>
-              <CardDescription>Upload and manage document attachments</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <FileUpload documentId={documentId} />
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
     </div>
   )
