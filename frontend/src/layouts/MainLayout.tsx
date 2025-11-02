@@ -5,6 +5,7 @@ import { useAuthWrapper } from '@/hooks/useAuthWrapper'
 import { Button } from '@/components/ui/button'
 import { SearchBar } from '@/components/SearchBar'
 import { TenantSelector } from '@/components/TenantSelector'
+import { NotificationsDropdown } from '@/components/NotificationsDropdown'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Menu, X, Home, FileText, MessageSquare, BarChart3, Settings, LogOut, User } from 'lucide-react'
+import { Menu, X, Home, FileText, MessageSquare, BarChart3, Settings, LogOut, User, Lock, Server, FileSignature, Radio, Globe, Video } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface MainLayoutProps {
@@ -24,6 +25,12 @@ interface MainLayoutProps {
 const navigation = [
   { name: 'Dashboard', href: '/', icon: Home },
   { name: 'Documentation', href: '/docs', icon: FileText },
+  { name: 'Passwords', href: '/passwords', icon: Lock },
+  { name: 'Assets', href: '/assets', icon: Server },
+  { name: 'Contracts', href: '/contracts', icon: FileSignature },
+  { name: 'Network Devices', href: '/network-devices', icon: Radio },
+  { name: 'Customer Portals', href: '/customer-portals', icon: Globe },
+  { name: 'Process Recordings', href: '/process-recordings', icon: Video },
   { name: 'AI Chat', href: '/chat', icon: MessageSquare },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   { name: 'Settings', href: '/settings', icon: Settings },
@@ -107,6 +114,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   </div>
 
   <div className='flex items-center gap-2'>
+    <NotificationsDropdown />
     <ThemeToggle />
   </div>
 </header>

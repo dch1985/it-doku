@@ -71,6 +71,19 @@ export const devAuthenticate = async (
     next();
   } catch (error) {
     console.error('[Dev Auth] Error:', error);
+    
+    // If database is unavailable, use a mock user for development
+    const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
+    if (isDevMode) {
+      console.warn('[Dev Auth] Database unavailable, using mock user for development');
+      req.user = {
+        id: 'mock-user-id-dev',
+        email: 'demo@it-doku.local',
+        name: 'DU Demo User',
+        role: 'ADMIN',
+      };
+    }
+    
     next(); // Continue even if dev auth fails
   }
 };

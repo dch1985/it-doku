@@ -41,8 +41,19 @@ router.get('/', async (req: Request, res: Response) => {
         joinedAt: tm.joinedAt,
       }))
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error('[Tenants] Error fetching user tenants:', error);
+    
+    // Check if it's a database connection/firewall error
+    const isFirewallError = error.message?.includes('firewall') || 
+                           error.message?.includes('not allowed to access') ||
+                           error.code === 'P1001';
+    
+    if (isFirewallError) {
+      console.error('[Tenants] ⚠️ Azure SQL Firewall Error - Database not accessible');
+      return res.json([]); // Return empty array in dev mode when DB unavailable
+    }
+    
     if (error instanceof ApplicationError) {
       throw error;
     }

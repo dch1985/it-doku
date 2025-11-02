@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Search, FileText, Download, Trash2, Eye, Filter, Plus } from 'lucide-react'
 import { toast } from 'sonner'
-import { exportToPDF, exportToMarkdown, downloadMarkdown, exportToJSON } from '@/lib/exportUtils'
+import { exportToPDF, exportToMarkdown, downloadMarkdown, exportToJSON, exportToWord } from '@/lib/exportUtils'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,7 +41,8 @@ export function Documents() {
   }
 
   const handleDownload = (doc: typeof documents[0]) => {
-    toast.success(`Downloading: ${doc.title}`)
+    // Open document detail view for download options
+    handleView(doc)
   }
 
   const handleDelete = async (doc: typeof documents[0]) => {
@@ -102,6 +103,15 @@ export function Documents() {
   const handleExportJSON = () => {
     exportToJSON(filteredDocuments as any)
     toast.success('Exported to JSON successfully!')
+  }
+
+  const handleExportWord = async () => {
+    try {
+      await exportToWord(filteredDocuments as any, 'IT Documentation')
+      toast.success('Exported to Word successfully!')
+    } catch (error) {
+      toast.error('Failed to export to Word')
+    }
   }
 
   if (loading) {
@@ -339,6 +349,9 @@ export function Documents() {
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleExportJSON}>
                   Export as JSON
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportWord}>
+                  Export as Word
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

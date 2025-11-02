@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express'
 import { prisma } from '../lib/prisma.js'
 import { tenantMiddleware, optionalTenantMiddleware } from '../middleware/tenant.middleware.js'
 import { getCategoryTemplate, applyCategoryTemplate } from '../templates/categoryTemplates.js'
+import { auditService } from '../services/audit.service.js'
 
 const router = Router()
 
@@ -211,6 +212,17 @@ router.post('/', async (req: Request, res: Response) => {
       }
     })
     
+    // Log audit trail
+    await auditService.log({
+      userId: req.user.id,
+      action: 'CREATE',
+      resource: 'Document',
+      resourceId: document.id,
+      metadata: { title: document.title, category: documentCategory },
+      ipAddress: req.ip || req.socket.remoteAddress,
+      userAgent: req.get('user-agent'),
+    })
+    
     res.status(201).json(document)
   } catch (error: any) {
     console.error('[Documents] Error creating document:', error)
@@ -313,6 +325,17 @@ router.put('/:id', async (req: Request, res: Response) => {
       }
     })
     
+    // Log audit trail
+    await auditService.log({
+      userId: req.user?.id,
+      action: 'UPDATE',
+      resource: 'Document',
+      resourceId: document.id,
+      metadata: { changes: { title, category, status } },
+      ipAddress: req.ip || req.socket.remoteAddress,
+      userAgent: req.get('user-agent'),
+    })
+    
     res.json(document)
   } catch (error: any) {
     console.error('[Documents] Error:', error)
@@ -331,6 +354,9 @@ router.put('/:id', async (req: Request, res: Response) => {
     })
   }
 })
+
+// Version history is now handled by audit logs
+// Use /api/audit/resource/Document/:id to get version history
 
 // Delete document
 router.delete('/:id', async (req: Request, res: Response) => {
@@ -361,6 +387,17 @@ router.delete('/:id', async (req: Request, res: Response) => {
     
     await prisma.document.delete({
       where: { id: id }
+    })
+    
+    // Log audit trail
+    await auditService.log({
+      userId: req.user?.id,
+      action: 'DELETE',
+      resource: 'Document',
+      resourceId: id,
+      metadata: { title: existingDoc.title },
+      ipAddress: req.ip || req.socket.remoteAddress,
+      userAgent: req.get('user-agent'),
     })
     
     res.status(204).send()

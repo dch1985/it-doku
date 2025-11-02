@@ -12,50 +12,56 @@ datasource db {
 // MULTI-TENANCY
 // ==========================================
 model Tenant {
-  id            String         @id @default(uuid())
-  name          String
-  slug          String         @unique // URL-friendly identifier
-  description   String?
-  
+  id          String  @id @default(uuid())
+  name        String
+  slug        String  @unique // URL-friendly identifier
+  description String?
+
   // Billing & Subscription
-  subscriptionStatus String     @default("TRIAL") // TRIAL, ACTIVE, SUSPENDED, CANCELLED
-  subscriptionPlan  String?   // FREE, BASIC, PRO, ENTERPRISE
+  subscriptionStatus    String    @default("TRIAL") // TRIAL, ACTIVE, SUSPENDED, CANCELLED
+  subscriptionPlan      String? // FREE, BASIC, PRO, ENTERPRISE
   subscriptionExpiresAt DateTime?
-  
+
   // Settings
-  settings      String?        @db.NVarChar(Max) // JSON as string
-  isActive      Boolean         @default(true)
-  
+  settings String? @db.NVarChar(Max) // JSON as string
+  isActive Boolean @default(true)
+
   // Relations
-  members       TenantMember[]
-  documents     Document[]
-  templates     Template[]
-  conversations Conversation[]
-  
+  members           TenantMember[]
+  documents         Document[]
+  templates         Template[]
+  conversations     Conversation[]
+  passwords         Password[]
+  assets            Asset[]
+  contracts         Contract[]
+  networkDevices    NetworkDevice[]
+  customerPortals   CustomerPortal[]
+  processRecordings ProcessRecording[]
+
   // Metadata
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([slug])
   @@index([subscriptionStatus])
   @@map("tenants")
 }
 
 model TenantMember {
-  id            String         @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   // Relations
-  tenantId      String
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  userId        String
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   // Role in this tenant
-  role          String         @default("MEMBER") // OWNER, ADMIN, MEMBER, VIEWER
-  
+  role String @default("MEMBER") // OWNER, ADMIN, MEMBER, VIEWER
+
   // Metadata
-  joinedAt      DateTime       @default(now())
-  
+  joinedAt DateTime @default(now())
+
   @@unique([tenantId, userId])
   @@index([tenantId])
   @@index([userId])
@@ -66,28 +72,33 @@ model TenantMember {
 // USER MANAGEMENT
 // ==========================================
 model User {
-  id            String         @id @default(uuid())
-  email         String         @unique
-  name          String
-  password      String?
-  role          String         @default("USER") // ADMIN, USER, VIEWER
-  avatar        String?
-  
+  id       String  @id @default(uuid())
+  email    String  @unique
+  name     String
+  password String?
+  role     String  @default("USER") // ADMIN, USER, VIEWER
+  avatar   String?
+
   // Azure AD Integration
-  azureId       String?        @unique // Azure Object ID (oid)
-  azureOID      String?        @unique // Azure Object ID (oid) - alternative field name
-  
+  azureId  String? @unique // Azure Object ID (oid)
+  azureOID String? @unique // Azure Object ID (oid) - alternative field name
+
   // Relations
-  tenants       TenantMember[]
-  documents     Document[]
-  conversations Conversation[]
-  apiKeys       ApiKey[]
-  
+  tenants           TenantMember[]
+  documents         Document[]
+  conversations     Conversation[]
+  apiKeys           ApiKey[]
+  passwords         Password[]
+  assets            Asset[]
+  processRecordings ProcessRecording[]
+  comments          Comment[]
+  notifications     Notification[]
+
   // Metadata
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  lastLoginAt   DateTime?
-  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
+
   @@map("users")
 }
 
@@ -95,42 +106,43 @@ model User {
 // DOCUMENTS & TEMPLATES
 // ==========================================
 model Document {
-  id          String           @id @default(uuid())
-  title       String
-  content     String           @db.NVarChar(Max)
-  category    String           @default("DOCUMENTATION") // DOCUMENTATION, CODE_ANALYSIS, TEMPLATE, KNOWLEDGE_BASE, MEETING_NOTES, TUTORIAL, API_SPEC
-  
+  id       String @id @default(uuid())
+  title    String
+  content  String @db.NVarChar(Max)
+  category String @default("DOCUMENTATION") // DOCUMENTATION, CODE_ANALYSIS, TEMPLATE, KNOWLEDGE_BASE, MEETING_NOTES, TUTORIAL, API_SPEC
+
   // Tags as JSON (SQL Server doesn't support arrays natively)
-  tags        String?          @db.NVarChar(Max) // Store as JSON: ["tag1","tag2"]
-  
+  tags String? @db.NVarChar(Max) // Store as JSON: ["tag1","tag2"]
+
   // Versioning
-  version     Int              @default(1)
-  parentId    String?
-  parent      Document?        @relation("DocumentVersions", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  versions    Document[]       @relation("DocumentVersions")
-  
+  version  Int        @default(1)
+  parentId String?
+  parent   Document?  @relation("DocumentVersions", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  versions Document[] @relation("DocumentVersions")
+
   // Metadata
-  metadata    String?          @db.NVarChar(Max) // JSON as string
-  status      String           @default("DRAFT") // DRAFT, REVIEW, PUBLISHED, ARCHIVED
-  visibility  String           @default("PRIVATE") // PRIVATE, TEAM, PUBLIC
-  
+  metadata   String? @db.NVarChar(Max) // JSON as string
+  status     String  @default("DRAFT") // DRAFT, REVIEW, PUBLISHED, ARCHIVED
+  visibility String  @default("PRIVATE") // PRIVATE, TEAM, PUBLIC
+
   // AI Generated
-  isAiGenerated Boolean        @default(false)
+  isAiGenerated Boolean @default(false)
   aiModel       String?
-  promptUsed    String?        @db.NVarChar(Max)
-  
+  promptUsed    String? @db.NVarChar(Max)
+
   // Relations
-  tenantId      String?        // Temporarily nullable for migration - will be required after
-  tenant        Tenant?         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  userId        String
-  user          User           @relation(fields: [userId], references: [id])
+  tenantId       String? // Temporarily nullable for migration - will be required after
+  tenant         Tenant?         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User            @relation(fields: [userId], references: [id])
   knowledgeNodes KnowledgeNode[]
-  
+  comments       Comment[]
+
   // Timestamps
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   publishedAt DateTime?
-  
+
   @@index([tenantId])
   @@index([userId])
   @@index([category])
@@ -142,30 +154,30 @@ model Document {
 // TEMPLATES
 // ==========================================
 model Template {
-  id          String         @id @default(uuid())
+  id          String  @id @default(uuid())
   name        String
   description String?
   category    String
-  content     String         @db.NVarChar(Max)
-  structure   String         @db.NVarChar(Max) // JSON as string
-  
+  content     String  @db.NVarChar(Max)
+  structure   String  @db.NVarChar(Max) // JSON as string
+
   // Multi-Tenancy
-  tenantId    String?
-  tenant      Tenant?        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  isGlobal    Boolean         @default(false) // Global templates available to all tenants
-  
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  isGlobal Boolean @default(false) // Global templates available to all tenants
+
   // Metadata
-  tags        String?        @db.NVarChar(Max) // JSON array as string
-  isNistCompliant Boolean    @default(false)
+  tags            String? @db.NVarChar(Max) // JSON array as string
+  isNistCompliant Boolean @default(false)
   nistFramework   String?
-  
+
   // Usage
-  usageCount  Int            @default(0)
-  
+  usageCount Int @default(0)
+
   // Timestamps
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([tenantId])
   @@index([isGlobal])
   @@map("templates")
@@ -175,24 +187,24 @@ model Template {
 // AI CONVERSATIONS
 // ==========================================
 model Conversation {
-  id          String    @id @default(uuid())
-  title       String
-  
+  id    String @id @default(uuid())
+  title String
+
   // Relations
-  tenantId    String
-  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  userId      String
-  user        User      @relation(fields: [userId], references: [id])
-  messages    Message[]
-  
+  tenantId String
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User      @relation(fields: [userId], references: [id])
+  messages Message[]
+
   // Context & Memory (as JSON strings)
-  context     String?   @db.NVarChar(Max)
-  metadata    String?   @db.NVarChar(Max)
-  
+  context  String? @db.NVarChar(Max)
+  metadata String? @db.NVarChar(Max)
+
   // Timestamps
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([tenantId])
   @@index([userId])
   @@index([updatedAt])
@@ -200,51 +212,104 @@ model Conversation {
 }
 
 model Message {
-  id             String       @id @default(uuid())
-  role           String       // USER, ASSISTANT, SYSTEM
-  content        String       @db.NVarChar(Max)
-  
+  id      String @id @default(uuid())
+  role    String // USER, ASSISTANT, SYSTEM
+  content String @db.NVarChar(Max)
+
   // Relations
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  
+
   // Metadata
-  metadata       String?      @db.NVarChar(Max) // JSON as string
-  
-  // Timestamps
-  createdAt      DateTime     @default(now())
-  
+  metadata String? @db.NVarChar(Max) // JSON as string
+
+  createdAt DateTime @default(now())
+
   @@index([conversationId])
   @@map("messages")
+}
+
+// ==========================================
+// COMMENTS & COLLABORATION
+// ==========================================
+model Comment {
+  id       String  @id @default(uuid())
+  content  String  @db.NVarChar(Max)
+  resolved Boolean @default(false)
+
+  // Relations
+  documentId String
+  document   Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  parentId   String? // For nested comments
+  parent     Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  replies    Comment[] @relation("CommentReplies")
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([documentId])
+  @@index([userId])
+  @@index([parentId])
+  @@map("comments")
+}
+
+// ==========================================
+// NOTIFICATIONS
+// ==========================================
+model Notification {
+  id      String  @id @default(uuid())
+  type    String // DOCUMENT_CREATED, DOCUMENT_UPDATED, COMMENT_ADDED, MENTIONED, ASSIGNED, REVIEW_REQUESTED
+  title   String
+  message String
+  read    Boolean @default(false)
+  link    String?
+
+  // Relations
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Metadata
+  metadata String? @db.NVarChar(Max) // JSON string
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("notifications")
 }
 
 // ==========================================
 // KNOWLEDGE GRAPH
 // ==========================================
 model KnowledgeNode {
-  id          String   @id @default(uuid())
-  content     String   @db.NVarChar(Max)
-  type        String   // CONCEPT, CODE, PERSON, TECHNOLOGY, PROCESS, ENTITY
-  
+  id      String @id @default(uuid())
+  content String @db.NVarChar(Max)
+  type    String // CONCEPT, CODE, PERSON, TECHNOLOGY, PROCESS, ENTITY
+
   // Vector Embeddings - stored as JSON string
   // Format: "[0.123, 0.456, ...]"
-  embedding   String?  @db.NVarChar(Max)
-  
+  embedding String? @db.NVarChar(Max)
+
   // Relations
-  documentId  String?
-  document    Document? @relation(fields: [documentId], references: [id])
-  
+  documentId String?
+  document   Document? @relation(fields: [documentId], references: [id])
+
   // Graph Connections - stored as JSON array
-  connections String?  @db.NVarChar(Max)
-  tags        String?  @db.NVarChar(Max)
-  
+  connections String? @db.NVarChar(Max)
+  tags        String? @db.NVarChar(Max)
+
   // Metadata
-  metadata    String?  @db.NVarChar(Max)
-  
+  metadata String? @db.NVarChar(Max)
+
   // Timestamps
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([documentId])
   @@index([type])
   @@map("knowledge_nodes")
@@ -254,26 +319,26 @@ model KnowledgeNode {
 // API MANAGEMENT
 // ==========================================
 model ApiKey {
-  id          String    @id @default(uuid())
-  name        String
-  key         String    @unique
-  
+  id   String @id @default(uuid())
+  name String
+  key  String @unique
+
   // Relations
-  userId      String
-  user        User      @relation(fields: [userId], references: [id])
-  
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
   // Usage tracking
-  lastUsedAt  DateTime?
-  usageCount  Int       @default(0)
-  
+  lastUsedAt DateTime?
+  usageCount Int       @default(0)
+
   // Security
-  expiresAt   DateTime?
-  isActive    Boolean   @default(true)
-  
+  expiresAt DateTime?
+  isActive  Boolean   @default(true)
+
   // Timestamps
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([userId])
   @@map("api_keys")
 }
@@ -282,19 +347,262 @@ model ApiKey {
 // ANALYTICS & LOGGING
 // ==========================================
 model ActivityLog {
-  id          String       @id @default(uuid())
-  userId      String?
-  action      String
-  resource    String
-  resourceId  String?
-  metadata    String?      @db.NVarChar(Max) // JSON as string
-  ipAddress   String?
-  userAgent   String?
-  
-  createdAt   DateTime     @default(now())
-  
+  id         String  @id @default(uuid())
+  userId     String?
+  action     String
+  resource   String
+  resourceId String?
+  metadata   String? @db.NVarChar(Max) // JSON as string
+  ipAddress  String?
+  userAgent  String?
+
+  createdAt DateTime @default(now())
+
   @@index([userId])
   @@index([action])
   @@index([createdAt])
   @@map("activity_logs")
+}
+
+// ==========================================
+// PASSWORD MANAGEMENT
+// ==========================================
+model Password {
+  id       String  @id @default(uuid())
+  name     String
+  username String?
+  password String  @db.NVarChar(Max) // Encrypted (AES-256)
+  url      String?
+  notes    String? @db.NVarChar(Max)
+
+  // Security
+  encrypted     Boolean @default(true)
+  encryptionKey String? @db.NVarChar(Max) // Tenant-specific key reference
+
+  // Relations
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  userId   String
+  user     User    @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  assetId  String? // Link to Asset if applicable
+  asset    Asset?  @relation(fields: [assetId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  // Metadata
+  tags        String?   @db.NVarChar(Max) // JSON array
+  expiresAt   DateTime?
+  lastChanged DateTime?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([assetId])
+  @@index([name])
+  @@map("passwords")
+}
+
+// ==========================================
+// ASSET MANAGEMENT
+// ==========================================
+model Asset {
+  id           String  @id @default(uuid())
+  name         String
+  type         String // SERVER, SWITCH, ROUTER, FIREWALL, PRINTER, WORKSTATION, LAPTOP, MOBILE, etc.
+  manufacturer String?
+  model        String?
+  serialNumber String?
+  assetTag     String?
+
+  // Network Info
+  ipAddress  String?
+  macAddress String?
+  hostname   String?
+
+  // Location
+  location     String?
+  rack         String?
+  rackPosition String?
+
+  // Status
+  status       String    @default("ACTIVE") // ACTIVE, RETIRED, SPARE, MAINTENANCE
+  purchaseDate DateTime?
+  warrantyExp  DateTime?
+
+  // Relations
+  tenantId       String?
+  tenant         Tenant?         @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  userId         String?
+  user           User?           @relation(fields: [userId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  contracts      Contract[]
+  networkDevices NetworkDevice[]
+  passwords      Password[]
+
+  // Metadata
+  metadata String? @db.NVarChar(Max) // JSON
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastScannedAt DateTime?
+
+  @@index([tenantId])
+  @@index([type])
+  @@index([status])
+  @@index([assetTag])
+  @@map("assets")
+}
+
+// ==========================================
+// CONTRACT MANAGEMENT
+// ==========================================
+model Contract {
+  id             String  @id @default(uuid())
+  name           String
+  type           String // SOFTWARE, HARDWARE, SUPPORT, SSL, DOMAIN, LICENSE, MAINTENANCE
+  vendor         String?
+  contractNumber String?
+
+  // Dates
+  startDate   DateTime?
+  endDate     DateTime?
+  renewalDate DateTime?
+  autoRenew   Boolean   @default(false)
+
+  // Financial
+  monthlyCost Decimal? @db.Decimal(18, 2)
+  annualCost  Decimal? @db.Decimal(18, 2)
+  currency    String?  @default("EUR")
+
+  // Relations
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "contract_tenant")
+  assetId  String?
+  asset    Asset?  @relation(fields: [assetId], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "contract_asset")
+
+  // Notifications
+  notifyDays Int? @default(30) // Warnung X Tage vor Ablauf
+
+  // Metadata
+  notes    String? @db.NVarChar(Max)
+  metadata String? @db.NVarChar(Max) // JSON
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([endDate])
+  @@index([renewalDate])
+  @@index([type])
+  @@map("contracts")
+}
+
+// ==========================================
+// NETWORK DISCOVERY
+// ==========================================
+model NetworkDevice {
+  id         String  @id @default(uuid())
+  name       String
+  ipAddress  String
+  macAddress String?
+  hostname   String?
+
+  // Device Info
+  deviceType   String // SWITCH, ROUTER, FIREWALL, SERVER, PRINTER, ACCESS_POINT, etc.
+  manufacturer String?
+  model        String?
+  firmware     String?
+  serialNumber String?
+
+  // Network Info
+  subnet     String?
+  gateway    String?
+  dnsServers String? @db.NVarChar(Max) // JSON array
+
+  // Discovery
+  discoveredAt DateTime @default(now())
+  lastSeen     DateTime @default(now())
+  isActive     Boolean  @default(true)
+
+  // Relations
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "network_device_tenant")
+  assetId  String? // Link zu Asset wenn zugewiesen
+  asset    Asset?  @relation(fields: [assetId], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "network_device_asset")
+
+  // Metadata
+  metadata String? @db.NVarChar(Max) // JSON (Ports, Services, OS, etc.)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, ipAddress])
+  @@index([tenantId])
+  @@index([deviceType])
+  @@index([isActive])
+  @@map("network_devices")
+}
+
+// ==========================================
+// CUSTOMER PORTAL
+// ==========================================
+model CustomerPortal {
+  id   String @id @default(uuid())
+  name String
+  slug String @unique
+
+  // Access Control
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Settings
+  isActive  Boolean @default(true)
+  publicKey String  @unique // Für Public Access ohne Login
+  settings  String? @db.NVarChar(Max) // JSON
+
+  // Allowed Resources
+  allowedDocumentCategories String? @db.NVarChar(Max) // JSON array
+  showAssets                Boolean @default(true)
+  showContracts             Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([slug])
+  @@map("customer_portals")
+}
+
+// ==========================================
+// PROCESS RECORDING (SOP Generation)
+// ==========================================
+model ProcessRecording {
+  id          String  @id @default(uuid())
+  title       String
+  description String? @db.NVarChar(Max)
+
+  // Recording Data
+  steps       String  @db.NVarChar(Max) // JSON array of steps
+  screenshots String? @db.NVarChar(Max) // JSON array of screenshot URLs
+
+  // Generated SOP
+  sopContent String? @db.NVarChar(Max) // Generated SOP document
+  documentId String? // Link zu generiertem Document
+
+  // Relations
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  status String @default("RECORDING") // RECORDING, PROCESSING, COMPLETED, FAILED
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([status])
+  @@map("process_recordings")
 }

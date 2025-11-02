@@ -243,6 +243,53 @@ export function useDocuments() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTenant?.id]) // Only depend on tenant ID to avoid unnecessary re-renders
 
+  const getVersionHistory = async (documentId: string) => {
+    try {
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      }
+      
+      if (currentTenant) {
+        headers['X-Tenant-ID'] = currentTenant.id
+      }
+      
+      // Use audit logs for version history
+      const response = await fetch(`${API_URL}/audit/resource/Document/${documentId}`, {
+        headers,
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch version history')
+      }
+      
+      const logs = await response.json()
+      
+      // Transform audit logs into version history format
+      return logs.map((log: any, index: number) => ({
+        id: log.id,
+        version: `v${index + 1}`,
+        action: log.action,
+        changes: log.metadata?.changes || {},
+        createdAt: log.createdAt,
+        user: {
+          name: 'System User', // Will be enhanced with user lookup
+        },
+        isCurrent: index === 0,
+        changeSummary: log.metadata
+      }))
+    } catch (error: any) {
+      console.error('Error fetching version history:', error)
+      toast.error('Failed to load version history')
+      throw error
+    }
+  }
+
+  const restoreVersion = async (documentId: string, versionId: string) => {
+    // For now, just show a message that this feature is not yet fully implemented
+    toast.info('Version restore feature will be fully implemented in the next update')
+    return null
+  }
+
   return {
     documents,
     loading,
@@ -250,6 +297,8 @@ export function useDocuments() {
     updateDocument,
     deleteDocument,
     getDocument,
+    getVersionHistory,
+    restoreVersion,
     refetch: fetchDocuments
   }
 }
