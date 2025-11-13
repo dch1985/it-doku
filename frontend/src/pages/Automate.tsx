@@ -1,15 +1,31 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAutomation } from '@/hooks/useAutomation';
+import { useAnalytics } from '@/hooks/useAnalytics';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 
 const connectorTypes = ['GIT', 'TICKET_SYSTEM', 'DOCUMENT_REPO', 'CUSTOM'];
 
 export default function Automate() {
   const { connectorsQuery, jobsQuery, suggestionsQuery, createConnector, createJob, updateSuggestion } = useAutomation();
+  const { data: analyticsData, isLoading: analyticsLoading } = useAnalytics();
+  const automationMetrics = analyticsData?.automation;
+
+  const connectorHealth = useMemo(() => {
+    const base = { OK: 0, DEGRADED: 0, OFFLINE: 0 };
+    if (!automationMetrics?.connectors) {
+      return base;
+    }
+    automationMetrics.connectors.forEach((connector) => {
+      base[connector.status] = (base[connector.status] ?? 0) + 1;
+    });
+    return base;
+  }, [automationMetrics?.connectors]);
 
   const [connectorName, setConnectorName] = useState('');
   const [connectorType, setConnectorType] = useState<string>('GIT');
@@ -57,6 +73,78 @@ export default function Automate() {
         </p>
       </header>
 
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {analyticsLoading && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Automation KPI</CardTitle>
+              <CardDescription>Lade Kennzahlen…</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-20 animate-pulse rounded-md bg-muted" />
+            </CardContent>
+          </Card>
+        )}
+        {automationMetrics && !analyticsLoading && (
+          <>
+            <Card>
+              <CardHeader>
+                <CardTitle>Jobs gestartet</CardTitle>
+                <CardDescription>letzte 7 Tage</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-semibold">{automationMetrics.jobs.started}</p>
+                <p className="text-xs text-muted-foreground">Abgeschlossen: {automationMetrics.jobs.completed}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Erfolgsquote</CardTitle>
+                <CardDescription>Fertigstellungen vs. Fehler</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-semibold">{automationMetrics.jobs.completionRate}%</p>
+                <p className="text-xs text-muted-foreground">Fehlgeschlagen: {automationMetrics.jobs.failed}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Übernommene Vorschläge</CardTitle>
+                <CardDescription>Geschätzte Zeitersparnis</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-semibold">{automationMetrics.suggestions.applied}</p>
+                <p className="text-xs text-muted-foreground">≈ {automationMetrics.suggestions.estimatedTimeSavedHours} Stunden</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Connector Health</CardTitle>
+                <CardDescription>Aktiv / degradierte / offline</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-1 text-sm">
+                <p className="flex justify-between">
+                  <span>OK</span>
+                  <span>{connectorHealth.OK}</span>
+                </p>
+                <p className="flex justify-between text-amber-500">
+                  <span>Degraded</span>
+                  <span>{connectorHealth.DEGRADED}</span>
+                </p>
+                <Separator />
+                <p className="flex justify-between text-red-500">
+                  <span>Offline</span>
+                  <span>{connectorHealth.OFFLINE}</span>
+                </p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Offene Findings: {automationMetrics.findingsOpen}
+                </p>
+              </CardContent>
+            </Card>
+          </>
+        )}
+      </section>
+
       <section className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-xl border bg-card p-6 shadow-sm">
           <h2 className="text-xl font-semibold">Quellen-Connectoren</h2>
@@ -87,7 +175,7 @@ export default function Automate() {
               onChange={(event) => setConnectorConfig(event.target.value)}
               className="min-h-[120px]"
             />
-            <Button onClick={handleCreateConnector} disabled={createConnector.isLoading}>
+            <Button onClick={handleCreateConnector} disabled={createConnector.isPending}>
               Connector speichern
             </Button>
           </div>
@@ -157,7 +245,7 @@ export default function Automate() {
             onChange={(event) => setJobPayload(event.target.value)}
             className="mt-3 min-h-[120px]"
           />
-          <Button className="mt-3" onClick={handleCreateJob} disabled={createJob.isLoading}>
+          <Button className="mt-3" onClick={handleCreateJob} disabled={createJob.isPending}>
             Job starten
           </Button>
 

@@ -1,17 +1,21 @@
 import { useState } from 'react';
 import { useDocuments } from '@/hooks/useDocuments';
 import { useCompliance } from '@/hooks/useCompliance';
+import { useAnalytics } from '@/hooks/useAnalytics';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 const FORMATS = ['MARKDOWN', 'ASCIIDOC', 'XML'];
 
 export default function Comply() {
   const { documents } = useDocuments();
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>('');
+  const { data: analyticsData, isLoading: analyticsLoading } = useAnalytics();
+  const complyMetrics = analyticsData?.comply;
 
   const {
     schemasQuery,
@@ -85,6 +89,75 @@ export default function Comply() {
         </p>
       </header>
 
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {analyticsLoading && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Compliance KPI</CardTitle>
+              <CardDescription>lade Kennzahlen…</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-16 animate-pulse rounded-md bg-muted" />
+            </CardContent>
+          </Card>
+        )}
+        {complyMetrics && !analyticsLoading && (
+          <>
+            <Card>
+              <CardHeader>
+                <CardTitle>Offene Findings</CardTitle>
+                <CardDescription>nach Severity</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-1 text-sm">
+                {complyMetrics.findings.openBySeverity.map((entry) => (
+                  <p key={entry.severity} className="flex justify-between">
+                    <span>{entry.severity}</span>
+                    <span>{entry.count}</span>
+                  </p>
+                ))}
+                {complyMetrics.findings.openBySeverity.length === 0 && (
+                  <p className="text-xs text-muted-foreground">Keine offenen Findings.</p>
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Quality Cycle</CardTitle>
+                <CardDescription>Durchschnittliche Zeiten (Tage)</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-semibold">{complyMetrics.findings.avgResolutionDays}</p>
+                <p className="text-xs text-muted-foreground">
+                  Review-Dauer: {complyMetrics.reviews.avgCycleDays} Tage
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Offene Reviews</CardTitle>
+                <CardDescription>Aktionen erforderlich</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-semibold">{complyMetrics.reviews.openRequests}</p>
+                <p className="text-xs text-muted-foreground">Pending bzw. Changes Requested</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Req-ID Coverage</CardTitle>
+                <CardDescription>Dokumente mit Pflichtannotation</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-semibold">{complyMetrics.policies.reqIdCoveragePercent}%</p>
+                <p className="text-xs text-muted-foreground">
+                  Dokumente mit REQ-ID: {complyMetrics.policies.documentsWithReqId}
+                </p>
+              </CardContent>
+            </Card>
+          </>
+        )}
+      </section>
+
       <section className="rounded-xl border bg-card shadow-sm">
         <header className="border-b p-6">
           <h2 className="text-xl font-semibold">Template-Schemata</h2>
@@ -116,7 +189,7 @@ export default function Comply() {
               onChange={(event) => setSchemaContent(event.target.value)}
               className="min-h-[150px]"
             />
-            <Button onClick={handleCreateSchema} disabled={createSchema.isLoading}>
+            <Button onClick={handleCreateSchema} disabled={createSchema.isPending}>
               Schema speichern
             </Button>
           </div>
@@ -173,7 +246,7 @@ export default function Comply() {
                 onChange={(event) => setAnnotationLocation(event.target.value)}
                 placeholder="Location (optional)"
               />
-              <Button onClick={handleCreateAnnotation} disabled={!selectedDocumentId || createAnnotation.isLoading}>
+              <Button onClick={handleCreateAnnotation} disabled={!selectedDocumentId || createAnnotation.isPending}>
                 Annotation speichern
               </Button>
             </div>
@@ -202,7 +275,7 @@ export default function Comply() {
                   onChange={(event) => setTraceTargetId(event.target.value)}
                 />
               </div>
-              <Button onClick={handleCreateTraceLink} disabled={createTraceLink.isLoading}>
+              <Button onClick={handleCreateTraceLink} disabled={createTraceLink.isPending}>
                 Trace Link speichern
               </Button>
             </div>

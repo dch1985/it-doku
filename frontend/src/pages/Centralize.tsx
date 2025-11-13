@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react';
 import { useDocuments } from '@/hooks/useDocuments';
 import { useAssistant, AssistantCitation } from '@/hooks/useAssistant';
+import { useAnalytics } from '@/hooks/useAnalytics';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 function openDocument(documentId?: string | null) {
   if (!documentId) return;
@@ -22,6 +24,9 @@ const AUDIENCE_LEVELS = [
 export default function Centralize() {
   const { documents, loading } = useDocuments();
   const { conversationsQuery, tracesQuery, askMutation, activeConversationId, setActiveConversationId } = useAssistant();
+  const { data: analyticsData, isLoading: analyticsLoading } = useAnalytics();
+  const centralizeMetrics = analyticsData?.centralize;
+  const systemDocs = analyticsData?.system.totalDocuments;
 
   const [question, setQuestion] = useState('');
   const [audience, setAudience] = useState<string>('PRACTITIONER');
@@ -56,29 +61,72 @@ export default function Centralize() {
           <h2 className="text-xl font-semibold">Dokumentenlandschaft</h2>
           <p className="text-sm text-muted-foreground">Schneller Überblick über die wichtigsten Wissensobjekte in deinem Tenant.</p>
         </header>
-        <div className="grid gap-4 p-6 md:grid-cols-3">
-          <div className="rounded-lg border bg-muted/40 p-4">
-            <span className="text-xs uppercase text-muted-foreground">Gesamt</span>
-            <p className="text-3xl font-semibold">{documents.length}</p>
-            <p className="text-xs text-muted-foreground">Dokumente im SSoT</p>
-          </div>
-          <div className="rounded-lg border bg-muted/40 p-4">
-            <span className="text-xs uppercase text-muted-foreground">Review</span>
-            <p className="text-3xl font-semibold">
-              {documents.filter((document) => document.status === 'REVIEW').length}
-            </p>
-            <p className="text-xs text-muted-foreground">Dokumente in Prüfung</p>
-          </div>
-          <div className="rounded-lg border bg-muted/40 p-4">
-            <span className="text-xs uppercase text-muted-foreground">Aktualisiert</span>
-            <p className="text-3xl font-semibold">
-              {documents
-                .filter((document) => Date.now() - new Date(document.updatedAt).getTime() < 1000 * 60 * 60 * 24 * 7)
-                .length}
-            </p>
-            <p className="text-xs text-muted-foreground">Änderungen in den letzten 7 Tagen</p>
-          </div>
+        <div className="grid gap-4 p-6 md:grid-cols-2 xl:grid-cols-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Dokumente</CardTitle>
+              <CardDescription>Gesamtanzahl im SSoT</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-semibold">{systemDocs ?? documents.length}</p>
+              <p className="text-xs text-muted-foreground">
+                Davon im Review: {documents.filter((document) => document.status === 'REVIEW').length}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Aktualisiert (7 Tage)</CardTitle>
+              <CardDescription>Neue oder geänderte Dokumente</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-semibold">
+                {
+                  documents.filter(
+                    (document) => Date.now() - new Date(document.updatedAt).getTime() < 1000 * 60 * 60 * 24 * 7,
+                  ).length
+                }
+              </p>
+              <p className="text-xs text-muted-foreground">Basierend auf Dokumentstamppeln</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Assistant Queries</CardTitle>
+              <CardDescription>letzte 7 Tage</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-semibold">{centralizeMetrics?.assistant.totalQueries ?? 0}</p>
+              <div className="mt-2 space-y-1 text-[11px] text-muted-foreground">
+                {(centralizeMetrics?.assistant.byAudience ?? []).map((entry) => (
+                  <div key={entry.audience} className="flex justify-between">
+                    <span>{entry.audience}</span>
+                    <span>{entry.count}</span>
+                  </div>
+                ))}
+                {(centralizeMetrics?.assistant.byAudience?.length ?? 0) === 0 && <p>Keine Fragen gestellt.</p>}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Knowledge Coverage</CardTitle>
+              <CardDescription>Zugeordnete Nodes & Lücken</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-semibold">{centralizeMetrics?.knowledge.documentsWithCoverage ?? 0}</p>
+              <p className="text-xs text-muted-foreground">
+                Ohne Coverage: {centralizeMetrics?.knowledge.documentsWithoutCoverage ?? 0}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Orphans: {centralizeMetrics?.knowledge.nodesWithoutDocument ?? 0}
+              </p>
+            </CardContent>
+          </Card>
         </div>
+        {analyticsLoading && (
+          <p className="px-6 text-sm text-muted-foreground">Lade zentrale Kennzahlen…</p>
+        )}
         <div className="border-t p-6">
           <h3 className="mb-3 text-sm font-semibold text-muted-foreground">Wichtigste Dokumente</h3>
           <div className="space-y-3">
@@ -167,7 +215,7 @@ export default function Centralize() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Button onClick={handleAsk} disabled={askMutation.isLoading}>
+                <Button onClick={handleAsk} disabled={askMutation.isPending}>
                   Frage stellen
                 </Button>
               </div>
