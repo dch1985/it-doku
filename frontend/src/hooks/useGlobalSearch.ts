@@ -16,41 +16,21 @@ export interface SearchResult {
     category: string;
     status: string;
     updatedAt: string;
+    highlightedTitle?: string;
+    preview?: string;
     user?: {
       name: string;
     };
   }>;
-  assets: Array<{
+  knowledge: Array<{
     id: string;
-    name: string;
-    type: string;
-    status: string;
-    location?: string;
+    type: string | null;
+    documentId: string | null;
+    documentTitle: string | null;
     updatedAt: string;
-  }>;
-  passwords: Array<{
-    id: string;
-    name: string;
-    username?: string;
-    url?: string;
-    updatedAt: string;
-  }>;
-  contracts: Array<{
-    id: string;
-    name: string;
-    type: string;
-    vendor?: string;
-    contractNumber?: string;
-    endDate?: string;
-    updatedAt: string;
-  }>;
-  networkDevices: Array<{
-    id: string;
-    name: string;
-    ipAddress: string;
-    deviceType: string;
-    isActive: boolean;
-    updatedAt: string;
+    highlightedTitle?: string;
+    snippet?: string;
+    score?: number;
   }>;
   total: number;
 }

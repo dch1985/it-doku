@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { FileText, MessageSquare, Settings, Home, BarChart3, Search, Server, Lock, Radio, Globe, Video, FileSignature } from 'lucide-react'
+import { FileText, MessageSquare, Settings, Home, BarChart3, Search, Bot, Database, ShieldCheck, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useGlobalSearch } from '@/hooks/useGlobalSearch'
 
@@ -32,30 +32,22 @@ export function SearchBar() {
 
   const pages = [
     { name: 'Dashboard', icon: Home, href: '/' },
+    { name: 'Automate', icon: Bot, href: '/automate' },
+    { name: 'Centralize', icon: Database, href: '/centralize' },
+    { name: 'Comply', icon: ShieldCheck, href: '/comply' },
     { name: 'Documentation', icon: FileText, href: '/docs' },
-    { name: 'Passwords', icon: Lock, href: '/passwords' },
-    { name: 'Assets', icon: Server, href: '/assets' },
-    { name: 'Contracts', icon: FileSignature, href: '/contracts' },
-    { name: 'Network Devices', icon: Radio, href: '/network-devices' },
-    { name: 'Customer Portals', icon: Globe, href: '/customer-portals' },
-    { name: 'Process Recordings', icon: Video, href: '/process-recordings' },
     { name: 'AI Chat', icon: MessageSquare, href: '/chat' },
     { name: 'Analytics', icon: BarChart3, href: '/analytics' },
     { name: 'Settings', icon: Settings, href: '/settings' },
   ]
 
-  const handleSearchResultClick = (type: string, id: string) => {
+  const handleSearchResultClick = (type: 'document' | 'knowledge', id: string, documentId?: string | null) => {
     setOpen(false)
-    // Navigate to the item based on type
-    const hrefs: Record<string, string> = {
-      document: '/document',
-      asset: '/asset',
-      password: '/password',
-      contract: '/contract',
-      networkDevice: '/network-device',
+    if (type === 'document') {
+      window.location.hash = `document/${id}`
+    } else if (type === 'knowledge' && documentId) {
+      window.location.hash = `document/${documentId}`
     }
-    const baseHref = hrefs[type] || '#'
-    window.location.hash = `${baseHref}/${id}`
   }
 
   return (
@@ -102,60 +94,20 @@ export function SearchBar() {
                     ))}
                   </CommandGroup>
                 )}
-                {searchResults.assets.length > 0 && (
-                  <CommandGroup heading={`Assets (${searchResults.assets.length})`}>
-                    {searchResults.assets.map((asset) => (
+                {searchResults.knowledge.length > 0 && (
+                  <CommandGroup heading={`Knowledge (${searchResults.knowledge.length})`}>
+                    {searchResults.knowledge.map((node) => (
                       <CommandItem
-                        key={asset.id}
-                        onSelect={() => handleSearchResultClick('asset', asset.id)}
+                        key={node.id}
+                        onSelect={() => handleSearchResultClick('knowledge', node.id, node.documentId ?? undefined)}
                       >
-                        <Server className='mr-2 h-4 w-4' />
-                        <span>{asset.name}</span>
-                        <span className='ml-auto text-xs text-muted-foreground'>{asset.type}</span>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                )}
-                {searchResults.passwords.length > 0 && (
-                  <CommandGroup heading={`Passwords (${searchResults.passwords.length})`}>
-                    {searchResults.passwords.map((password) => (
-                      <CommandItem
-                        key={password.id}
-                        onSelect={() => handleSearchResultClick('password', password.id)}
-                      >
-                        <Lock className='mr-2 h-4 w-4' />
-                        <span>{password.name}</span>
-                        {password.username && (
-                          <span className='ml-auto text-xs text-muted-foreground'>{password.username}</span>
-                        )}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                )}
-                {searchResults.contracts.length > 0 && (
-                  <CommandGroup heading={`Contracts (${searchResults.contracts.length})`}>
-                    {searchResults.contracts.map((contract) => (
-                      <CommandItem
-                        key={contract.id}
-                        onSelect={() => handleSearchResultClick('contract', contract.id)}
-                      >
-                        <FileSignature className='mr-2 h-4 w-4' />
-                        <span>{contract.name}</span>
-                        <span className='ml-auto text-xs text-muted-foreground'>{contract.vendor}</span>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                )}
-                {searchResults.networkDevices.length > 0 && (
-                  <CommandGroup heading={`Network Devices (${searchResults.networkDevices.length})`}>
-                    {searchResults.networkDevices.map((device) => (
-                      <CommandItem
-                        key={device.id}
-                        onSelect={() => handleSearchResultClick('networkDevice', device.id)}
-                      >
-                        <Radio className='mr-2 h-4 w-4' />
-                        <span>{device.name}</span>
-                        <span className='ml-auto text-xs text-muted-foreground'>{device.ipAddress}</span>
+                        <Layers className='mr-2 h-4 w-4' />
+                        <div className='flex flex-col'>
+                          <span>{node.documentTitle ?? node.type ?? 'Knowledge Node'}</span>
+                          {node.snippet && (
+                            <span className='text-xs text-muted-foreground line-clamp-2'>{node.snippet}</span>
+                          )}
+                        </div>
                       </CommandItem>
                     ))}
                   </CommandGroup>
