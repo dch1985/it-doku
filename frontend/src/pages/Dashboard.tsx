@@ -8,8 +8,9 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { Plus, MessageSquare, FileText } from 'lucide-react'
+import { Plus, MessageSquare, FileText, Zap, Database, ShieldCheck } from 'lucide-react'
 import { useDocuments } from '@/hooks/useDocuments'
 import { useTemplates } from '@/hooks/useTemplates'
 import { useAnalytics } from '@/hooks/useAnalytics'
@@ -20,59 +21,49 @@ export function Dashboard() {
   const [templatesDialog, setTemplatesDialog] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null)
   const [templateFormOpen, setTemplateFormOpen] = useState(false)
+  const [newDocTitle, setNewDocTitle] = useState('')
+  const [newDocCategory, setNewDocCategory] = useState('DOCUMENTATION')
   const { toggleChat } = useSidebarStore()
   const { documents, createDocument, refetch } = useDocuments()
   const { templates, loading: templatesLoading, useTemplate, seedTemplates } = useTemplates()
   const { data: analyticsData } = useAnalytics()
 
+  const systemMetrics = analyticsData?.system
+  const automationMetrics = analyticsData?.automation
+  const centralizeMetrics = analyticsData?.centralize
+  const complyMetrics = analyticsData?.comply
+
   const handleNewDocument = async () => {
-    const titleInput = document.getElementById('doc-title') as HTMLInputElement
-    const categoryInput = document.getElementById('doc-category') as HTMLInputElement
-    
-    if (!titleInput?.value || !categoryInput?.value) {
+    if (!newDocTitle.trim() || !newDocCategory) {
       toast.error('Please fill in all fields')
       return
     }
 
     try {
       await createDocument({
-        title: titleInput.value,
-        category: categoryInput.value,
+        title: newDocTitle,
+        category: newDocCategory,
         content: ''
       })
       setNewDocDialog(false)
-      titleInput.value = ''
-      categoryInput.value = ''
-      await refetch() // Refresh documents list
+      setNewDocTitle('')
+      setNewDocCategory('DOCUMENTATION')
+      await refetch()
     } catch (error) {
-      // Error handled in hook
+      // handled in hook
     }
   }
 
-  // Get real statistics from analytics
-  const totalUsers = analyticsData?.stats?.totalUsers || 0
-  const growthRate = analyticsData?.stats?.growthRate || 0
-  
-  // Calculate documents from this week
-  const oneWeekAgo = new Date()
-  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
-  const documentsThisWeek = documents.filter(doc => {
-    const docDate = new Date(doc.createdAt)
-    return docDate >= oneWeekAgo
-  }).length
-
-  // Get recent documents for activity feed
   const recentDocuments = [...documents]
     .sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
     .slice(0, 5)
 
-  // Format time ago
   const formatTimeAgo = (date: Date) => {
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000)
     const minutes = Math.floor(seconds / 60)
     const hours = Math.floor(minutes / 60)
     const days = Math.floor(hours / 24)
-    
+
     if (days > 0) return `${days} day${days > 1 ? 's' : ''} ago`
     if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`
     if (minutes > 0) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`
@@ -86,57 +77,63 @@ export function Dashboard() {
 
   return (
     <div className='space-y-6'>
-      <div>
-        <h2 className='text-3xl font-bold tracking-tight'>Welcome back, Driss!</h2>
-        <p className='text-muted-foreground'>
-          Here's what's happening with your documentation today.
-        </p>
+      <div className='flex items-center justify-between'>
+        <div>
+          <h2 className='text-3xl font-bold tracking-tight'>Welcome back, Driss!</h2>
+          <p className='text-muted-foreground'>Operational insights aligned with Automate · Centralize · Comply.</p>
+        </div>
+        <div className='flex items-center gap-2'>
+          <div className='flex items-center gap-2 rounded-full bg-green-500/10 px-3 py-1.5 text-xs font-medium text-green-600 dark:text-green-400'>
+            <div className='h-2 w-2 animate-pulse rounded-full bg-green-500'></div>
+            Live Updates
+          </div>
+        </div>
       </div>
 
       <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
         <Card>
-  <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-    <CardTitle className='text-sm font-medium'>Total Documents</CardTitle>
-    <span className='text-2xl'>📄</span>
-  </CardHeader>
-  <CardContent>
-    <div className='text-2xl font-bold'>{documents.length}</div>
-    <p className='text-xs text-muted-foreground'>
-      {documents.filter(d => d.status === 'Published').length} published
-    </p>
-  </CardContent>
-</Card>
-
-        <Card>
           <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-            <CardTitle className='text-sm font-medium'>Templates</CardTitle>
-            <span className='text-2xl'>📋</span>
+            <CardTitle className='text-sm font-medium'>Documents</CardTitle>
+            <span className='text-2xl'>📁</span>
           </CardHeader>
           <CardContent>
-            <div className='text-2xl font-bold'>{templates.length}</div>
-            <p className='text-xs text-muted-foreground'>{analyticsData?.stats?.totalTemplates || 0} available</p>
+            <div className='text-2xl font-bold'>{systemMetrics?.totalDocuments ?? documents.length}</div>
+            <p className='text-xs text-muted-foreground'>{templates.length} templates available</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-            <CardTitle className='text-sm font-medium'>Active Users</CardTitle>
-            <span className='text-2xl'>👥</span>
+            <CardTitle className='text-sm font-medium'>Automation Completion</CardTitle>
+            <Zap className='h-5 w-5 text-primary' />
           </CardHeader>
           <CardContent>
-            <div className='text-2xl font-bold'>{totalUsers}</div>
-            <p className='text-xs text-muted-foreground'>{documentsThisWeek} docs this week</p>
+            <div className='text-2xl font-bold'>{automationMetrics?.jobs.completionRate ?? 0}%</div>
+            <p className='text-xs text-muted-foreground'>Jobs completed in the last 7 days</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-            <CardTitle className='text-sm font-medium'>Growth Rate</CardTitle>
-            <span className='text-2xl'>📈</span>
+            <CardTitle className='text-sm font-medium'>Assistant Queries</CardTitle>
+            <Database className='h-5 w-5 text-primary' />
           </CardHeader>
           <CardContent>
-            <div className='text-2xl font-bold'>{growthRate >= 0 ? '+' : ''}{growthRate.toFixed(1)}%</div>
-            <p className='text-xs text-muted-foreground'>vs. last month</p>
+            <div className='text-2xl font-bold'>{centralizeMetrics?.assistant.totalQueries ?? 0}</div>
+            <p className='text-xs text-muted-foreground'>Questions handled in the last 7 days</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+            <CardTitle className='text-sm font-medium'>Open Findings</CardTitle>
+            <ShieldCheck className='h-5 w-5 text-primary' />
+          </CardHeader>
+          <CardContent>
+            <div className='text-2xl font-bold'>
+              {complyMetrics?.findings.openBySeverity.reduce((sum, item) => sum + item.count, 0) ?? 0}
+            </div>
+            <p className='text-xs text-muted-foreground'>Across all severities</p>
           </CardContent>
         </Card>
       </div>
@@ -149,9 +146,9 @@ export function Dashboard() {
       <Card>
         <CardHeader>
           <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>Get started with common tasks</CardDescription>
+          <CardDescription>Get started with core workflows</CardDescription>
         </CardHeader>
-        <CardContent className='flex gap-2'>
+        <CardContent className='flex gap-2 flex-wrap'>
           <Button onClick={() => setNewDocDialog(true)}>
             <Plus className='mr-2 h-4 w-4' />
             New Document
@@ -170,22 +167,20 @@ export function Dashboard() {
       <Card>
         <CardHeader>
           <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Latest updates to your documentation</CardDescription>
-          </CardHeader>
+          <CardDescription>Latest updates to your documentation</CardDescription>
+        </CardHeader>
         <CardContent>
           <div className='space-y-4'>
             {recentDocuments.length === 0 ? (
-              <div className='text-center py-8 text-sm text-muted-foreground'>
-                No recent activity
-              </div>
+              <div className='py-8 text-center text-sm text-muted-foreground'>No recent activity</div>
             ) : (
               recentDocuments.map((doc) => {
                 const updatedDate = new Date(doc.updatedAt || doc.createdAt)
                 const isRecentlyUpdated = doc.updatedAt && new Date(doc.updatedAt).getTime() !== new Date(doc.createdAt).getTime()
-                
+
                 return (
-                  <div 
-                    key={doc.id} 
+                  <div
+                    key={doc.id}
                     className='flex items-start gap-4 rounded-lg p-3 transition-colors hover:bg-accent cursor-pointer'
                     onClick={() => {
                       window.location.hash = `document/${doc.id}`
@@ -202,9 +197,9 @@ export function Dashboard() {
                         {formatTimeAgo(updatedDate)} · {doc.category}
                       </p>
                     </div>
-                    <Button 
-                      variant='ghost' 
-                      size='sm' 
+                    <Button
+                      variant='ghost'
+                      size='sm'
                       className='h-8 text-xs'
                       onClick={(e) => {
                         e.stopPropagation()
@@ -219,24 +214,40 @@ export function Dashboard() {
             )}
           </div>
         </CardContent>
-</Card>
+      </Card>
 
       <Dialog open={newDocDialog} onOpenChange={setNewDocDialog}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create New Document</DialogTitle>
-            <DialogDescription>
-              Start a new documentation document from scratch
-            </DialogDescription>
+            <DialogDescription>Start a new documentation document from scratch</DialogDescription>
           </DialogHeader>
           <div className='space-y-4 py-4'>
             <div className='space-y-2'>
               <Label htmlFor='doc-title'>Document Title</Label>
-              <Input id='doc-title' placeholder='e.g. Server Configuration' />
+              <Input
+                id='doc-title'
+                placeholder='e.g. Server Configuration'
+                value={newDocTitle}
+                onChange={(e) => setNewDocTitle(e.target.value)}
+              />
             </div>
             <div className='space-y-2'>
               <Label htmlFor='doc-category'>Category</Label>
-              <Input id='doc-category' placeholder='e.g. Infrastructure' />
+              <Select value={newDocCategory} onValueChange={setNewDocCategory}>
+                <SelectTrigger id='doc-category'>
+                  <SelectValue placeholder='Select a category' />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='DOCUMENTATION'>Documentation</SelectItem>
+                  <SelectItem value='CODE_ANALYSIS'>Code Analysis</SelectItem>
+                  <SelectItem value='TEMPLATE'>Template</SelectItem>
+                  <SelectItem value='KNOWLEDGE_BASE'>Knowledge Base</SelectItem>
+                  <SelectItem value='MEETING_NOTES'>Meeting Notes</SelectItem>
+                  <SelectItem value='TUTORIAL'>Tutorial</SelectItem>
+                  <SelectItem value='API_SPEC'>API Specification</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <div className='flex justify-end gap-2'>
@@ -254,34 +265,28 @@ export function Dashboard() {
             <div className='flex items-center justify-between'>
               <div>
                 <DialogTitle>Document Templates</DialogTitle>
-                <DialogDescription>
-                  Choose a template to create a new document quickly
-                </DialogDescription>
+                <DialogDescription>Choose a template to create a new document quickly</DialogDescription>
               </div>
               <div className='flex gap-2'>
-                <Button 
-                  variant='outline' 
+                <Button
+                  variant='outline'
                   size='sm'
                   onClick={async () => {
                     try {
                       await seedTemplates(false)
-                    } catch (error) {
-                      // Error handled in hook
-                    }
+                    } catch (error) {}
                   }}
                 >
                   Seed Templates
                 </Button>
-                <Button 
-                  variant='destructive' 
+                <Button
+                  variant='destructive'
                   size='sm'
                   onClick={async () => {
                     if (confirm('Bestehende Templates werden ersetzt. Fortfahren?')) {
                       try {
                         await seedTemplates(true)
-                      } catch (error) {
-                        // Error handled in hook
-                      }
+                      } catch (error) {}
                     }
                   }}
                 >
@@ -295,30 +300,26 @@ export function Dashboard() {
               <div className='text-lg'>Loading templates...</div>
             </div>
           ) : templates.length === 0 ? (
-            <div className='flex flex-col items-center justify-center py-8 space-y-4'>
+            <div className='flex flex-col items-center justify-center space-y-4 py-8'>
               <p className='text-muted-foreground'>No templates available</p>
               <div className='flex gap-2'>
-                <Button 
+                <Button
                   variant='outline'
                   onClick={async () => {
                     try {
                       await seedTemplates(false)
-                    } catch (error) {
-                      // Error handled in hook
-                    }
+                    } catch (error) {}
                   }}
                 >
                   Seed Templates
                 </Button>
-                <Button 
+                <Button
                   variant='destructive'
                   onClick={async () => {
                     if (confirm('Bestehende Templates werden ersetzt. Alle 11 Templates werden erstellt. Fortfahren?')) {
                       try {
                         await seedTemplates(true)
-                      } catch (error) {
-                        // Error handled in hook
-                      }
+                      } catch (error) {}
                     }
                   }}
                 >
@@ -329,9 +330,9 @@ export function Dashboard() {
           ) : (
             <div className='grid gap-4 py-4 md:grid-cols-2 lg:grid-cols-3'>
               {templates.map((template) => (
-                <Card 
-                  key={template.id} 
-                  className='cursor-pointer hover:border-primary transition-colors'
+                <Card
+                  key={template.id}
+                  className='cursor-pointer transition-colors hover:border-primary'
                   onClick={() => {
                     setSelectedTemplate(template)
                     setTemplateFormOpen(true)
@@ -367,7 +368,6 @@ export function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Template Form Dialog */}
       {selectedTemplate && (
         <TemplateForm
           template={selectedTemplate}
@@ -379,13 +379,11 @@ export function Dashboard() {
           onSubmit={async (title, customFields) => {
             try {
               const document = await useTemplate(selectedTemplate.id, title, customFields)
-              // Navigate to the new document
               if (document?.id) {
                 window.location.hash = `document/${document.id}`
               }
               toast.success(`Dokument "${title}" erfolgreich erstellt!`)
             } catch (error) {
-              // Error handled in hook
               throw error
             }
           }}

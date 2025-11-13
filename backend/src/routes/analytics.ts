@@ -1,259 +1,341 @@
 import { Router, Request, Response } from 'express'
 import { prisma } from '../lib/prisma.js'
 import { tenantMiddleware } from '../middleware/tenant.middleware.js'
+import { authenticate } from '../middleware/auth.middleware.js'
+import { devAuthenticate } from '../middleware/auth.dev.middleware.js'
 
 const router = Router()
 
-// Apply tenant middleware to all routes
+const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true'
+router.use(isDevMode ? devAuthenticate : authenticate)
 router.use(tenantMiddleware)
 
-/**
- * Get analytics data
- */
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
-    
-    // Build where clause based on tenant
-    let whereClause: any = {}
-    if (req.tenant) {
-      whereClause.tenantId = req.tenant.id
-    } else if (isDevMode) {
-      // In dev mode without tenant, get all documents
-      whereClause.tenantId = null
-    } else {
-      return res.status(400).json({ 
+    const tenantId = req.tenant?.id ?? null
+
+    if (!tenantId && !isDevMode) {
+      return res.status(400).json({
         error: 'Tenant context required',
         message: 'Please ensure you have selected a tenant'
       })
     }
 
-    // Get total counts
-    const totalDocuments = await prisma.document.count({ where: whereClause })
-    const totalUsers = await prisma.user.count()
-    const totalTemplates = await prisma.template.count({
-      where: req.tenant ? {
-        OR: [{ tenantId: req.tenant.id }, { isGlobal: true }]
-      } : { isGlobal: true }
-    })
-
-    // Get documents by category
-    const documentsByCategory = await prisma.document.groupBy({
-      by: ['category'],
-      where: whereClause,
-      _count: {
-        id: true
-      },
-      orderBy: {
-        _count: {
-          id: 'desc'
-        }
-      }
-    })
-
-    // Get documents by status
-    const documentsByStatus = await prisma.document.groupBy({
-      by: ['status'],
-      where: whereClause,
-      _count: {
-        id: true
-      },
-      orderBy: {
-        _count: {
-          id: 'desc'
-        }
-      }
-    })
-
-    // Get document growth over last 12 months
-    const twelveMonthsAgo = new Date()
-    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12)
-    
-    const documents = await prisma.document.findMany({
-      where: {
-        ...whereClause,
-        createdAt: {
-          gte: twelveMonthsAgo
-        }
-      },
-      select: {
-        createdAt: true,
-        userId: true
-      },
-      orderBy: {
-        createdAt: 'asc'
-      }
-    })
-
-    // Group by month
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
-    const documentGrowthData: { month: string; documents: number; users: number }[] = []
-    const userSet = new Set<string>()
-    
-    for (let i = 11; i >= 0; i--) {
-      const date = new Date()
-      date.setMonth(date.getMonth() - i)
-      const month = date.getMonth()
-      const year = date.getFullYear()
-      
-      const monthStart = new Date(year, month, 1)
-      const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999)
-      
-      const monthDocuments = documents.filter(doc => {
-        const docDate = new Date(doc.createdAt)
-        return docDate >= monthStart && docDate <= monthEnd
-      })
-      
-      monthDocuments.forEach(doc => userSet.add(doc.userId))
-      
-      documentGrowthData.push({
-        month: monthNames[month],
-        documents: monthDocuments.length,
-        users: userSet.size
-      })
-    }
-
-    // Get activity by hour (based on document updates)
-    const activityByHourData: { hour: string; activity: number }[] = []
-    const hourLabels = ['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00']
-    
-    for (const hourLabel of hourLabels) {
-      const [hour] = hourLabel.split(':').map(Number)
-      
-      const hourStart = new Date()
-      hourStart.setHours(hour, 0, 0, 0)
-      const hourEnd = new Date()
-      hourEnd.setHours(hour + 2, 59, 59, 999)
-      
-      // Count documents updated in this hour range (sample recent documents)
-      const recentDocs = await prisma.document.count({
-        where: {
-          ...whereClause,
-          updatedAt: {
-            gte: hourStart,
-            lte: hourEnd
-          }
-        }
-      })
-      
-      activityByHourData.push({
-        hour: hourLabel,
-        activity: recentDocs
-      })
-    }
-
-    // Calculate growth rate (current month vs last month)
-    const now = new Date()
-    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999)
-    
-    const currentMonthDocs = await prisma.document.count({
-      where: {
-        ...whereClause,
-        createdAt: { gte: currentMonthStart }
-      }
-    })
-    
-    const lastMonthDocs = await prisma.document.count({
-      where: {
-        ...whereClause,
-        createdAt: { 
-          gte: lastMonthStart,
-          lte: lastMonthEnd
-        }
-      }
-    })
-    
-    const growthRate = lastMonthDocs > 0 
-      ? ((currentMonthDocs - lastMonthDocs) / lastMonthDocs) * 100 
-      : currentMonthDocs > 0 ? 100 : 0
-
-    // Calculate documents per user
-    const documentsPerUser = totalUsers > 0 ? (totalDocuments / totalUsers).toFixed(1) : '0.0'
-
-    // Get peak hour
-    const peakHourData = activityByHourData.reduce((max, item) => 
-      item.activity > max.activity ? item : max, 
-      activityByHourData[0] || { hour: '09:00', activity: 0 }
-    )
-
-    // Format category data for charts
-    const categoryData = documentsByCategory.map((item, index) => {
-      const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4']
-      return {
-        name: item.category || 'Unknown',
-        value: item._count.id,
-        color: colors[index % colors.length]
-      }
-    })
-
-    // Get user engagement (last 4 weeks)
-    const userEngagementData: { week: string; active: number; new: number }[] = []
-    const weeksAgo = 4
-    
-    for (let i = weeksAgo - 1; i >= 0; i--) {
-      const weekStart = new Date()
-      weekStart.setDate(weekStart.getDate() - (i * 7) - 7)
-      const weekEnd = new Date()
-      weekEnd.setDate(weekEnd.getDate() - (i * 7))
-      
-      // Count active users (who created/updated documents)
-      const activeUsers = await prisma.document.findMany({
-        where: {
-          ...whereClause,
+    const documentFilter = tenantId ? { tenantId } : { tenantId: null }
+    const documentFilterWithGlobal = tenantId
+      ? {
           OR: [
-            { createdAt: { gte: weekStart, lte: weekEnd } },
-            { updatedAt: { gte: weekStart, lte: weekEnd } }
+            { tenantId },
+            { tenantId: null }
           ]
-        },
-        select: { userId: true },
-        distinct: ['userId']
-      })
-      
-      // Count new users
-      const newUsers = await prisma.user.count({
-        where: {
-          createdAt: {
-            gte: weekStart,
-            lte: weekEnd
-          }
         }
+      : documentFilter
+
+    const automationFilter = tenantId ? { tenantId } : {}
+
+    const since7Days = new Date()
+    since7Days.setDate(since7Days.getDate() - 7)
+
+    const since30Days = new Date()
+    since30Days.setDate(since30Days.getDate() - 30)
+
+    // Dokumente für spätere Filter (IDs + Count)
+    const documentsForTenant = await prisma.document.findMany({
+      where: documentFilter,
+      select: { id: true },
+    })
+    const documentIds = documentsForTenant.map((doc) => doc.id)
+    const totalDocuments = documentIds.length
+
+    // --- System baseline ---
+    const [totalTemplates, totalUsers] = await Promise.all([
+      prisma.template.count({
+        where: tenantId
+          ? {
+              OR: [
+                { tenantId },
+                { isGlobal: true }
+              ]
+            }
+          : { isGlobal: true }
+      }),
+      prisma.user.count(),
+    ])
+
+    // --- Automate metrics ---
+    const [jobsStarted, jobsCompleted, jobsFailed, suggestionsApplied, suggestionsDismissed, automationFindingsOpen] = await Promise.all([
+      prisma.generationJob.count({
+        where: {
+          ...automationFilter,
+          createdAt: { gte: since7Days },
+        },
+      }),
+      prisma.generationJob.count({
+        where: {
+          ...automationFilter,
+          status: 'COMPLETED',
+          createdAt: { gte: since7Days },
+        },
+      }),
+      prisma.generationJob.count({
+        where: {
+          ...automationFilter,
+          status: 'FAILED',
+          createdAt: { gte: since7Days },
+        },
+      }),
+      prisma.updateSuggestion.count({
+        where: {
+          status: 'APPLIED',
+          generationJob: automationFilter,
+        },
+      }),
+      prisma.updateSuggestion.count({
+        where: {
+          status: 'DISMISSED',
+          generationJob: automationFilter,
+        },
+      }),
+      prisma.qualityFinding.count({
+        where: {
+          generationJob: automationFilter,
+          resolvedAt: null,
+        },
+      }),
+    ])
+
+    const connectors = await prisma.sourceConnector.findMany({
+      where: tenantId ? { tenantId } : {},
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        isActive: true,
+      },
+      orderBy: { name: 'asc' },
+    })
+
+    const connectorIds = connectors.map((c) => c.id)
+    const recentConnectorJobs = connectorIds.length
+      ? await prisma.generationJob.findMany({
+          where: { sourceConnectorId: { in: connectorIds } },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+            sourceConnectorId: true,
+          },
+          take: connectorIds.length * 3,
+        })
+      : []
+
+    const connectorStatus = connectors.map((connector) => {
+      const lastJob = recentConnectorJobs.find((job) => job.sourceConnectorId === connector.id)
+
+      let status: 'OK' | 'DEGRADED' | 'OFFLINE' = 'OK'
+      if (!connector.isActive) {
+        status = 'OFFLINE'
+      } else if (!lastJob) {
+        status = 'DEGRADED'
+      } else {
+        const ageMs = Date.now() - lastJob.createdAt.getTime()
+        const olderThan24h = ageMs > 1000 * 60 * 60 * 24
+        status = olderThan24h || lastJob.status === 'FAILED' ? 'DEGRADED' : 'OK'
+      }
+
+      return {
+        id: connector.id,
+        name: connector.name,
+        type: connector.type,
+        isActive: connector.isActive,
+        status,
+        lastJob,
+      }
+    })
+
+    const automationMetrics = {
+      jobs: {
+        started: jobsStarted,
+        completed: jobsCompleted,
+        failed: jobsFailed,
+        completionRate: jobsStarted > 0 ? Math.round((jobsCompleted / jobsStarted) * 1000) / 10 : 0,
+      },
+      suggestions: {
+        applied: suggestionsApplied,
+        dismissed: suggestionsDismissed,
+        estimatedTimeSavedHours: Math.round((suggestionsApplied * 20) / 60), // 20min pro Vorschlag
+      },
+      findingsOpen: automationFindingsOpen,
+      connectors: connectorStatus,
+    }
+
+    // --- Centralize metrics ---
+    const [assistantTraces, knowledgeSummary, docsWithKnowledge, knowledgeWithoutDocument] = await Promise.all([
+      prisma.conversationTrace.groupBy({
+        by: ['audience'],
+        where: {
+          tenantId,
+          createdAt: { gte: since7Days },
+        },
+        _count: { id: true },
+      }),
+      prisma.knowledgeNode.groupBy({
+        by: ['type'],
+        where: tenantId ? { document: { tenantId } } : {},
+        _count: { id: true },
+        orderBy: { _count: { id: 'desc' } },
+        take: 5,
+      }),
+      prisma.document.count({
+        where: {
+          ...documentFilter,
+          knowledgeNodes: { some: {} },
+        },
+      }),
+      prisma.knowledgeNode.count({
+        where: { documentId: null },
+      }),
+    ])
+
+    const assistantTotal = assistantTraces.reduce((sum, item) => sum + ((item._count as any)?.id ?? 0), 0)
+
+    const centralizeMetrics = {
+      assistant: {
+        totalQueries: assistantTotal,
+        byAudience: assistantTraces.map((item) => ({
+          audience: item.audience ?? 'PRACTITIONER',
+          count: (item._count as any)?.id ?? 0,
+        })),
+      },
+      knowledge: {
+        documentsWithCoverage: docsWithKnowledge,
+        documentsWithoutCoverage: Math.max(totalDocuments - docsWithKnowledge, 0),
+        nodesWithoutDocument: knowledgeWithoutDocument,
+        topTypes: knowledgeSummary.map((item) => ({
+          type: item.type ?? 'UNKNOWN',
+          count: (item._count as any)?.id ?? 0,
+        })),
+      },
+    }
+
+    // --- Comply metrics ---
+    let openFindings: Array<{ severity: string | null; count: number }> = []
+    let resolvedFindings: Array<{ createdAt: Date; resolvedAt: Date | null }> = []
+
+    if (documentIds.length > 0) {
+      const openFindingRows = await prisma.qualityFinding.findMany({
+        where: {
+          documentId: { in: documentIds },
+          resolvedAt: null,
+        },
+        select: {
+          severity: true,
+        },
       })
-      
-      userEngagementData.push({
-        week: `Week ${weeksAgo - i}`,
-        active: activeUsers.length,
-        new: newUsers
+
+      const grouped = openFindingRows.reduce<Record<string, number>>((acc, finding) => {
+        const key = finding.severity ?? 'INFO'
+        acc[key] = (acc[key] ?? 0) + 1
+        return acc
+      }, {})
+      openFindings = Object.entries(grouped).map(([severity, count]) => ({ severity, count }))
+
+      resolvedFindings = await prisma.qualityFinding.findMany({
+        where: {
+          documentId: { in: documentIds },
+          resolvedAt: { not: null },
+          createdAt: { gte: since30Days },
+        },
+        select: {
+          createdAt: true,
+          resolvedAt: true,
+        },
       })
+    }
+
+    const [reviewStats, openReviewRequests, reqIdAnnotations] = await Promise.all([
+      prisma.reviewRequest.findMany({
+        where: {
+          documentId: documentIds.length > 0 ? { in: documentIds } : undefined,
+          status: 'APPROVED',
+          reviewedAt: { not: null },
+          createdAt: { gte: since30Days },
+        },
+        select: {
+          createdAt: true,
+          reviewedAt: true,
+        },
+      }),
+      prisma.reviewRequest.count({
+        where: {
+          documentId: documentIds.length > 0 ? { in: documentIds } : undefined,
+          status: { in: ['PENDING', 'CHANGES_REQUESTED'] },
+        },
+      }),
+      documentIds.length > 0
+        ? prisma.annotation.findMany({
+            where: {
+              documentId: { in: documentIds },
+              key: 'REQ-ID',
+            },
+            select: {
+              documentId: true,
+            },
+            distinct: ['documentId'],
+          })
+        : Promise.resolve([]),
+    ])
+
+    const avgFindingResolutionDays = resolvedFindings.length > 0
+      ? Math.round((resolvedFindings.reduce((sum, finding) => {
+          const resolvedAt = finding.resolvedAt ?? new Date()
+          return sum + (resolvedAt.getTime() - finding.createdAt.getTime())
+        }, 0) / resolvedFindings.length / (1000 * 60 * 60 * 24)) * 10) / 10
+      : 0
+
+    const avgReviewCycleDays = reviewStats.length > 0
+      ? Math.round((reviewStats.reduce((sum, review) => {
+          const reviewedAt = review.reviewedAt ?? new Date()
+          return sum + (reviewedAt.getTime() - review.createdAt.getTime())
+        }, 0) / reviewStats.length / (1000 * 60 * 60 * 24)) * 10) / 10
+      : 0
+
+    const reqIdCoverage = Array.isArray(reqIdAnnotations) ? reqIdAnnotations.length : 0
+
+    const complyMetrics = {
+      findings: {
+        openBySeverity: openFindings.map((item) => ({
+          severity: item.severity ?? 'INFO',
+          count: item.count,
+        })),
+        avgResolutionDays: avgFindingResolutionDays,
+      },
+      reviews: {
+        openRequests: openReviewRequests,
+        avgCycleDays: avgReviewCycleDays,
+      },
+      policies: {
+        reqIdCoveragePercent: totalDocuments > 0 ? Math.round((reqIdCoverage / totalDocuments) * 1000) / 10 : 0,
+        documentsWithReqId: reqIdCoverage,
+      },
     }
 
     res.json({
-      stats: {
+      system: {
         totalDocuments,
-        totalUsers,
         totalTemplates,
-        growthRate: Math.round(growthRate * 10) / 10,
-        documentsPerUser: parseFloat(documentsPerUser),
-        peakHour: peakHourData.hour,
-        avgResponseTime: 2.4 // Placeholder - can be calculated from chat logs if available
+        totalUsers,
       },
-      charts: {
-        documentGrowth: documentGrowthData,
-        categoryDistribution: categoryData,
-        activityByHour: activityByHourData,
-        userEngagement: userEngagementData,
-        documentsByStatus: documentsByStatus.map(item => ({
-          name: item.status || 'Unknown',
-          value: item._count.id
-        }))
-      }
+      automation: automationMetrics,
+      centralize: centralizeMetrics,
+      comply: complyMetrics,
     })
   } catch (error: any) {
     console.error('[Analytics] Error:', error)
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to fetch analytics',
-      message: error.message || 'An unexpected error occurred'
+      message: error.message || 'An unexpected error occurred',
     })
   }
 })

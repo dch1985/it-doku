@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTenantStore } from '@/stores/tenantStore'
 import { toast } from 'sonner'
 
-// Helper function to get API URL
 const getApiUrl = () => {
   const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3002'
   return baseURL.endsWith('/api') ? baseURL : `${baseURL}/api`
@@ -11,27 +10,74 @@ const getApiUrl = () => {
 
 const API_URL = getApiUrl()
 
-export interface AnalyticsStats {
+export interface SystemMetrics {
   totalDocuments: number
-  totalUsers: number
   totalTemplates: number
-  growthRate: number
-  documentsPerUser: number
-  peakHour: string
-  avgResponseTime: number
+  totalUsers: number
 }
 
-export interface AnalyticsCharts {
-  documentGrowth: Array<{ month: string; documents: number; users: number }>
-  categoryDistribution: Array<{ name: string; value: number; color: string }>
-  activityByHour: Array<{ hour: string; activity: number }>
-  userEngagement: Array<{ week: string; active: number; new: number }>
-  documentsByStatus: Array<{ name: string; value: number }>
+export interface AutomationConnectorStatus {
+  id: string
+  name: string
+  type: string
+  isActive: boolean
+  status: 'OK' | 'DEGRADED' | 'OFFLINE'
+  lastJob?: {
+    id: string
+    status: string
+    createdAt: string
+  } | null
+}
+
+export interface AutomationMetrics {
+  jobs: {
+    started: number
+    completed: number
+    failed: number
+    completionRate: number
+  }
+  suggestions: {
+    applied: number
+    dismissed: number
+    estimatedTimeSavedHours: number
+  }
+  findingsOpen: number
+  connectors: AutomationConnectorStatus[]
+}
+
+export interface CentralizeMetrics {
+  assistant: {
+    totalQueries: number
+    byAudience: Array<{ audience: string; count: number }>
+  }
+  knowledge: {
+    documentsWithCoverage: number
+    documentsWithoutCoverage: number
+    nodesWithoutDocument: number
+    topTypes: Array<{ type: string; count: number }>
+  }
+}
+
+export interface ComplyMetrics {
+  findings: {
+    openBySeverity: Array<{ severity: string; count: number }>
+    avgResolutionDays: number
+  }
+  reviews: {
+    openRequests: number
+    avgCycleDays: number
+  }
+  policies: {
+    reqIdCoveragePercent: number
+    documentsWithReqId: number
+  }
 }
 
 export interface AnalyticsData {
-  stats: AnalyticsStats
-  charts: AnalyticsCharts
+  system: SystemMetrics
+  automation: AutomationMetrics
+  centralize: CentralizeMetrics
+  comply: ComplyMetrics
 }
 
 export function useAnalytics() {
@@ -39,18 +85,15 @@ export function useAnalytics() {
 
   const fetchAnalytics = async (): Promise<AnalyticsData> => {
     const headers: HeadersInit = {
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/json'
     }
-    
-    // Add tenant header if available
+
     if (currentTenant) {
       headers['X-Tenant-ID'] = currentTenant.id
     }
-    
-    const response = await fetch(`${API_URL}/analytics`, {
-      headers,
-    })
-    
+
+    const response = await fetch(`${API_URL}/analytics`, { headers })
+
     if (!response.ok) {
       let errorMessage = 'Failed to fetch analytics'
       try {
@@ -61,19 +104,15 @@ export function useAnalytics() {
       }
       throw new Error(errorMessage)
     }
-    
+
     return await response.json()
   }
 
-  const {
-    data,
-    isLoading,
-    error,
-    refetch
-  } = useQuery<AnalyticsData>({
+  const { data, isLoading, error, refetch } = useQuery<AnalyticsData>({
     queryKey: ['analytics', currentTenant?.id],
     queryFn: fetchAnalytics,
-    staleTime: 30000, // Cache for 30 seconds
+    staleTime: 30000,
+    refetchInterval: 60000,
     retry: 2,
   })
 
@@ -88,7 +127,7 @@ export function useAnalytics() {
     data,
     isLoading,
     error,
-    refetch
+    refetch,
   }
 }
 
