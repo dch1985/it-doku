@@ -15,29 +15,24 @@ async function processSingleJob(jobId: string) {
   }
 }
 
-function listenForQueueMessages() {
-  console.info('[AutomationWorker] Waiting for queue messages...');
-  automationQueue.subscribe(async (message) => {
-    try {
-      console.info('[AutomationWorker] Received queue message', message);
-      await automationService.processJob(message.jobId);
-      console.info('[AutomationWorker] Job finished', message.jobId);
-    } catch (error: any) {
-      console.error('[AutomationWorker] Job failed', message.jobId, error?.message ?? error);
-    }
-  });
-
-  process.on('SIGINT', () => {
-    console.info('[AutomationWorker] Gracefully shutting down');
-    process.exit(0);
-  });
-}
-
 (async () => {
   const jobId = process.argv[2];
   if (jobId) {
     await processSingleJob(jobId);
   } else {
-    listenForQueueMessages();
+    await automationQueue.subscribe(async (message) => {
+      try {
+        console.info('[AutomationWorker] Received queue message', message);
+        await automationService.processJob(message.jobId);
+        console.info('[AutomationWorker] Job finished', message.jobId);
+      } catch (error: any) {
+        console.error('[AutomationWorker] Job failed', message.jobId, error?.message ?? error);
+      }
+    });
+    console.info('[AutomationWorker] Listener active (provider:', process.env.AUTOMATION_QUEUE_PROVIDER ?? 'memory', ')');
+    process.on('SIGINT', () => {
+      console.info('[AutomationWorker] Gracefully shutting down');
+      process.exit(0);
+    });
   }
 })();

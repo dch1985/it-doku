@@ -20,11 +20,18 @@ interface Conversation {
   }>;
 }
 
+export interface AssistantCitation {
+  documentId: string;
+  title: string | null;
+  excerpt?: string | null;
+}
+
 interface AssistantAnswer {
   conversationId: string;
   answer: string;
   audience: string;
   traceId: string;
+  citations: AssistantCitation[];
 }
 
 interface ConversationTrace {
@@ -32,7 +39,7 @@ interface ConversationTrace {
   question: string;
   answer: string;
   audience?: string;
-  citations?: string;
+  citations?: AssistantCitation[];
   createdAt: string;
 }
 
@@ -42,6 +49,24 @@ type AskPayload = {
   conversationId?: string;
   title?: string;
 };
+
+function parseCitations(raw: unknown): AssistantCitation[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw as AssistantCitation[];
+  }
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (Array.isArray(parsed)) {
+        return parsed as AssistantCitation[];
+      }
+    } catch (error) {
+      console.warn('[Assistant] Failed to parse citations JSON', error);
+    }
+  }
+  return [];
+}
 
 export function useAssistant() {
   const { currentTenant } = useTenantStore();
@@ -80,7 +105,11 @@ export function useAssistant() {
       if (!response.ok) {
         throw new Error('Traces konnten nicht geladen werden');
       }
-      return response.json();
+      const data = (await response.json()) as Array<Omit<ConversationTrace, 'citations'> & { citations?: string | AssistantCitation[] }>;
+      return data.map((trace) => ({
+        ...trace,
+        citations: parseCitations(trace.citations),
+      }));
     },
   });
 
@@ -94,10 +123,15 @@ export function useAssistant() {
       if (!response.ok) {
         throw new Error('Die Anfrage konnte nicht beantwortet werden');
       }
-      return response.json() as Promise<AssistantAnswer>;
+      const data = await response.json();
+      return {
+        ...(data as AssistantAnswer),
+        citations: parseCitations((data as AssistantAnswer).citations),
+      };
     },
     onSuccess: (data) => {
-      toast.success('Antwort erhalten');
+      const hasCitations = data.citations && data.citations.length > 0;
+      toast.success(hasCitations ? `Antwort mit ${data.citations.length} Quelle(n)` : 'Antwort erhalten');
       setActiveConversationId(data.conversationId);
       queryClient.invalidateQueries({ queryKey: ['assistant', 'conversations'] });
       queryClient.invalidateQueries({ queryKey: ['assistant', 'traces'] });

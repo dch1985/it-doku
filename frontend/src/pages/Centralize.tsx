@@ -8,6 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
+function openDocument(documentId: string) {
+  window.location.hash = `document/${documentId}`;
+}
+
 const AUDIENCE_LEVELS = [
   { value: 'BEGINNER', label: 'Beginner' },
   { value: 'PRACTITIONER', label: 'Practitioner' },
@@ -202,6 +206,30 @@ export default function Centralize() {
                     </div>
                     <p className="mt-1 font-medium">Q: {trace.question}</p>
                     <p className="mt-1 whitespace-pre-wrap">A: {trace.answer}</p>
+                    {trace.citations && trace.citations.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        <p className="text-[10px] uppercase text-muted-foreground">Quellen</p>
+                        <div className="space-y-1">
+                          {trace.citations.map((citation) => (
+                            <button
+                              key={`${trace.id}-${citation.documentId}`}
+                              onClick={() => openDocument(citation.documentId)}
+                              className="w-full rounded-md border border-dashed border-primary/40 bg-background px-3 py-2 text-left transition hover:border-primary hover:bg-primary/5"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-semibold text-[11px] text-primary">
+                                  {citation.title ?? 'Unbenanntes Dokument'}
+                                </span>
+                                <span className="text-[10px] uppercase text-muted-foreground">Zum Dokument</span>
+                              </div>
+                              {citation.excerpt && (
+                                <p className="mt-1 text-[11px] text-muted-foreground line-clamp-3">{citation.excerpt}</p>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </article>
                 ))}
                 {tracesQuery.data?.length === 0 && (
