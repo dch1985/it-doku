@@ -86,8 +86,9 @@ cp env.sample .env
 # AZURE_CLIENT_ID=your_client_id
 # AUTOMATION_QUEUE_AUTORUN=false
 # AUTOMATION_RUN_IMMEDIATE=true
-# AUTOMATION_QUEUE_PROVIDER=memory
+# AUTOMATION_QUEUE_PROVIDER=memory  # oder "servicebus" für Azure Service Bus
 # AZURE_SERVICE_BUS_CONNECTION_STRING=... (optional, wenn Azure Service Bus genutzt wird)
+# AZURE_SERVICE_BUS_QUEUE_NAME=... (Queue-Name bei Service Bus Provider)
 # GITHUB_TOKEN=your_github_token_here (optional)
 
 # Run Prisma migrations
@@ -300,4 +301,4 @@ npm run automation:job -- <jobId>
 npm run automation:worker
 ```
 
-> Tipp: Für lokale Tests `AUTOMATION_RUN_IMMEDIATE=true` setzen. In produktiven Setups kann stattdessen eine echte Queue (z. B. Azure Service Bus) angeschlossen werden.
+> Tipp: Für lokale Tests `AUTOMATION_RUN_IMMEDIATE=true` setzen. In produktiven Setups kann stattdessen eine echte Queue (z. B. Azure Service Bus mit `AUTOMATION_QUEUE_PROVIDER=servicebus`) angeschlossen werden.
