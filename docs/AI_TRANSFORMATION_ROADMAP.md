@@ -12,6 +12,7 @@
 - **Langfristig:**
   - Asynchrones Status-Update via WebSocket/SignalR ergänzen.
   - SLA-Monitoring und Retry-Policies (Dead Letter Queue) einführen.
+  - MPC-/Agenten-Orchestrierung prüfen, um End-to-End-Automationen ohne manuelle Trigger auszulösen.
 
 ## Assistant / RAG
 - **Kurzfristig:**
