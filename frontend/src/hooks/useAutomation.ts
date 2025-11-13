@@ -31,6 +31,7 @@ interface GenerationJob {
   createdAt: string;
   updatedAt: string;
   completedAt?: string | null;
+  error?: string | null;
   suggestions: Array<UpdateSuggestion>;
   qualityFindings: Array<QualityFinding>;
 }
@@ -72,6 +73,15 @@ type UpdateSuggestionPayload = {
   resolution?: string;
 };
 
+type ToggleConnectorPayload = {
+  id: string;
+  isActive: boolean;
+};
+
+type JobCommandPayload = {
+  id: string;
+};
+
 export function useAutomation() {
   const { currentTenant } = useTenantStore();
   const queryClient = useQueryClient();
@@ -97,6 +107,7 @@ export function useAutomation() {
       }
       return response.json();
     },
+    refetchInterval: 30000,
   });
 
   const jobsQuery = useQuery<GenerationJob[]>({
@@ -110,6 +121,7 @@ export function useAutomation() {
       }
       return response.json();
     },
+    refetchInterval: 10000,
   });
 
   const suggestionsQuery = useQuery<UpdateSuggestion[]>({
@@ -168,6 +180,88 @@ export function useAutomation() {
     },
   });
 
+  const toggleConnector = useMutation({
+    mutationFn: async (payload: ToggleConnectorPayload) => {
+      const response = await fetch(`${API_URL}/automation/connectors/${payload.id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ isActive: payload.isActive }),
+      });
+      if (!response.ok) {
+        throw new Error('Connector konnte nicht aktualisiert werden');
+      }
+      return response.json();
+    },
+    onSuccess: (_, variables) => {
+      toast.success(variables.isActive ? 'Connector aktiviert' : 'Connector deaktiviert');
+      queryClient.invalidateQueries({ queryKey: ['automation', 'connectors'] });
+    },
+    onError: (error: any) => {
+      toast.error(error?.message ?? 'Connector konnte nicht aktualisiert werden');
+    },
+  });
+
+  const retryJob = useMutation({
+    mutationFn: async (payload: JobCommandPayload) => {
+      const response = await fetch(`${API_URL}/automation/jobs/${payload.id}/retry`, {
+        method: 'POST',
+        headers,
+      });
+      if (!response.ok) {
+        throw new Error('Job konnte nicht neu gestartet werden');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast.success('Job erneut gestartet');
+      queryClient.invalidateQueries({ queryKey: ['automation', 'jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['automation', 'suggestions'] });
+    },
+    onError: (error: any) => {
+      toast.error(error?.message ?? 'Job konnte nicht neu gestartet werden');
+    },
+  });
+
+  const cancelJob = useMutation({
+    mutationFn: async (payload: JobCommandPayload) => {
+      const response = await fetch(`${API_URL}/automation/jobs/${payload.id}/cancel`, {
+        method: 'POST',
+        headers,
+      });
+      if (!response.ok) {
+        throw new Error('Job konnte nicht abgebrochen werden');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast.success('Job abgebrochen');
+      queryClient.invalidateQueries({ queryKey: ['automation', 'jobs'] });
+    },
+    onError: (error: any) => {
+      toast.error(error?.message ?? 'Job konnte nicht abgebrochen werden');
+    },
+  });
+
+  const approveJob = useMutation({
+    mutationFn: async (payload: JobCommandPayload) => {
+      const response = await fetch(`${API_URL}/automation/jobs/${payload.id}/approve`, {
+        method: 'POST',
+        headers,
+      });
+      if (!response.ok) {
+        throw new Error('Job konnte nicht freigegeben werden');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast.success('Job freigegeben');
+      queryClient.invalidateQueries({ queryKey: ['automation', 'jobs'] });
+    },
+    onError: (error: any) => {
+      toast.error(error?.message ?? 'Job konnte nicht freigegeben werden');
+    },
+  });
+
   const updateSuggestion = useMutation({
     mutationFn: async ({ id, payload }: { id: string; payload: UpdateSuggestionPayload }) => {
       const response = await fetch(`${API_URL}/automation/suggestions/${id}`, {
@@ -196,6 +290,10 @@ export function useAutomation() {
     suggestionsQuery,
     createConnector,
     createJob,
+    toggleConnector,
+    retryJob,
+    cancelJob,
+    approveJob,
     updateSuggestion,
   };
 }

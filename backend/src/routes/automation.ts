@@ -24,6 +24,10 @@ type UpdateSuggestionBody = {
   resolution?: string;
 };
 
+type UpdateConnectorBody = {
+  isActive?: boolean;
+};
+
 const router = Router();
 const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
 
@@ -161,6 +165,73 @@ router.patch('/suggestions/:id', async (req: Request, res: Response) => {
     console.error('[Automation] Failed to update suggestion', error);
     res.status(500).json({
       error: 'Failed to update suggestion',
+      message: error.message ?? 'Unexpected error',
+    });
+  }
+});
+
+router.patch('/connectors/:id', async (req: Request, res: Response) => {
+  try {
+    const body = req.body as UpdateConnectorBody;
+    if (typeof body?.isActive !== 'boolean') {
+      throw new ApplicationError('isActive muss als boolean gesetzt werden', 400);
+    }
+
+    const connector = await automationService.getConnector(req.params.id);
+    if (!connector) {
+      return res.status(404).json({ error: 'Connector nicht gefunden' });
+    }
+
+    if (connector.tenantId == null) {
+      throw new ApplicationError('Globale Connectoren können nicht angepasst werden', 403);
+    }
+
+    if (connector.tenantId !== req.tenant?.id) {
+      throw new ApplicationError('Connector gehört einem anderen Tenant', 403);
+    }
+
+    const updated = await automationService.updateConnector(connector.id, { isActive: body.isActive });
+    res.json(updated);
+  } catch (error: any) {
+    console.error('[Automation] Failed to update connector', error);
+    res.status(error.statusCode ?? 500).json({
+      error: 'Failed to update connector',
+      message: error.message ?? 'Unexpected error',
+    });
+  }
+});
+
+router.post('/jobs/:id/retry', async (req: Request, res: Response) => {
+  try {
+    const job = await automationService.getJobWithDetails(req.params.id);
+    if (!job || job.tenantId !== req.tenant?.id) {
+      return res.status(404).json({ error: 'Job nicht gefunden' });
+    }
+
+    const retried = await automationService.retryJob(job.id);
+    res.json(retried);
+  } catch (error: any) {
+    console.error('[Automation] Failed to retry job', error);
+    res.status(error.statusCode ?? 500).json({
+      error: 'Failed to retry job',
+      message: error.message ?? 'Unexpected error',
+    });
+  }
+});
+
+router.post('/jobs/:id/cancel', async (req: Request, res: Response) => {
+  try {
+    const job = await automationService.getJobWithDetails(req.params.id);
+    if (!job || job.tenantId !== req.tenant?.id) {
+      return res.status(404).json({ error: 'Job nicht gefunden' });
+    }
+
+    const cancelled = await automationService.cancelJob(job.id);
+    res.json(cancelled);
+  } catch (error: any) {
+    console.error('[Automation] Failed to cancel job', error);
+    res.status(error.statusCode ?? 500).json({
+      error: 'Failed to cancel job',
       message: error.message ?? 'Unexpected error',
     });
   }

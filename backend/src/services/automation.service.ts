@@ -133,10 +133,16 @@ export const automationService = {
           { tenantId: tenantId ?? undefined },
           { tenantId: null },
         ],
-        isActive: true,
       },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: [
+        { isActive: 'desc' },
+        { updatedAt: 'desc' },
+      ],
     });
+  },
+
+  async getConnector(id: string) {
+    return prisma.sourceConnector.findUnique({ where: { id } });
   },
 
   async createConnector(tenantId: string | null | undefined, payload: ConnectorPayload) {
@@ -147,6 +153,13 @@ export const automationService = {
         config: typeof payload.config === 'string' ? payload.config : JSON.stringify(payload.config ?? {}),
         tenantId: tenantId ?? null,
       },
+    });
+  },
+
+  async updateConnector(id: string, data: { isActive?: boolean }) {
+    return prisma.sourceConnector.update({
+      where: { id },
+      data,
     });
   },
 
@@ -166,6 +179,7 @@ export const automationService = {
         createdAt: true,
         updatedAt: true,
         completedAt: true,
+        error: true,
         suggestions: {
           select: {
             id: true,
@@ -240,6 +254,60 @@ export const automationService = {
       where: { id },
       data: {
         status: 'COMPLETED',
+        completedAt: new Date(),
+      },
+    });
+  },
+
+  async retryJob(id: string) {
+    const job = await prisma.generationJob.findUnique({ where: { id } });
+    if (!job) {
+      throw new Error('GenerationJob nicht gefunden');
+    }
+
+    if (job.status === 'RUNNING') {
+      throw new Error('Job wird aktuell verarbeitet und kann nicht neu gestartet werden');
+    }
+
+    await prisma.$transaction([
+      prisma.generationJob.update({
+        where: { id },
+        data: {
+          status: 'PENDING',
+          resultDraft: null,
+          completedAt: null,
+          error: null,
+          updatedAt: new Date(),
+        },
+      }),
+      prisma.qualityFinding.deleteMany({
+        where: { generationJobId: id },
+      }),
+    ]);
+
+    if (AUTO_RUN_ON_PUBLISH) {
+      await automationQueue.publish({ jobId: id, tenantId: job.tenantId ?? null });
+    } else if (RUN_IMMEDIATELY_ON_CREATE) {
+      await automationService.processJob(id);
+    }
+
+    return this.getJobWithDetails(id);
+  },
+
+  async cancelJob(id: string) {
+    const job = await prisma.generationJob.findUnique({ where: { id } });
+    if (!job) {
+      throw new Error('GenerationJob nicht gefunden');
+    }
+
+    if (!['PENDING', 'RUNNING'].includes(job.status)) {
+      throw new Error('Job kann in seinem aktuellen Status nicht abgebrochen werden');
+    }
+
+    return prisma.generationJob.update({
+      where: { id },
+      data: {
+        status: 'CANCELLED',
         completedAt: new Date(),
       },
     });

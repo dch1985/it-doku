@@ -8,11 +8,23 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
 
 const connectorTypes = ['GIT', 'TICKET_SYSTEM', 'DOCUMENT_REPO', 'CUSTOM'];
 
 export default function Automate() {
-  const { connectorsQuery, jobsQuery, suggestionsQuery, createConnector, createJob, updateSuggestion } = useAutomation();
+  const {
+    connectorsQuery,
+    jobsQuery,
+    suggestionsQuery,
+    createConnector,
+    createJob,
+    updateSuggestion,
+    toggleConnector,
+    retryJob,
+    cancelJob,
+    approveJob,
+  } = useAutomation();
   const { data: analyticsData, isLoading: analyticsLoading } = useAnalytics();
   const automationMetrics = analyticsData?.automation;
 
@@ -36,6 +48,13 @@ export default function Automate() {
   const [jobDocumentId, setJobDocumentId] = useState('');
   const [jobConnectorId, setJobConnectorId] = useState('');
   const [jobPayload, setJobPayload] = useState('');
+  const [jobStatusFilter, setJobStatusFilter] = useState<string>('ALL');
+
+  const filteredJobs = useMemo(() => {
+    if (!jobsQuery.data) return [];
+    if (jobStatusFilter === 'ALL') return jobsQuery.data;
+    return jobsQuery.data.filter((job) => job.status === jobStatusFilter);
+  }, [jobsQuery.data, jobStatusFilter]);
 
   const handleCreateConnector = () => {
     if (!connectorName) {
@@ -180,15 +199,33 @@ export default function Automate() {
             </Button>
           </div>
           <div className="mt-6 space-y-3">
-            <h3 className="font-medium">Aktive Connectoren</h3>
+            <h3 className="font-medium">Connector-Übersicht</h3>
             <ul className="space-y-2">
               {connectorsQuery.data?.map((connector) => (
-                <li key={connector.id} className="rounded-lg border p-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">{connector.name}</span>
-                    <Badge>{connector.type}</Badge>
+                <li key={connector.id} className="rounded-lg border p-3 text-sm space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{connector.name}</span>
+                        <Badge variant={connector.isActive ? 'default' : 'secondary'}>
+                          {connector.isActive ? 'Aktiv' : 'Inaktiv'}
+                        </Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">Typ: {connector.type}</p>
+                    </div>
+                    <Switch
+                      checked={connector.isActive}
+                      disabled={toggleConnector.isPending || connector.tenantId == null}
+                      onCheckedChange={(checked) => toggleConnector.mutate({ id: connector.id, isActive: checked })}
+                      aria-label="Connector aktivieren/deaktivieren"
+                    />
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">Zuletzt aktualisiert: {new Date(connector.updatedAt).toLocaleString()}</p>
+                  {connector.tenantId == null && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Globaler Connector – Änderungen nur über System-Administration möglich.
+                    </p>
+                  )}
                 </li>
               ))}
               {connectorsQuery.data?.length === 0 && (
@@ -250,31 +287,90 @@ export default function Automate() {
           </Button>
 
           <div className="mt-6 space-y-3">
-            <h3 className="font-medium">Letzte Jobs</h3>
-            <div className="space-y-2 max-h-72 overflow-y-auto pr-2">
-              {jobsQuery.data?.map((job) => (
-                <article key={job.id} className="rounded-lg border p-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold">{job.intent}</span>
-                    <Badge variant={job.status === 'COMPLETED' ? 'default' : job.status === 'FAILED' ? 'destructive' : 'secondary'}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="font-medium">Letzte Jobs</h3>
+              <Select value={jobStatusFilter} onValueChange={setJobStatusFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Status filtern" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">Alle Status</SelectItem>
+                  <SelectItem value="PENDING">PENDING</SelectItem>
+                  <SelectItem value="RUNNING">RUNNING</SelectItem>
+                  <SelectItem value="FAILED">FAILED</SelectItem>
+                  <SelectItem value="COMPLETED">COMPLETED</SelectItem>
+                  <SelectItem value="CANCELLED">CANCELLED</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
+              {filteredJobs.map((job) => (
+                <article key={job.id} className="rounded-lg border p-3 text-sm space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <span className="font-semibold">{job.intent}</span>
+                      {job.error && job.status === 'FAILED' && (
+                        <p className="mt-1 text-xs text-destructive">Fehler: {job.error}</p>
+                      )}
+                    </div>
+                    <Badge
+                      variant={
+                        job.status === 'COMPLETED'
+                          ? 'default'
+                          : job.status === 'FAILED'
+                          ? 'destructive'
+                          : job.status === 'CANCELLED'
+                          ? 'outline'
+                          : 'secondary'
+                      }
+                    >
                       {job.status}
                     </Badge>
                   </div>
                   {job.resultDraft && (
-                    <p className="mt-2 whitespace-pre-wrap text-xs line-clamp-3">
-                      {job.resultDraft}
-                    </p>
+                    <p className="whitespace-pre-wrap text-xs line-clamp-3">{job.resultDraft}</p>
                   )}
-                  <p className="mt-2 text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Erstellt: {new Date(job.createdAt).toLocaleString()}
                   </p>
                   {job.completedAt && (
-                    <p className="text-xs text-muted-foreground">Abgeschlossen: {new Date(job.completedAt).toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Abschluss: {new Date(job.completedAt).toLocaleString()}
+                    </p>
                   )}
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    {job.status === 'FAILED' && (
+                      <Button size="sm" onClick={() => retryJob.mutate({ id: job.id })} disabled={retryJob.isPending}>
+                        Erneut starten
+                      </Button>
+                    )}
+                    {['PENDING', 'RUNNING'].includes(job.status) && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => cancelJob.mutate({ id: job.id })}
+                        disabled={cancelJob.isPending}
+                      >
+                        Abbrechen
+                      </Button>
+                    )}
+                    {job.status === 'COMPLETED' && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => approveJob.mutate({ id: job.id })}
+                        disabled={approveJob.isPending}
+                      >
+                        Als freigegeben markieren
+                      </Button>
+                    )}
+                  </div>
                 </article>
               ))}
-              {jobsQuery.data?.length === 0 && (
-                <p className="text-sm text-muted-foreground">Noch keine Jobs ausgeführt.</p>
+              {filteredJobs.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Keine Jobs für den gewählten Filter gefunden.
+                </p>
               )}
             </div>
           </div>
