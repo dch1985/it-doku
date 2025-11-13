@@ -35,6 +35,11 @@ AZURE_OPENAI_ENDPOINT=your-endpoint
 AZURE_OPENAI_DEPLOYMENT=gpt-4o
 AZURE_OPENAI_API_VERSION=2024-02-01
 FRONTEND_URL=https://your-frontend-domain.com
+AUTOMATION_QUEUE_AUTORUN=false
+AUTOMATION_RUN_IMMEDIATE=false
+AUTOMATION_QUEUE_PROVIDER=memory
+AZURE_SERVICE_BUS_CONNECTION_STRING=
+AZURE_SERVICE_BUS_QUEUE_NAME=
 ```
 
 ### Frontend Production
@@ -87,4 +92,5 @@ npx prisma generate
 3. Test document CRUD operations
 4. Monitor error logs
 5. Set up Application Insights (optional)
+6. (Optional) Automationsjobs testen: `npm run automation:job -- <jobId>` oder Worker starten (`npm run automation:worker`).
 

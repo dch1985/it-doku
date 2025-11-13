@@ -28,6 +28,8 @@
 - **Templates System** - Pre-built documentation templates
 - **Real-time CRUD** - Instant database synchronization
 - **Search & Filter** - Find documents quickly
+- **AI Automation Pipeline** - Connectoren, Generation Jobs & Update-Vorschläge
+- **Compliance Quality Layer** - Annotationen, Trace Links & automatisierte Findings
 
 ---
 
@@ -74,15 +76,18 @@ cd backend
 npm install
 
 # Create .env file
-cp .env.example .env
+cp env.sample .env
 
 # Configure environment variables
-# Edit .env and add your API keys:
 # DATABASE_URL=sqlserver://...
-# AZURE_OPENAI_KEY=your_key_here
+# AZURE_OPENAI_KEY=your_key_here (optional)
 # AZURE_OPENAI_ENDPOINT=your_endpoint_here
 # AZURE_TENANT_ID=your_tenant_id
 # AZURE_CLIENT_ID=your_client_id
+# AUTOMATION_QUEUE_AUTORUN=false
+# AUTOMATION_RUN_IMMEDIATE=true
+# AUTOMATION_QUEUE_PROVIDER=memory
+# AZURE_SERVICE_BUS_CONNECTION_STRING=... (optional, wenn Azure Service Bus genutzt wird)
 # GITHUB_TOKEN=your_github_token_here (optional)
 
 # Run Prisma migrations
@@ -100,11 +105,11 @@ cd ../frontend
 npm install
 
 # Create .env file
-cp .env.example .env
+cp env.sample .env
 
 # Configure environment variables
 # Edit .env and add:
-# VITE_API_URL=http://localhost:3001/api
+# VITE_API_URL=http://localhost:3002/api
 # VITE_AZURE_CLIENT_ID=your_client_id
 # VITE_AZURE_TENANT_ID=your_tenant_id
 
@@ -283,3 +288,16 @@ For support, email driss.chaouat@example.com or open an issue on GitHub.
 ---
 
 <p align="center">Made with ❤️ by Driss Chaouat</p>
+
+### Automation Queue & Worker
+
+```bash
+# Einzelnen Job manuell ausführen (Job-ID siehe /api/automation/jobs)
+cd backend
+npm run automation:job -- <jobId>
+
+# Länger laufender Worker (Platzhalter für zukünftigen Queue-Provider)
+npm run automation:worker
+```
+
+> Tipp: Für lokale Tests `AUTOMATION_RUN_IMMEDIATE=true` setzen. In produktiven Setups kann stattdessen eine echte Queue (z. B. Azure Service Bus) angeschlossen werden.
