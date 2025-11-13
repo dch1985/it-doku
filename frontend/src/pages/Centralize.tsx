@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useDocuments } from '@/hooks/useDocuments';
-import { useAssistant } from '@/hooks/useAssistant';
+import { useAssistant, AssistantCitation } from '@/hooks/useAssistant';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -8,7 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
-function openDocument(documentId: string) {
+function openDocument(documentId?: string | null) {
+  if (!documentId) return;
   window.location.hash = `document/${documentId}`;
 }
 
@@ -211,21 +212,7 @@ export default function Centralize() {
                         <p className="text-[10px] uppercase text-muted-foreground">Quellen</p>
                         <div className="space-y-1">
                           {trace.citations.map((citation) => (
-                            <button
-                              key={`${trace.id}-${citation.documentId}`}
-                              onClick={() => openDocument(citation.documentId)}
-                              className="w-full rounded-md border border-dashed border-primary/40 bg-background px-3 py-2 text-left transition hover:border-primary hover:bg-primary/5"
-                            >
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="font-semibold text-[11px] text-primary">
-                                  {citation.title ?? 'Unbenanntes Dokument'}
-                                </span>
-                                <span className="text-[10px] uppercase text-muted-foreground">Zum Dokument</span>
-                              </div>
-                              {citation.excerpt && (
-                                <p className="mt-1 text-[11px] text-muted-foreground line-clamp-3">{citation.excerpt}</p>
-                              )}
-                            </button>
+                            <CitationItem key={`${trace.id}-${citation.id}`} citation={citation} />
                           ))}
                         </div>
                       </div>
@@ -241,5 +228,42 @@ export default function Centralize() {
         </div>
       </section>
     </div>
+  );
+}
+
+function CitationItem({ citation }: { citation: AssistantCitation }) {
+  const hasDocumentLink = Boolean(citation.documentId);
+  const Wrapper = hasDocumentLink ? 'button' : 'div';
+  const handleClick = () => {
+    if (hasDocumentLink) {
+      openDocument(citation.documentId);
+    }
+  };
+
+  return (
+    <Wrapper
+      onClick={handleClick as any}
+      className={cn(
+        'w-full rounded-md border border-dashed border-primary/40 bg-background px-3 py-2 text-left transition',
+        hasDocumentLink ? 'hover:border-primary hover:bg-primary/5 cursor-pointer' : 'opacity-90'
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-[10px] uppercase">
+            {citation.sourceType === 'document' ? 'Document' : citation.knowledgeType ?? 'Knowledge'}
+          </Badge>
+          <span className="font-semibold text-[11px] text-primary">
+            {citation.title ?? (citation.sourceType === 'document' ? 'Unbenanntes Dokument' : 'Knowledge Node')}
+          </span>
+        </div>
+        {hasDocumentLink && (
+          <span className="text-[10px] uppercase text-muted-foreground">Zum Dokument</span>
+        )}
+      </div>
+      {citation.excerpt && (
+        <p className="mt-1 text-[11px] text-muted-foreground line-clamp-3">{citation.excerpt}</p>
+      )}
+    </Wrapper>
   );
 }

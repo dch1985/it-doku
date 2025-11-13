@@ -21,8 +21,11 @@ interface Conversation {
 }
 
 export interface AssistantCitation {
-  documentId: string;
+  sourceType: 'document' | 'knowledge';
+  id: string;
   title: string | null;
+  documentId?: string | null;
+  knowledgeType?: string | null;
   excerpt?: string | null;
 }
 

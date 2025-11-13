@@ -10,8 +10,11 @@ export interface AssistantQueryInput {
 }
 
 export interface AssistantCitation {
-  documentId: string;
+  sourceType: 'document' | 'knowledge';
+  id: string;
   title: string | null;
+  documentId?: string | null;
+  knowledgeType?: string | null;
   excerpt?: string | null;
 }
 
@@ -49,11 +52,37 @@ async function findRelevantDocuments(question: string, tenantId?: string | null)
   });
 }
 
+async function findRelevantKnowledgeNodes(question: string, tenantId?: string | null) {
+  return prisma.knowledgeNode.findMany({
+    where: {
+      OR: [
+        { content: { contains: question } },
+        { tags: { contains: question } },
+        { metadata: { contains: question } },
+      ],
+      document: tenantId ? { tenantId } : undefined,
+    },
+    select: {
+      id: true,
+      content: true,
+      type: true,
+      documentId: true,
+      document: {
+        select: {
+          id: true,
+          title: true,
+        },
+      },
+    },
+    take: 5,
+  });
+}
+
 function buildAnswerText(audience: 'BEGINNER' | 'PRACTITIONER' | 'EXPERT', question: string, citations: AssistantCitation[]) {
   if (citations.length === 0) {
     const intro = audience === 'BEGINNER'
-      ? 'Mir liegen noch keine passenden Dokumente in deinem Tenant vor.'
-      : 'Für diese Fragestellung existieren in der Wissensbasis aktuell keine verknüpften Dokumente.';
+      ? 'Mir liegen noch keine passenden Dokumente oder Wissensobjekte in deinem Tenant vor.'
+      : 'Für diese Fragestellung existieren in der Wissensbasis aktuell keine verknüpften Dokumente oder Knowledge Nodes.';
     return `${intro} Ergänze bitte relevante Dokumentation oder starte einen Automate-Job, um Inhalte zu generieren.`;
   }
 
@@ -63,13 +92,20 @@ function buildAnswerText(audience: 'BEGINNER' | 'PRACTITIONER' | 'EXPERT', quest
       ? 'Zusammenfassung für Expert:innen:'
       : 'Hier sind die wichtigsten Punkte:';
 
-  const bulletLines = citations.map((citation) => `- ${citation.title ?? 'Unbenanntes Dokument'} (ID: ${citation.documentId})`);
+  const bulletLines = citations.map((citation) => {
+    if (citation.sourceType === 'document') {
+      return `- [Dokument] ${citation.title ?? 'Unbenannt'}${citation.documentId ? ` (ID: ${citation.documentId})` : ''}`;
+    }
+    const label = citation.knowledgeType ? `Knowledge · ${citation.knowledgeType}` : 'Knowledge Node';
+    const relatedDoc = citation.documentId ? ` · Document ID: ${citation.documentId}` : '';
+    return `- [${label}] ${citation.title ?? 'Eintrag'}${relatedDoc}`;
+  });
 
   const guidance = audience === 'BEGINNER'
-    ? 'Bitte lies diese Dokumente Schritt für Schritt; sie erklären die Grundlagen.'
+    ? 'Bitte lies diese Ressourcen Schritt für Schritt; sie erklären die Grundlagen.'
     : audience === 'EXPERT'
-      ? 'Nutze die referenzierten Dokumente für tiefergehende technische Details und Compliance-Referenzen.'
-      : 'Prüfe die Dokumente für weiterführende Informationen und halte den Review-Workflow ein.';
+      ? 'Nutze die referenzierten Dokumente und Knowledge Nodes für tiefergehende technische Details und Compliance-Referenzen.'
+      : 'Prüfe die referenzierten Quellen für weiterführende Informationen und halte den Review-Workflow ein.';
 
   return `${headline}\n\n${bulletLines.join('\n')}\n\n${guidance}`;
 }
@@ -77,16 +113,29 @@ function buildAnswerText(audience: 'BEGINNER' | 'PRACTITIONER' | 'EXPERT', quest
 async function buildAssistantResponse(input: AssistantQueryInput) {
   const audience = normalizeAudience(input.audience);
   const documents = await findRelevantDocuments(input.question, input.tenantId);
+  const knowledgeNodes = await findRelevantKnowledgeNodes(input.question, input.tenantId);
 
-  const citations: AssistantCitation[] = documents.map((doc) => ({
+  const documentCitations: AssistantCitation[] = documents.map((doc) => ({
+    sourceType: 'document',
+    id: doc.id,
     documentId: doc.id,
     title: doc.title,
     excerpt: stripHtml(doc.content).slice(0, 220) || null,
   }));
 
-  const answer = buildAnswerText(audience, input.question, citations.slice(0, 3));
+  const knowledgeCitations: AssistantCitation[] = knowledgeNodes.map((node) => ({
+    sourceType: 'knowledge',
+    id: node.id,
+    documentId: node.documentId ?? null,
+    title: node.document?.title ?? node.type ?? 'Knowledge Node',
+    knowledgeType: node.type,
+    excerpt: stripHtml(node.content).slice(0, 220) || null,
+  }));
 
-  return { answer, citations: citations.slice(0, 3), audience };
+  const citations = [...documentCitations, ...knowledgeCitations].slice(0, 6);
+  const answer = buildAnswerText(audience, input.question, citations);
+
+  return { answer, citations, audience };
 }
 
 export const assistantService = {
