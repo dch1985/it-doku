@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useDocuments } from '@/hooks/useDocuments';
 import { useAssistant, AssistantCitation } from '@/hooks/useAssistant';
 import { useAnalytics } from '@/hooks/useAnalytics';
+import { useKnowledgeNodes } from '@/hooks/useKnowledgeNodes';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -9,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { toast } from 'sonner';
 
 function openDocument(documentId?: string | null) {
   if (!documentId) return;
@@ -21,16 +23,43 @@ const AUDIENCE_LEVELS = [
   { value: 'EXPERT', label: 'Expert' },
 ];
 
+const KNOWLEDGE_TYPES = ['CONCEPT', 'SYSTEM', 'CONTROL', 'PROCESS', 'ENTITY', 'FAQ', 'STANDARD'];
+
 export default function Centralize() {
   const { documents, loading } = useDocuments();
   const { conversationsQuery, tracesQuery, askMutation, activeConversationId, setActiveConversationId } = useAssistant();
   const { data: analyticsData, isLoading: analyticsLoading } = useAnalytics();
+  const { knowledgeQuery, createNode, updateNode, deleteNode } = useKnowledgeNodes();
+
+  const knowledgeNodes = knowledgeQuery.data ?? [];
+  const knowledgeLoading = knowledgeQuery.isLoading;
+
   const centralizeMetrics = analyticsData?.centralize;
   const systemDocs = analyticsData?.system.totalDocuments;
 
   const [question, setQuestion] = useState('');
   const [audience, setAudience] = useState<string>('PRACTITIONER');
   const [conversationTitle, setConversationTitle] = useState('');
+
+  const [knowledgeContent, setKnowledgeContent] = useState('');
+  const [knowledgeType, setKnowledgeType] = useState<string>(KNOWLEDGE_TYPES[0]);
+  const [knowledgeDocumentId, setKnowledgeDocumentId] = useState<string>('');
+  const [knowledgeFilter, setKnowledgeFilter] = useState<string>('ALL');
+
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState('');
+  const [editingType, setEditingType] = useState<string>(KNOWLEDGE_TYPES[0]);
+  const [editingDocumentId, setEditingDocumentId] = useState<string>('');
+
+  const filteredKnowledgeNodes = useMemo(() => {
+    if (knowledgeFilter === 'ALL') {
+      return knowledgeNodes;
+    }
+    if (knowledgeFilter === 'ORPHANS') {
+      return knowledgeNodes.filter((node) => !node.documentId);
+    }
+    return knowledgeNodes.filter((node) => node.documentId === knowledgeFilter);
+  }, [knowledgeFilter, knowledgeNodes]);
 
   const activeConversation = useMemo(() => {
     return conversationsQuery.data?.find((conversation) => conversation.id === activeConversationId);
@@ -45,6 +74,60 @@ export default function Centralize() {
       title: conversationTitle || 'Assistant Session',
     });
     setQuestion('');
+  };
+
+  const handleCreateKnowledgeNode = () => {
+    if (!knowledgeContent.trim()) {
+      toast.error('Bitte Knowledge Content eingeben');
+      return;
+    }
+    createNode.mutate({
+      content: knowledgeContent.trim(),
+      type: knowledgeType,
+      documentId: knowledgeDocumentId ? knowledgeDocumentId : null,
+    });
+    setKnowledgeContent('');
+    setKnowledgeDocumentId('');
+  };
+
+  const startEditingNode = (node: typeof knowledgeNodes[number]) => {
+    setEditingNodeId(node.id);
+    setEditingContent(node.content);
+    setEditingType(node.type);
+    setEditingDocumentId(node.documentId ?? '');
+  };
+
+  const handleCancelEdit = () => {
+    setEditingNodeId(null);
+    setEditingContent('');
+    setEditingType(KNOWLEDGE_TYPES[0]);
+    setEditingDocumentId('');
+  };
+
+  const handleSaveNode = async () => {
+    if (!editingNodeId) return;
+    try {
+      await updateNode.mutateAsync({
+        id: editingNodeId,
+        payload: {
+          content: editingContent.trim(),
+          type: editingType,
+          documentId: editingDocumentId ? editingDocumentId : null,
+        },
+      });
+      handleCancelEdit();
+    } catch (error) {
+      // handled by hook
+    }
+  };
+
+  const handleDeleteNode = (id: string) => {
+    if (confirm('Knowledge Node wirklich löschen?')) {
+      deleteNode.mutate(id);
+      if (editingNodeId === id) {
+        handleCancelEdit();
+      }
+    }
   };
 
   return (
@@ -144,6 +227,174 @@ export default function Centralize() {
             {!loading && documents.length === 0 && (
               <p className="text-sm text-muted-foreground">Noch keine Dokumente vorhanden – starte mit dem Automations-Tab.</p>
             )}
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-xl border bg-card shadow-sm">
+        <header className="border-b p-6">
+          <h2 className="text-xl font-semibold">Knowledge Nodes verwalten</h2>
+          <p className="text-sm text-muted-foreground">
+            Ergänze oder aktualisiere Wissensbausteine und verknüpfe sie mit Dokumenten, um die Abdeckung zu erhöhen.
+          </p>
+        </header>
+        <div className="grid gap-6 p-6 lg:grid-cols-[360px_1fr]">
+          <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+            <h3 className="font-medium text-sm">Neuen Knowledge Node anlegen</h3>
+            <Select value={knowledgeType} onValueChange={setKnowledgeType}>
+              <SelectTrigger>
+                <SelectValue placeholder="Typ" />
+              </SelectTrigger>
+              <SelectContent>
+                {KNOWLEDGE_TYPES.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Textarea
+              placeholder="Knowledge-Inhalt / Zusammenfassung"
+              value={knowledgeContent}
+              onChange={(event) => setKnowledgeContent(event.target.value)}
+              className="min-h-[140px]"
+            />
+            <Select value={knowledgeDocumentId} onValueChange={setKnowledgeDocumentId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Dokument zuordnen (optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Keinem Dokument zugeordnet</SelectItem>
+                {documents.map((document) => (
+                  <SelectItem key={document.id} value={document.id}>
+                    {document.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button onClick={handleCreateKnowledgeNode} disabled={createNode.isPending}>
+              Knowledge Node speichern
+            </Button>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="font-medium text-sm">Bestehende Nodes</h3>
+              <Select value={knowledgeFilter} onValueChange={setKnowledgeFilter}>
+                <SelectTrigger className="w-[220px]">
+                  <SelectValue placeholder="Filtern" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">Alle</SelectItem>
+                  <SelectItem value="ORPHANS">Ohne Dokument</SelectItem>
+                  {documents.map((document) => (
+                    <SelectItem key={document.id} value={document.id}>
+                      {document.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="max-h-[420px] space-y-3 overflow-y-auto pr-2">
+              {knowledgeLoading && (
+                <p className="text-sm text-muted-foreground">Knowledge Nodes werden geladen…</p>
+              )}
+              {!knowledgeLoading && filteredKnowledgeNodes.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Keine Knowledge Nodes vorhanden. Lege erste Wissensinhalte an.
+                </p>
+              )}
+              {!knowledgeLoading &&
+                filteredKnowledgeNodes.map((node) => {
+                  const isEditing = editingNodeId === node.id;
+                  return (
+                    <article key={node.id} className="rounded-lg border p-4 text-sm space-y-3 bg-background">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <Badge variant="outline" className="text-[10px] uppercase">
+                          {isEditing ? editingType : node.type}
+                        </Badge>
+                        <span className="text-[11px] text-muted-foreground">
+                          Aktualisiert: {new Date(node.updatedAt).toLocaleString()}
+                        </span>
+                      </div>
+                      {isEditing ? (
+                        <>
+                          <Select value={editingType} onValueChange={setEditingType}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Typ wählen" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {KNOWLEDGE_TYPES.map((type) => (
+                                <SelectItem key={type} value={type}>
+                                  {type}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Textarea
+                            value={editingContent}
+                            onChange={(event) => setEditingContent(event.target.value)}
+                            className="min-h-[120px]"
+                          />
+                          <Select value={editingDocumentId} onValueChange={setEditingDocumentId}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Dokument (optional)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="">Keinem Dokument zugeordnet</SelectItem>
+                              {documents.map((document) => (
+                                <SelectItem key={document.id} value={document.id}>
+                                  {document.title}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <div className="flex flex-wrap items-center gap-2 pt-2">
+                            <Button size="sm" onClick={handleSaveNode} disabled={updateNode.isPending}>
+                              Speichern
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={handleCancelEdit}>
+                              Abbrechen
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleDeleteNode(node.id)}
+                              disabled={deleteNode.isPending}
+                            >
+                              Löschen
+                            </Button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <p className="whitespace-pre-wrap text-sm text-muted-foreground line-clamp-4">
+                            {node.content}
+                          </p>
+                          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                            <span>
+                              {node.document ? `Dokument: ${node.document.title ?? 'Unbenannt'}` : 'Ohne Dokument'}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <Button size="sm" variant="ghost" onClick={() => startEditingNode(node)}>
+                                Bearbeiten
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleDeleteNode(node.id)}
+                                disabled={deleteNode.isPending}
+                              >
+                                Entfernen
+                              </Button>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </article>
+                  );
+                })}
+            </div>
           </div>
         </div>
       </section>

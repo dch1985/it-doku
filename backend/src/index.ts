@@ -8,6 +8,12 @@ import githubRouter from './routes/github.js';
 import uploadRouter from './routes/upload.js';
 import authRouter from './routes/auth.js';
 import tenantsRouter from './routes/tenants.js';
+import automationRouter from './routes/automation.js';
+import complianceRouter from './routes/compliance.js';
+import assistantRouter from './routes/assistant.js';
+import analyticsRouter from './routes/analytics.js';
+import searchRouter from './routes/search.js';
+import knowledgeRouter from './routes/knowledge.js';
 import {
   loggerMiddleware,
   errorLogger,
@@ -83,6 +89,20 @@ app.use('/api/github', githubRouter)
 
 // Upload Routes
 app.use('/api/upload', uploadRouter)
+
+// Analytics & Knowledge Routes
+app.use('/api/analytics', analyticsRouter)
+app.use('/api/search', searchRouter)
+
+// AI & Automation Routes
+app.use('/api/assistant', assistantRouter)
+app.use('/api/automation', automationRouter)
+
+// Compliance Routes
+app.use('/api/compliance', complianceRouter)
+
+// Knowledge Node Management
+app.use('/api/knowledge', knowledgeRouter)
 
 // Error handling - must be last
 app.use(notFoundHandler);
