@@ -45,9 +45,32 @@ export interface QualityFinding {
   severity: string;
   message: string;
   location?: string;
-  resolution?: string;
+  resolution?: string | null;
   resolvedAt?: string | null;
   createdAt: string;
+}
+
+export interface ReviewRequest {
+  id: string;
+  documentId: string;
+  status: string;
+  comments?: string | null;
+  createdAt: string;
+  reviewedAt?: string | null;
+  requester: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  reviewer: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  document?: {
+    id: string;
+    title: string;
+  };
 }
 
 type CreateSchemaPayload = {
@@ -78,7 +101,20 @@ type CreateTracePayload = {
 
 type UpdateFindingPayload = {
   id: string;
-  resolution?: string;
+  resolution?: string | null;
+  action?: 'RESOLVE' | 'REOPEN';
+};
+
+type CreateReviewPayload = {
+  documentId: string;
+  reviewerId: string;
+  comments?: string | null;
+};
+
+type UpdateReviewPayload = {
+  id: string;
+  status?: string;
+  comments?: string | null;
 };
 
 export function useCompliance(documentId?: string) {
@@ -137,6 +173,18 @@ export function useCompliance(documentId?: string) {
       const response = await fetch(`${API_ROOT}/compliance/quality/findings${params}`, { headers });
       if (!response.ok) {
         throw new Error('Quality Findings konnten nicht geladen werden');
+      }
+      return response.json();
+    },
+  });
+
+  const reviewsQuery = useQuery<ReviewRequest[]>({
+    queryKey: ['compliance', 'reviews', currentTenant?.id, documentId ?? 'all'],
+    queryFn: async () => {
+      const params = documentId ? `?documentId=${documentId}` : '';
+      const response = await fetch(`${API_ROOT}/compliance/reviews${params}`, { headers });
+      if (!response.ok) {
+        throw new Error('Review Requests konnten nicht geladen werden');
       }
       return response.json();
     },
@@ -210,7 +258,10 @@ export function useCompliance(documentId?: string) {
       const response = await fetch(`${API_ROOT}/compliance/quality/findings/${payload.id}`, {
         method: 'PATCH',
         headers,
-        body: JSON.stringify({ resolution: payload.resolution }),
+        body: JSON.stringify({
+          resolution: payload.resolution,
+          action: payload.action,
+        }),
       });
       if (!response.ok) {
         throw new Error('Quality Finding konnte nicht aktualisiert werden');
@@ -226,14 +277,84 @@ export function useCompliance(documentId?: string) {
     },
   });
 
+  const createReviewRequest = useMutation({
+    mutationFn: async (payload: CreateReviewPayload) => {
+      const response = await fetch(`${API_ROOT}/compliance/reviews`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        throw new Error('Review Request konnte nicht erstellt werden');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast.success('Review Request erstellt');
+      queryClient.invalidateQueries({ queryKey: ['compliance', 'reviews'] });
+    },
+    onError: (error: any) => {
+      toast.error(error?.message ?? 'Review Request konnte nicht erstellt werden');
+    },
+  });
+
+  const updateReviewRequest = useMutation({
+    mutationFn: async (payload: UpdateReviewPayload) => {
+      const response = await fetch(`${API_ROOT}/compliance/reviews/${payload.id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({
+          status: payload.status,
+          comments: payload.comments,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error('Review Request konnte nicht aktualisiert werden');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast.success('Review Status aktualisiert');
+      queryClient.invalidateQueries({ queryKey: ['compliance', 'reviews'] });
+    },
+    onError: (error: any) => {
+      toast.error(error?.message ?? 'Review Request konnte nicht aktualisiert werden');
+    },
+  });
+
+  const runQualityCheck = useMutation({
+    mutationFn: async (docId: string) => {
+      const response = await fetch(`${API_ROOT}/compliance/quality/check`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ documentId: docId }),
+      });
+      if (!response.ok) {
+        throw new Error('Quality Check konnte nicht ausgeführt werden');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast.success('Quality Check gestartet');
+      queryClient.invalidateQueries({ queryKey: ['compliance', 'quality'] });
+    },
+    onError: (error: any) => {
+      toast.error(error?.message ?? 'Quality Check fehlgeschlagen');
+    },
+  });
+
   return {
     schemasQuery,
     annotationsQuery,
     traceLinksQuery,
     findingsQuery,
+    reviewsQuery,
     createSchema,
     createAnnotation,
     createTraceLink,
     updateQualityFinding,
+    createReviewRequest,
+    updateReviewRequest,
+    runQualityCheck,
   };
 }

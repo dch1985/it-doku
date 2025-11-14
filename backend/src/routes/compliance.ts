@@ -5,6 +5,22 @@ import { tenantMiddleware } from '../middleware/tenant.middleware.js';
 import { ApplicationError } from '../middleware/errorHandler.js';
 import { complianceService } from '../services/compliance.service.js';
 
+type UpdateFindingBody = {
+  resolution?: string | null;
+  action?: 'RESOLVE' | 'REOPEN';
+};
+
+type CreateReviewBody = {
+  documentId: string;
+  reviewerId: string;
+  comments?: string | null;
+};
+
+type UpdateReviewBody = {
+  status?: string;
+  comments?: string | null;
+};
+
 const router = Router();
 const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
 
@@ -156,13 +172,22 @@ router.get('/quality/findings', async (req: Request, res: Response) => {
 
 router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
   try {
-    const { resolution } = req.body ?? {};
-    const finding = await complianceService.updateQualityFinding(req.params.id, resolution ? String(resolution) : undefined);
+    const body = req.body as UpdateFindingBody;
+    const action = body?.action ? body.action.toUpperCase() : undefined;
+
+    if (action && action !== 'RESOLVE' && action !== 'REOPEN') {
+      throw new ApplicationError(`Ungültige Aktion: ${action}`, 400);
+    }
+
+    const finding = await complianceService.updateQualityFinding(req.params.id, {
+      action: action as 'RESOLVE' | 'REOPEN' | undefined,
+      resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
+    });
 
     res.json(finding);
   } catch (error: any) {
     console.error('[Compliance] Failed to update quality finding', error);
-    res.status(500).json({
+    res.status(error.statusCode ?? 500).json({
       error: 'Failed to update quality finding',
       message: error.message ?? 'Unexpected error',
     });
@@ -185,6 +210,74 @@ router.post('/quality/check', async (req: Request, res: Response) => {
     console.error('[Compliance] Failed to run quality checks', error);
     res.status(error.statusCode ?? 500).json({
       error: 'Failed to run quality checks',
+      message: error.message ?? 'Unexpected error',
+    });
+  }
+});
+
+router.get('/reviews', async (req: Request, res: Response) => {
+  try {
+    const { documentId } = req.query;
+    const reviews = await complianceService.listReviewRequests(
+      req.tenant?.id,
+      typeof documentId === 'string' ? documentId : undefined,
+    );
+    res.json(reviews);
+  } catch (error: any) {
+    console.error('[Compliance] Failed to load review requests', error);
+    res.status(500).json({
+      error: 'Failed to load review requests',
+      message: error.message ?? 'Unexpected error',
+    });
+  }
+});
+
+router.post('/reviews', async (req: Request, res: Response) => {
+  try {
+    const body = req.body as CreateReviewBody;
+    if (!body?.documentId || !body?.reviewerId) {
+      throw new ApplicationError('documentId und reviewerId sind erforderlich', 400);
+    }
+
+    const requesterId = req.user?.id;
+    if (!requesterId) {
+      throw new ApplicationError('Authentifizierung erforderlich', 403);
+    }
+
+    const review = await complianceService.createReviewRequest({
+      documentId: String(body.documentId),
+      reviewerId: String(body.reviewerId),
+      requestedBy: requesterId,
+      comments: body.comments ?? null,
+      tenantId: req.tenant?.id ?? null,
+    });
+
+    res.status(201).json(review);
+  } catch (error: any) {
+    console.error('[Compliance] Failed to create review request', error);
+    res.status(error.statusCode ?? 500).json({
+      error: 'Failed to create review request',
+      message: error.message ?? 'Unexpected error',
+    });
+  }
+});
+
+router.patch('/reviews/:id', async (req: Request, res: Response) => {
+  try {
+    const body = req.body as UpdateReviewBody;
+    const status = body?.status ? String(body.status).toUpperCase() : undefined;
+
+    const review = await complianceService.updateReviewRequest(req.params.id, {
+      status: status as any,
+      comments: body?.comments ?? null,
+      tenantId: req.tenant?.id ?? null,
+    });
+
+    res.json(review);
+  } catch (error: any) {
+    console.error('[Compliance] Failed to update review request', error);
+    res.status(error.statusCode ?? 500).json({
+      error: 'Failed to update review request',
       message: error.message ?? 'Unexpected error',
     });
   }

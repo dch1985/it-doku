@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma.js';
+import { ApplicationError } from '../middleware/errorHandler.js';
 
 export interface TemplateSchemaPayload {
   name: string;
@@ -33,6 +34,28 @@ export interface TraceLinkPayload {
 function stripHtml(content: string | null | undefined): string {
   if (!content) return '';
   return content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+const REVIEW_STATUS = ['PENDING', 'APPROVED', 'REJECTED', 'CHANGES_REQUESTED'] as const;
+type ReviewStatus = (typeof REVIEW_STATUS)[number];
+
+export interface ReviewRequestPayload {
+  documentId: string;
+  reviewerId: string;
+  requestedBy: string;
+  comments?: string | null;
+  tenantId?: string | null;
+}
+
+export interface ReviewRequestUpdatePayload {
+  status?: ReviewStatus;
+  comments?: string | null;
+  tenantId?: string | null;
+}
+
+export interface QualityFindingUpdatePayload {
+  resolution?: string | null;
+  action?: 'RESOLVE' | 'REOPEN' | null;
 }
 
 export const complianceService = {
@@ -130,13 +153,30 @@ export const complianceService = {
     });
   },
 
-  updateQualityFinding(id: string, resolution?: string) {
+  async updateQualityFinding(id: string, changes: QualityFindingUpdatePayload) {
+    const payload = changes ?? {};
+    const data: Record<string, unknown> = {};
+
+    if (payload.action === 'REOPEN') {
+      data.resolution = null;
+      data.resolvedAt = null;
+    } else if (payload.action === 'RESOLVE') {
+      data.resolution = payload.resolution ?? 'Resolved';
+      data.resolvedAt = new Date();
+    } else if (payload.resolution !== undefined) {
+      data.resolution = payload.resolution;
+      if (!payload.resolution) {
+        data.resolvedAt = null;
+      }
+    }
+
+    if (Object.keys(data).length === 0) {
+      throw new ApplicationError('Keine Änderungen angegeben', 400);
+    }
+
     return prisma.qualityFinding.update({
       where: { id },
-      data: {
-        resolution: resolution ?? null,
-        resolvedAt: resolution ? new Date() : null,
-      },
+      data,
     });
   },
 
@@ -203,5 +243,107 @@ export const complianceService = {
     }
 
     return findings;
+  },
+
+  async listReviewRequests(tenantId?: string | null, documentId?: string) {
+    return prisma.reviewRequest.findMany({
+      where: {
+        ...(documentId ? { documentId } : {}),
+        ...(tenantId
+          ? {
+              document: {
+                tenantId,
+              },
+            }
+          : {}),
+      },
+      include: {
+        document: { select: { id: true, title: true } },
+        requester: { select: { id: true, name: true, email: true } },
+        reviewer: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  },
+
+  async createReviewRequest(payload: ReviewRequestPayload) {
+    const document = await prisma.document.findUnique({
+      where: { id: payload.documentId },
+      select: { tenantId: true },
+    });
+
+    if (!document) {
+      throw new ApplicationError('Dokument wurde nicht gefunden', 404);
+    }
+
+    if (payload.tenantId && document.tenantId && payload.tenantId !== document.tenantId) {
+      throw new ApplicationError('Zugriff auf dieses Dokument ist nicht erlaubt', 403);
+    }
+
+    const reviewer = await prisma.user.findUnique({
+      where: { id: payload.reviewerId },
+      select: { id: true },
+    });
+
+    if (!reviewer) {
+      throw new ApplicationError('Reviewer wurde nicht gefunden', 404);
+    }
+
+    return prisma.reviewRequest.create({
+      data: {
+        documentId: payload.documentId,
+        requestedBy: payload.requestedBy,
+        reviewerId: payload.reviewerId,
+        comments: payload.comments ?? null,
+      },
+      include: {
+        document: { select: { id: true, title: true } },
+        requester: { select: { id: true, name: true, email: true } },
+        reviewer: { select: { id: true, name: true, email: true } },
+      },
+    });
+  },
+
+  async updateReviewRequest(id: string, payload: ReviewRequestUpdatePayload) {
+    const review = await prisma.reviewRequest.findUnique({
+      where: { id },
+      include: { document: { select: { tenantId: true } } },
+    });
+
+    if (!review) {
+      throw new ApplicationError('Review Request wurde nicht gefunden', 404);
+    }
+
+    if (payload.tenantId && review.document?.tenantId && payload.tenantId !== review.document.tenantId) {
+      throw new ApplicationError('Zugriff auf dieses Review ist nicht erlaubt', 403);
+    }
+
+    const data: Record<string, unknown> = {};
+
+    if (payload.status) {
+      if (!REVIEW_STATUS.includes(payload.status)) {
+        throw new ApplicationError(`Ungültiger Review-Status: ${payload.status}`, 400);
+      }
+      data.status = payload.status;
+      data.reviewedAt = payload.status === 'PENDING' ? null : new Date();
+    }
+
+    if (payload.comments !== undefined) {
+      data.comments = payload.comments ?? null;
+    }
+
+    if (Object.keys(data).length === 0) {
+      throw new ApplicationError('Keine Änderungen angegeben', 400);
+    }
+
+    return prisma.reviewRequest.update({
+      where: { id },
+      data,
+      include: {
+        document: { select: { id: true, title: true } },
+        requester: { select: { id: true, name: true, email: true } },
+        reviewer: { select: { id: true, name: true, email: true } },
+      },
+    });
   },
 };

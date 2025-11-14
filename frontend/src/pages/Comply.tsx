@@ -2,20 +2,24 @@ import { useState } from 'react';
 import { useDocuments } from '@/hooks/useDocuments';
 import { useCompliance } from '@/hooks/useCompliance';
 import { useAnalytics } from '@/hooks/useAnalytics';
+import { useUsers } from '@/hooks/useUsers';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { toast } from 'sonner';
 
 const FORMATS = ['MARKDOWN', 'ASCIIDOC', 'XML'];
+const REVIEW_STATUSES = ['PENDING', 'APPROVED', 'CHANGES_REQUESTED', 'REJECTED'];
 
 export default function Comply() {
   const { documents } = useDocuments();
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>('');
   const { data: analyticsData, isLoading: analyticsLoading } = useAnalytics();
   const complyMetrics = analyticsData?.comply;
+  const { users, loading: usersLoading } = useUsers();
 
   const {
     schemasQuery,
@@ -26,6 +30,10 @@ export default function Comply() {
     createAnnotation,
     createTraceLink,
     updateQualityFinding,
+    reviewsQuery,
+    createReviewRequest,
+    updateReviewRequest,
+    runQualityCheck,
   } = useCompliance(selectedDocumentId || undefined);
 
   const [schemaName, setSchemaName] = useState('');
@@ -41,6 +49,10 @@ export default function Comply() {
   const [traceSourceId, setTraceSourceId] = useState('');
   const [traceTargetType, setTraceTargetType] = useState('DOCUMENT');
   const [traceTargetId, setTraceTargetId] = useState('');
+  const [reviewReviewerId, setReviewReviewerId] = useState('');
+  const [reviewComment, setReviewComment] = useState('');
+  const [resolutionNotes, setResolutionNotes] = useState<Record<string, string>>({});
+  const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
 
   const handleCreateSchema = () => {
     if (!schemaName || !schemaContent) return;
@@ -79,6 +91,39 @@ export default function Comply() {
     setTraceSourceId('');
     setTraceTargetId('');
   };
+
+  const handleCreateReview = () => {
+    if (!selectedDocumentId) {
+      toast.error('Bitte wähle ein Dokument aus.');
+      return;
+    }
+    if (!reviewReviewerId) {
+      toast.error('Bitte wähle einen Reviewer aus.');
+      return;
+    }
+    createReviewRequest.mutate(
+      {
+        documentId: selectedDocumentId,
+        reviewerId: reviewReviewerId,
+        comments: reviewComment.trim() ? reviewComment.trim() : undefined,
+      },
+      {
+        onSuccess: () => {
+          setReviewComment('');
+        },
+      },
+    );
+  };
+
+  const handleRunQualityCheck = () => {
+    if (!selectedDocumentId) {
+      toast.error('Bitte wähle ein Dokument aus.');
+      return;
+    }
+    runQualityCheck.mutate(selectedDocumentId);
+  };
+
+  const reviewRequests = reviewsQuery.data ?? [];
 
   return (
     <div className="space-y-10">
@@ -323,6 +368,12 @@ export default function Comply() {
 
           <div className="rounded-xl border bg-card p-6 shadow-sm">
             <h2 className="text-lg font-semibold">Quality Findings</h2>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="outline" onClick={handleRunQualityCheck} disabled={runQualityCheck.isPending}>
+                Quality Check erneut ausführen
+              </Button>
+              {runQualityCheck.isPending && <span className="text-xs text-muted-foreground">Prüfung läuft…</span>}
+            </div>
             <div className="mt-4 max-h-[200px] space-y-2 overflow-y-auto pr-2">
               {findingsQuery.data?.map((finding) => (
                 <article key={finding.id} className="rounded-lg border p-3 text-xs">
@@ -332,23 +383,173 @@ export default function Comply() {
                   </div>
                   <p className="mt-1 whitespace-pre-wrap">{finding.message}</p>
                   {finding.location && <p className="mt-1 text-[10px] text-muted-foreground">{finding.location}</p>}
-                  <div className="mt-2 flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => updateQualityFinding.mutate({ id: finding.id, resolution: 'Geprüft / ok' })}
-                    >
-                      Auf gelöst setzen
-                    </Button>
-                    {finding.resolution && (
-                      <Badge variant="outline">{finding.resolution}</Badge>
-                    )}
+                  <div className="mt-2 space-y-2">
+                    <Textarea
+                      placeholder="Kommentar oder Maßnahmen (optional)"
+                      value={resolutionNotes[finding.id] ?? ''}
+                      onChange={(event) =>
+                        setResolutionNotes((prev) => ({
+                          ...prev,
+                          [finding.id]: event.target.value,
+                        }))
+                      }
+                      className="min-h-[80px] text-xs"
+                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      {finding.resolvedAt ? (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              updateQualityFinding.mutate(
+                                { id: finding.id, action: 'REOPEN' },
+                                {
+                                  onSuccess: () =>
+                                    setResolutionNotes((prev) => ({
+                                      ...prev,
+                                      [finding.id]: '',
+                                    })),
+                                },
+                              )
+                            }
+                          >
+                            Wieder öffnen
+                          </Button>
+                          <Badge variant="outline">Gelöst am {new Date(finding.resolvedAt).toLocaleDateString()}</Badge>
+                        </>
+                      ) : (
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            updateQualityFinding.mutate(
+                              {
+                                id: finding.id,
+                                action: 'RESOLVE',
+                                resolution: resolutionNotes[finding.id]?.trim()
+                                  ? resolutionNotes[finding.id]!.trim()
+                                  : undefined,
+                              },
+                              {
+                                onSuccess: () =>
+                                  setResolutionNotes((prev) => ({
+                                    ...prev,
+                                    [finding.id]: '',
+                                  })),
+                              },
+                            )
+                          }
+                        >
+                          Als gelöst markieren
+                        </Button>
+                      )}
+                      {finding.resolution && <Badge variant="outline">{finding.resolution}</Badge>}
+                    </div>
                   </div>
                 </article>
               ))}
               {findingsQuery.data?.length === 0 && (
                 <p className="text-sm text-muted-foreground">Keine Findings – gute Arbeit!</p>
               )}
+            </div>
+          </div>
+
+          <div className="rounded-xl border bg-card p-6 shadow-sm">
+            <h2 className="text-lg font-semibold">Review Workflow</h2>
+            <p className="text-sm text-muted-foreground">
+              Weise Reviewer zu und dokumentiere Entscheidungen für Audit-Sicherheit.
+            </p>
+            <div className="mt-4 space-y-3">
+              <Select value={reviewReviewerId} onValueChange={setReviewReviewerId} disabled={usersLoading}>
+                <SelectTrigger>
+                  <SelectValue placeholder={usersLoading ? 'Lade Reviewer…' : 'Reviewer auswählen'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.name} ({user.role})
+                    </SelectItem>
+                  ))}
+                  {users.length === 0 && <SelectItem value="" disabled>Keine Benutzer gefunden</SelectItem>}
+                </SelectContent>
+              </Select>
+              <Textarea
+                placeholder="Hinweise oder Ziele für den Review (optional)"
+                value={reviewComment}
+                onChange={(event) => setReviewComment(event.target.value)}
+                className="min-h-[100px]"
+              />
+              <Button onClick={handleCreateReview} disabled={createReviewRequest.isPending}>
+                Review anstoßen
+              </Button>
+            </div>
+
+            <div className="mt-6 space-y-3 max-h-[240px] overflow-y-auto pr-2">
+              {reviewsQuery.isLoading && <p className="text-sm text-muted-foreground">Lade Review Requests…</p>}
+              {!reviewsQuery.isLoading && reviewRequests.length === 0 && (
+                <p className="text-sm text-muted-foreground">Keine Reviews vorhanden.</p>
+              )}
+              {reviewRequests.map((request) => {
+                const noteValue = reviewNotes[request.id] ?? '';
+                return (
+                  <article key={request.id} className="rounded-lg border p-3 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="font-semibold">{request.document?.title ?? 'Dokument'}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          Reviewer: {request.reviewer.name} • Angefragt von {request.requester.name}
+                        </p>
+                      </div>
+                      <Badge variant={request.status === 'PENDING' ? 'secondary' : 'outline'}>
+                        {request.status.replace('_', ' ')}
+                      </Badge>
+                    </div>
+                    {request.comments && (
+                      <p className="mt-2 whitespace-pre-wrap text-[11px] text-muted-foreground">
+                        Kommentar: {request.comments}
+                      </p>
+                    )}
+                    <Textarea
+                      placeholder="Kommentar zur Entscheidung (optional)"
+                      value={noteValue}
+                      onChange={(event) =>
+                        setReviewNotes((prev) => ({
+                          ...prev,
+                          [request.id]: event.target.value,
+                        }))
+                      }
+                      className="mt-2 min-h-[80px]"
+                    />
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {REVIEW_STATUSES.map((status) => (
+                        <Button
+                          key={status}
+                          size="sm"
+                          variant={status === request.status ? 'secondary' : 'outline'}
+                          onClick={() =>
+                            updateReviewRequest.mutate(
+                              {
+                                id: request.id,
+                                status,
+                                comments: noteValue.trim() ? noteValue.trim() : undefined,
+                              },
+                              {
+                                onSuccess: () =>
+                                  setReviewNotes((prev) => ({
+                                    ...prev,
+                                    [request.id]: '',
+                                  })),
+                              },
+                            )
+                          }
+                        >
+                          {status.replace('_', ' ')}
+                        </Button>
+                      ))}
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           </div>
         </div>
