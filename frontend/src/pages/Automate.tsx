@@ -426,7 +426,7 @@ export default function Automate() {
 function parseMaybeJson(value: string) {
   try {
     return JSON.parse(value);
-  } catch (error) {
+  } catch {
     return value;
   }
 }

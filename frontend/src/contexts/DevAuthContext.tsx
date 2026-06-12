@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useAppStore } from '@/stores/useAppStore';
 import { toast } from 'sonner';
@@ -10,6 +11,13 @@ interface DevAuthContextType {
   loading: boolean;
   acquireToken: () => Promise<string | null>; // Add acquireToken for compatibility
 }
+
+const devUser = {
+  id: '1',
+  email: 'demo@trust-doc.local',
+  name: 'Demo User',
+  role: 'ADMIN',
+};
 
 export const DevAuthContext = createContext<DevAuthContextType | undefined>(undefined);
 
@@ -64,15 +72,21 @@ export function DevAuthProvider({ children }: { children: ReactNode }) {
       // VITE_API_URL might already include /api, so we check and construct the URL properly
       const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
       const apiURL = baseURL.endsWith('/api') ? baseURL : `${baseURL}/api`;
-      const response = await fetch(`${apiURL}/auth/dev-login`, {
-        method: 'POST',
-      });
+      let userData = devUser;
+      try {
+        const response = await fetch(`${apiURL}/auth/dev-login`, {
+          method: 'POST',
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to login');
+        if (!response.ok) {
+          throw new Error('Failed to login');
+        }
+
+        userData = await response.json();
+      } catch (error) {
+        console.warn('[Dev Auth] Backend dev login unavailable, using local mock user:', error);
       }
 
-      const userData = await response.json();
       setUser(userData);
       localStorage.setItem('dev-auth-user', JSON.stringify(userData));
       appStoreSetUser({
@@ -82,9 +96,10 @@ export function DevAuthProvider({ children }: { children: ReactNode }) {
         role: userData.role === 'ADMIN' ? 'admin' : 'user',
       });
       toast.success(`Welcome, ${userData.name}! (Dev Mode)`);
-    } catch (error: any) {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
       console.error('[Dev Auth] Login error:', error);
-      toast.error(`Login failed: ${error.message}`);
+      toast.error(`Login failed: ${message}`);
     } finally {
       setLoading(false);
     }

@@ -31,7 +31,7 @@ export default function Centralize() {
   const { data: analyticsData, isLoading: analyticsLoading } = useAnalytics();
   const { knowledgeQuery, createNode, updateNode, deleteNode } = useKnowledgeNodes();
 
-  const knowledgeNodes = knowledgeQuery.data ?? [];
+  const knowledgeNodes = useMemo(() => knowledgeQuery.data ?? [], [knowledgeQuery.data]);
   const knowledgeLoading = knowledgeQuery.isLoading;
 
   const centralizeMetrics = analyticsData?.centralize;
@@ -116,7 +116,7 @@ export default function Centralize() {
         },
       });
       handleCancelEdit();
-    } catch (error) {
+    } catch {
       // handled by hook
     }
   };
@@ -532,21 +532,14 @@ export default function Centralize() {
 
 function CitationItem({ citation }: { citation: AssistantCitation }) {
   const hasDocumentLink = Boolean(citation.documentId);
-  const Wrapper = hasDocumentLink ? 'button' : 'div';
   const handleClick = () => {
     if (hasDocumentLink) {
       openDocument(citation.documentId);
     }
   };
 
-  return (
-    <Wrapper
-      onClick={handleClick as any}
-      className={cn(
-        'w-full rounded-md border border-dashed border-primary/40 bg-background px-3 py-2 text-left transition',
-        hasDocumentLink ? 'hover:border-primary hover:bg-primary/5 cursor-pointer' : 'opacity-90'
-      )}
-    >
+  const content = (
+    <>
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-[10px] uppercase">
@@ -563,6 +556,24 @@ function CitationItem({ citation }: { citation: AssistantCitation }) {
       {citation.excerpt && (
         <p className="mt-1 text-[11px] text-muted-foreground line-clamp-3">{citation.excerpt}</p>
       )}
-    </Wrapper>
+    </>
+  );
+
+  if (hasDocumentLink) {
+    return (
+      <button
+        type="button"
+        onClick={handleClick}
+        className="w-full cursor-pointer rounded-md border border-dashed border-primary/40 bg-background px-3 py-2 text-left transition hover:border-primary hover:bg-primary/5"
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div className="w-full rounded-md border border-dashed border-primary/40 bg-background px-3 py-2 text-left opacity-90 transition">
+      {content}
+    </div>
   );
 }

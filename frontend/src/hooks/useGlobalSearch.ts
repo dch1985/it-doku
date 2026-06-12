@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 import { useTenantStore } from '@/stores/tenantStore';
 
@@ -41,7 +41,7 @@ export function useGlobalSearch() {
   const [searchQuery, setSearchQuery] = useState('');
   const { currentTenant } = useTenantStore();
 
-  const search = async (query: string, type?: string) => {
+  const search = useCallback(async (query: string, type?: string) => {
     if (!query.trim()) {
       setSearchResults(null);
       return;
@@ -74,13 +74,13 @@ export function useGlobalSearch() {
       
       const data = await response.json();
       setSearchResults(data);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error performing search:', error);
       toast.error('Failed to perform search');
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentTenant]);
 
   const clearSearch = () => {
     setSearchResults(null);

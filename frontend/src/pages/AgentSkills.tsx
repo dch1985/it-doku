@@ -155,13 +155,13 @@ export default function AgentSkills() {
           </CardHeader>
           <CardContent className='space-y-6 p-6'>
             <div className='grid gap-4 sm:grid-cols-2'>
-              <div className='rounded-2xl border p-4'>
+              <div className='min-w-0 rounded-2xl border p-4'>
                 <p className='text-xs font-medium uppercase tracking-wide text-muted-foreground'>Primary output</p>
-                <p className='mt-2 text-lg font-semibold'>{activeSkill.output}</p>
+                <p className='mt-2 break-words text-lg font-semibold'>{activeSkill.output}</p>
               </div>
-              <div className='rounded-2xl border p-4'>
+              <div className='min-w-0 rounded-2xl border p-4'>
                 <p className='text-xs font-medium uppercase tracking-wide text-muted-foreground'>Guardrail</p>
-                <p className='mt-2 text-lg font-semibold'>Evidence required</p>
+                <p className='mt-2 break-words text-lg font-semibold'>Evidence first</p>
               </div>
             </div>
 
@@ -179,8 +179,8 @@ export default function AgentSkills() {
               </div>
             </div>
 
-            <div className='rounded-2xl bg-muted/50 p-4 text-sm text-muted-foreground'>
-              Skills are designed as guided work packages. They prepare structure, ask for missing evidence, and route the result into documentation for review instead of producing uncontrolled chat output.
+            <div className='rounded-2xl bg-muted/50 p-4 text-sm leading-relaxed text-muted-foreground'>
+              Skills prepare structure, ask for missing evidence, and route results into documentation for review.
             </div>
           </CardContent>
         </Card>

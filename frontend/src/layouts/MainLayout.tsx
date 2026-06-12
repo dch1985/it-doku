@@ -105,7 +105,7 @@ export function MainLayout({ children }: MainLayoutProps) {
               <Badge variant='secondary' className='text-[10px]'>No chatbot</Badge>
             </div>
             <p className='text-xs leading-relaxed text-muted-foreground'>
-              Guided experts help document servers, infrastructure, networks, backups, and controls with checklists and evidence.
+              Guided experts turn servers, networks, backups, and controls into evidence-backed docs.
             </p>
           </div>
 

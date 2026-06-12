@@ -4,13 +4,13 @@ import { Spinner } from '@/components/Loading';
 // ==========================================
 // LAZY LOAD HELPER
 // ==========================================
-function lazyLoad<T extends ComponentType<any>>(
-  importFunc: () => Promise<{ default: T }>,
+function lazyLoad<TProps extends object>(
+  importFunc: () => Promise<{ default: ComponentType<TProps> }>,
   fallback = <Spinner size="lg" />
 ) {
   const LazyComponent = lazy(importFunc);
   
-  return (props: any) => (
+  return (props: TProps) => (
     <Suspense fallback={<div className="flex items-center justify-center min-h-screen">{fallback}</div>}>
       <LazyComponent {...props} />
     </Suspense>
@@ -49,27 +49,3 @@ export const Contracts = lazyLoad(() => import('@/pages/Contracts'));
 export const NetworkDevices = lazyLoad(() => import('@/pages/NetworkDevices'));
 export const CustomerPortals = lazyLoad(() => import('@/pages/CustomerPortals'));
 export const ProcessRecordings = lazyLoad(() => import('@/pages/ProcessRecordings'));
-
-
-
-// ==========================================
-// PRELOAD FUNCTIONS (für bessere UX)
-// ==========================================
-
-export const preloadLandingPage = () => import('@/pages/LandingPage');
-export const preloadDashboard = () => import('@/pages/Dashboard');
-export const preloadDocuments = () => import('@/pages/Documents');
-export const preloadAgentSkills = () => import('@/pages/AgentSkills');
-export const preloadCentralize = () => import('@/pages/Centralize');
-export const preloadComply = () => import('@/pages/Comply');
-export const preloadSettings = () => import('@/pages/Settings');
-export const preloadAnalytics = () => import('@/pages/Analytics');
-export const preloadPasswords = () => import('@/pages/Passwords');
-export const preloadAssets = () => import('@/pages/Assets');
-export const preloadContracts = () => import('@/pages/Contracts');
-export const preloadNetworkDevices = () => import('@/pages/NetworkDevices');
-export const preloadCustomerPortals = () => import('@/pages/CustomerPortals');
-export const preloadProcessRecordings = () => import('@/pages/ProcessRecordings');
-
-// Beispiel: Preload on hover
-// <button onMouseEnter={preloadDocuments}>Documents</button>

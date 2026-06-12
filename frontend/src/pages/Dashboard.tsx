@@ -15,15 +15,25 @@ import { useTemplates } from '@/hooks/useTemplates'
 import { useAnalytics } from '@/hooks/useAnalytics'
 import { TemplateForm } from '@/components/TemplateForm'
 
+type TemplateSummary = {
+  id: string
+  name: string
+  description?: string | null
+  category: string
+  isNistCompliant: boolean
+  nistFramework?: string | null
+  usageCount: number
+}
+
 export function Dashboard() {
   const [newDocDialog, setNewDocDialog] = useState(false)
   const [templatesDialog, setTemplatesDialog] = useState(false)
-  const [selectedTemplate, setSelectedTemplate] = useState<any>(null)
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateSummary | null>(null)
   const [templateFormOpen, setTemplateFormOpen] = useState(false)
   const [newDocTitle, setNewDocTitle] = useState('')
   const [newDocCategory, setNewDocCategory] = useState('DOCUMENTATION')
   const { documents, createDocument, refetch } = useDocuments()
-  const { templates, loading: templatesLoading, useTemplate, seedTemplates } = useTemplates()
+  const { templates, loading: templatesLoading, useTemplate: applyTemplate, seedTemplates } = useTemplates()
   const { data: analyticsData } = useAnalytics()
 
   const systemMetrics = analyticsData?.system
@@ -48,7 +58,7 @@ export function Dashboard() {
       setNewDocTitle('')
       setNewDocCategory('DOCUMENTATION')
       await refetch()
-    } catch (error) {
+    } catch {
       // handled in hook
     }
   }
@@ -292,7 +302,9 @@ export function Dashboard() {
                   onClick={async () => {
                     try {
                       await seedTemplates(false)
-                    } catch (error) {}
+                    } catch {
+                      // handled in hook
+                    }
                   }}
                 >
                   Seed Templates
@@ -304,7 +316,9 @@ export function Dashboard() {
                     if (confirm('Bestehende Templates werden ersetzt. Fortfahren?')) {
                       try {
                         await seedTemplates(true)
-                      } catch (error) {}
+                      } catch {
+                        // handled in hook
+                      }
                     }
                   }}
                 >
@@ -326,7 +340,9 @@ export function Dashboard() {
                   onClick={async () => {
                     try {
                       await seedTemplates(false)
-                    } catch (error) {}
+                    } catch {
+                      // handled in hook
+                    }
                   }}
                 >
                   Seed Templates
@@ -337,7 +353,9 @@ export function Dashboard() {
                     if (confirm('Bestehende Templates werden ersetzt. Alle 11 Templates werden erstellt. Fortfahren?')) {
                       try {
                         await seedTemplates(true)
-                      } catch (error) {}
+                      } catch {
+                        // handled in hook
+                      }
                     }
                   }}
                 >
@@ -395,15 +413,11 @@ export function Dashboard() {
             setSelectedTemplate(null)
           }}
           onSubmit={async (title, customFields) => {
-            try {
-              const document = await useTemplate(selectedTemplate.id, title, customFields)
-              if (document?.id) {
-                window.location.hash = `document/${document.id}`
-              }
-              toast.success(`Dokument "${title}" erfolgreich erstellt!`)
-            } catch (error) {
-              throw error
+            const document = await applyTemplate(selectedTemplate.id, title, customFields)
+            if (document?.id) {
+              window.location.hash = `document/${document.id}`
             }
+            toast.success(`Dokument "${title}" erfolgreich erstellt!`)
           }}
         />
       )}
