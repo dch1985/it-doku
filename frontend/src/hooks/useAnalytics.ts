@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTenantStore } from '@/stores/tenantStore'
-import { toast } from 'sonner'
 
 const getApiUrl = () => {
   const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3002'
@@ -119,7 +118,6 @@ export function useAnalytics() {
   useEffect(() => {
     if (error) {
       console.error('Error fetching analytics:', error)
-      toast.error('Failed to load analytics data')
     }
   }, [error])
 
