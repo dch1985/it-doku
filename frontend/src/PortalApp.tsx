@@ -1,5 +1,4 @@
 import { MainLayout } from './layouts/MainLayout'
-import { ChatSidebar } from './features/chat/components/ChatSidebar'
 import { useThemeStore } from './stores/themeStore'
 import { useEffect, useState } from 'react'
 import { Toaster } from 'sonner'
@@ -83,7 +82,6 @@ export function PortalApp() {
           />
         )}
       </MainLayout>
-      <ChatSidebar />
       <Toaster theme={theme === 'dark' ? 'dark' : 'light'} richColors position='top-right' />
     </>
   )

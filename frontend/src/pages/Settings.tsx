@@ -210,9 +210,9 @@ export function Settings() {
               <Separator />
               <div className='flex items-center justify-between'>
                 <div className='space-y-0.5'>
-                  <Label>AI Chat Responses</Label>
+                  <Label>Documentation Skill Updates</Label>
                   <p className='text-sm text-muted-foreground'>
-                    Notifications for AI chat completions
+                    Notifications when documentation checks or template tasks complete
                   </p>
                 </div>
                 <Switch defaultChecked />

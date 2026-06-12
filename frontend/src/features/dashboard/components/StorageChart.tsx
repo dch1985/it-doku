@@ -40,7 +40,7 @@ export function StorageChart() {
       <CardContent className='space-y-6'>
         <div className='grid gap-3 md:grid-cols-3'>
           <div className='rounded-lg border border-border bg-muted/30 p-4'>
-            <p className='text-xs uppercase text-muted-foreground'>Assistant Queries (7d)</p>
+            <p className='text-xs uppercase text-muted-foreground'>Skill Runs (7d)</p>
             <p className='text-2xl font-semibold'>{centralize.assistant.totalQueries}</p>
             <div className='mt-2 space-y-1 text-[11px] text-muted-foreground'>
               {centralize.assistant.byAudience.map((item) => (

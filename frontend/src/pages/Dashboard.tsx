@@ -1,7 +1,4 @@
 ﻿import { useState } from 'react'
-import { useSidebarStore } from '@/stores/sidebarStore'
-import { DocumentsChart } from '@/features/dashboard/components/DocumentsChart'
-import { StorageChart } from '@/features/dashboard/components/StorageChart'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -10,28 +7,94 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { Plus, MessageSquare, FileText, Zap, Database, ShieldCheck } from 'lucide-react'
+import {
+  ArrowRight,
+  CheckCircle2,
+  ClipboardCheck,
+  Database,
+  FileText,
+  GitBranch,
+  Network,
+  Plus,
+  Server,
+  ShieldCheck,
+  type LucideIcon,
+} from 'lucide-react'
 import { useDocuments } from '@/hooks/useDocuments'
 import { useTemplates } from '@/hooks/useTemplates'
 import { useAnalytics } from '@/hooks/useAnalytics'
 import { TemplateForm } from '@/components/TemplateForm'
 
+type TemplateItem = ReturnType<typeof useTemplates>['templates'][number]
+
+type DocumentationSkill = {
+  title: string
+  description: string
+  outcome: string
+  suggestedTitle: string
+  category: string
+  icon: LucideIcon
+}
+
+const documentationSkills: DocumentationSkill[] = [
+  {
+    title: 'Server baseline',
+    description: 'Capture roles, owners, operating system, access model, patching, monitoring, and backup facts.',
+    outcome: 'Complete server runbook',
+    suggestedTitle: 'Server baseline documentation',
+    category: 'DOCUMENTATION',
+    icon: Server,
+  },
+  {
+    title: 'Infrastructure map',
+    description: 'Document services, dependencies, data flows, criticality, and recovery expectations in one place.',
+    outcome: 'Service dependency view',
+    suggestedTitle: 'Infrastructure service map',
+    category: 'KNOWLEDGE_BASE',
+    icon: GitBranch,
+  },
+  {
+    title: 'Network readiness',
+    description: 'Standardize device inventory, VLANs, WAN links, firewall zones, routing, and support handover notes.',
+    outcome: 'Network operations sheet',
+    suggestedTitle: 'Network readiness documentation',
+    category: 'DOCUMENTATION',
+    icon: Network,
+  },
+  {
+    title: 'Compliance evidence',
+    description: 'Check documentation for ownership, review date, requirement IDs, change history, and audit evidence.',
+    outcome: 'Audit-ready record',
+    suggestedTitle: 'Compliance evidence pack',
+    category: 'TEMPLATE',
+    icon: ShieldCheck,
+  },
+]
+
+const readinessChecks = [
+  'Owners and escalation paths are visible',
+  'Backup and restore notes are documented',
+  'Dependencies and ports are linked',
+  'Review dates and evidence are tracked',
+]
+
 export function Dashboard() {
   const [newDocDialog, setNewDocDialog] = useState(false)
   const [templatesDialog, setTemplatesDialog] = useState(false)
-  const [selectedTemplate, setSelectedTemplate] = useState<any>(null)
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateItem | null>(null)
   const [templateFormOpen, setTemplateFormOpen] = useState(false)
   const [newDocTitle, setNewDocTitle] = useState('')
   const [newDocCategory, setNewDocCategory] = useState('DOCUMENTATION')
-  const { toggleChat } = useSidebarStore()
   const { documents, createDocument, refetch } = useDocuments()
   const { templates, loading: templatesLoading, useTemplate, seedTemplates } = useTemplates()
   const { data: analyticsData } = useAnalytics()
 
   const systemMetrics = analyticsData?.system
-  const automationMetrics = analyticsData?.automation
   const centralizeMetrics = analyticsData?.centralize
   const complyMetrics = analyticsData?.comply
+  const openFindings = complyMetrics?.findings.openBySeverity.reduce((sum, item) => sum + item.count, 0) ?? 0
+  const coveredDocuments = centralizeMetrics?.knowledge.documentsWithCoverage ?? 0
+  const uncoveredDocuments = centralizeMetrics?.knowledge.documentsWithoutCoverage ?? 0
 
   const handleNewDocument = async () => {
     if (!newDocTitle.trim() || !newDocCategory) {
@@ -49,9 +112,15 @@ export function Dashboard() {
       setNewDocTitle('')
       setNewDocCategory('DOCUMENTATION')
       await refetch()
-    } catch (error) {
+    } catch {
       // handled in hook
     }
+  }
+
+  const startSkillDocument = (skill: DocumentationSkill) => {
+    setNewDocTitle(skill.suggestedTitle)
+    setNewDocCategory(skill.category)
+    setNewDocDialog(true)
   }
 
   const recentDocuments = [...documents]
@@ -70,57 +139,87 @@ export function Dashboard() {
     return 'Just now'
   }
 
-  const handleAskAI = () => {
-    toggleChat()
-    toast.info('AI Chat opened!')
-  }
-
   return (
-    <div className='space-y-6'>
-      <div className='flex items-center justify-between'>
-        <div>
-          <h2 className='text-3xl font-bold tracking-tight'>Welcome back, Driss!</h2>
-          <p className='text-muted-foreground'>Operational insights aligned with Automate · Centralize · Comply.</p>
-        </div>
-        <div className='flex items-center gap-2'>
-          <div className='flex items-center gap-2 rounded-full bg-green-500/10 px-3 py-1.5 text-xs font-medium text-green-600 dark:text-green-400'>
-            <div className='h-2 w-2 animate-pulse rounded-full bg-green-500'></div>
-            Live Updates
-          </div>
-        </div>
-      </div>
+    <div className='space-y-8'>
+      <section className='grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.75fr)]'>
+        <Card className='overflow-hidden border-0 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-white shadow-2xl shadow-slate-950/10 dark:from-slate-900 dark:to-slate-950'>
+          <CardContent className='relative p-8 lg:p-10'>
+            <div className='absolute right-0 top-0 h-48 w-48 rounded-full bg-white/10 blur-3xl' />
+            <Badge className='mb-6 border-white/20 bg-white/10 text-white hover:bg-white/10'>Trust Doc iteration</Badge>
+            <div className='relative max-w-3xl space-y-5'>
+              <h1 className='text-4xl font-semibold tracking-tight lg:text-5xl'>
+                Expert IT documentation without the chatbot clutter.
+              </h1>
+              <p className='max-w-2xl text-base leading-7 text-slate-300 lg:text-lg'>
+                Trust Doc focuses on structured agentic skills for servers, infrastructure, network, backups, and
+                compliance so teams can create complete documentation faster.
+              </p>
+              <div className='flex flex-col gap-3 sm:flex-row'>
+                <Button size='lg' onClick={() => setNewDocDialog(true)} className='bg-white text-slate-950 hover:bg-slate-200'>
+                  <Plus className='mr-2 h-4 w-4' />
+                  Start documentation
+                </Button>
+                <Button
+                  size='lg'
+                  variant='outline'
+                  onClick={() => setTemplatesDialog(true)}
+                  className='border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white'
+                >
+                  Explore expert templates
+                  <ArrowRight className='ml-2 h-4 w-4' />
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-      <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
+        <Card className='border-primary/10 bg-card/80 shadow-lg shadow-black/5'>
+          <CardHeader>
+            <CardTitle>Documentation readiness</CardTitle>
+            <CardDescription>What Trust Doc checks before a record is reliable.</CardDescription>
+          </CardHeader>
+          <CardContent className='space-y-4'>
+            {readinessChecks.map((check) => (
+              <div key={check} className='flex items-start gap-3 rounded-2xl border bg-muted/30 p-3'>
+                <CheckCircle2 className='mt-0.5 h-4 w-4 text-green-600' />
+                <span className='text-sm'>{check}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className='grid gap-4 md:grid-cols-2 xl:grid-cols-4'>
         <Card>
           <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
             <CardTitle className='text-sm font-medium'>Documents</CardTitle>
-            <span className='text-2xl'>📁</span>
+            <FileText className='h-5 w-5 text-primary' />
           </CardHeader>
           <CardContent>
             <div className='text-2xl font-bold'>{systemMetrics?.totalDocuments ?? documents.length}</div>
-            <p className='text-xs text-muted-foreground'>{templates.length} templates available</p>
+            <p className='text-xs text-muted-foreground'>{templates.length} expert templates available</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-            <CardTitle className='text-sm font-medium'>Automation Completion</CardTitle>
-            <Zap className='h-5 w-5 text-primary' />
-          </CardHeader>
-          <CardContent>
-            <div className='text-2xl font-bold'>{automationMetrics?.jobs.completionRate ?? 0}%</div>
-            <p className='text-xs text-muted-foreground'>Jobs completed in the last 7 days</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-            <CardTitle className='text-sm font-medium'>Assistant Queries</CardTitle>
+            <CardTitle className='text-sm font-medium'>Knowledge Coverage</CardTitle>
             <Database className='h-5 w-5 text-primary' />
           </CardHeader>
           <CardContent>
-            <div className='text-2xl font-bold'>{centralizeMetrics?.assistant.totalQueries ?? 0}</div>
-            <p className='text-xs text-muted-foreground'>Questions handled in the last 7 days</p>
+            <div className='text-2xl font-bold'>{coveredDocuments}</div>
+            <p className='text-xs text-muted-foreground'>{uncoveredDocuments} documents still need structure</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+            <CardTitle className='text-sm font-medium'>Requirement Coverage</CardTitle>
+            <ClipboardCheck className='h-5 w-5 text-primary' />
+          </CardHeader>
+          <CardContent>
+            <div className='text-2xl font-bold'>{complyMetrics?.policies.reqIdCoveragePercent ?? 0}%</div>
+            <p className='text-xs text-muted-foreground'>{complyMetrics?.policies.documentsWithReqId ?? 0} documents tagged</p>
           </CardContent>
         </Card>
 
@@ -130,44 +229,54 @@ export function Dashboard() {
             <ShieldCheck className='h-5 w-5 text-primary' />
           </CardHeader>
           <CardContent>
-            <div className='text-2xl font-bold'>
-              {complyMetrics?.findings.openBySeverity.reduce((sum, item) => sum + item.count, 0) ?? 0}
-            </div>
-            <p className='text-xs text-muted-foreground'>Across all severities</p>
+            <div className='text-2xl font-bold'>{openFindings}</div>
+            <p className='text-xs text-muted-foreground'>Documentation gaps to resolve</p>
           </CardContent>
         </Card>
-      </div>
+      </section>
 
-      <div className='grid gap-4 md:grid-cols-2'>
-        <DocumentsChart />
-        <StorageChart />
-      </div>
+      <section>
+        <div className='mb-4 flex items-end justify-between gap-4'>
+          <div>
+            <h2 className='text-2xl font-semibold tracking-tight'>Agentic documentation skills</h2>
+            <p className='text-sm text-muted-foreground'>
+              Purpose-built workflows for the IT documentation your team actually needs.
+            </p>
+          </div>
+          <Button variant='outline' onClick={() => setTemplatesDialog(true)} className='hidden sm:inline-flex'>
+            Templates
+          </Button>
+        </div>
+        <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-4'>
+          {documentationSkills.map((skill) => {
+            const Icon = skill.icon
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>Get started with core workflows</CardDescription>
-        </CardHeader>
-        <CardContent className='flex gap-2 flex-wrap'>
-          <Button onClick={() => setNewDocDialog(true)}>
-            <Plus className='mr-2 h-4 w-4' />
-            New Document
-          </Button>
-          <Button variant='outline' onClick={handleAskAI}>
-            <MessageSquare className='mr-2 h-4 w-4' />
-            Ask AI
-          </Button>
-          <Button variant='outline' onClick={() => setTemplatesDialog(true)}>
-            <FileText className='mr-2 h-4 w-4' />
-            View Templates
-          </Button>
-        </CardContent>
-      </Card>
+            return (
+              <Card key={skill.title} className='group overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-lg'>
+                <CardHeader>
+                  <div className='mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary'>
+                    <Icon className='h-5 w-5' />
+                  </div>
+                  <CardTitle className='text-base'>{skill.title}</CardTitle>
+                  <CardDescription>{skill.description}</CardDescription>
+                </CardHeader>
+                <CardContent className='space-y-4'>
+                  <Badge variant='secondary'>{skill.outcome}</Badge>
+                  <Button variant='ghost' className='w-full justify-between px-0' onClick={() => startSkillDocument(skill)}>
+                    Start skill
+                    <ArrowRight className='h-4 w-4 transition-transform group-hover:translate-x-1' />
+                  </Button>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      </section>
 
-      <Card>
+      <Card className='shadow-sm'>
         <CardHeader>
           <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>Latest updates to your documentation</CardDescription>
+          <CardDescription>Latest updates in your documentation workspace</CardDescription>
         </CardHeader>
         <CardContent>
           <div className='space-y-4'>
@@ -194,7 +303,7 @@ export function Dashboard() {
                         {isRecentlyUpdated ? `${doc.title} Updated` : `${doc.title} Created`}
                       </p>
                       <p className='text-xs text-muted-foreground'>
-                        {formatTimeAgo(updatedDate)} · {doc.category}
+                        {formatTimeAgo(updatedDate)} - {doc.category}
                       </p>
                     </div>
                     <Button
@@ -219,15 +328,15 @@ export function Dashboard() {
       <Dialog open={newDocDialog} onOpenChange={setNewDocDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create New Document</DialogTitle>
-            <DialogDescription>Start a new documentation document from scratch</DialogDescription>
+            <DialogTitle>Create documentation</DialogTitle>
+            <DialogDescription>Start with a focused record for your IT environment.</DialogDescription>
           </DialogHeader>
           <div className='space-y-4 py-4'>
             <div className='space-y-2'>
               <Label htmlFor='doc-title'>Document Title</Label>
               <Input
                 id='doc-title'
-                placeholder='e.g. Server Configuration'
+                placeholder='e.g. Server baseline - DC01'
                 value={newDocTitle}
                 onChange={(e) => setNewDocTitle(e.target.value)}
               />
@@ -240,12 +349,9 @@ export function Dashboard() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value='DOCUMENTATION'>Documentation</SelectItem>
-                  <SelectItem value='CODE_ANALYSIS'>Code Analysis</SelectItem>
-                  <SelectItem value='TEMPLATE'>Template</SelectItem>
                   <SelectItem value='KNOWLEDGE_BASE'>Knowledge Base</SelectItem>
-                  <SelectItem value='MEETING_NOTES'>Meeting Notes</SelectItem>
-                  <SelectItem value='TUTORIAL'>Tutorial</SelectItem>
-                  <SelectItem value='API_SPEC'>API Specification</SelectItem>
+                  <SelectItem value='TEMPLATE'>Template</SelectItem>
+                  <SelectItem value='API_SPEC'>Technical Specification</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -262,37 +368,9 @@ export function Dashboard() {
       <Dialog open={templatesDialog} onOpenChange={setTemplatesDialog}>
         <DialogContent className='max-w-4xl max-h-[80vh] overflow-y-auto'>
           <DialogHeader>
-            <div className='flex items-center justify-between'>
-              <div>
-                <DialogTitle>Document Templates</DialogTitle>
-                <DialogDescription>Choose a template to create a new document quickly</DialogDescription>
-              </div>
-              <div className='flex gap-2'>
-                <Button
-                  variant='outline'
-                  size='sm'
-                  onClick={async () => {
-                    try {
-                      await seedTemplates(false)
-                    } catch (error) {}
-                  }}
-                >
-                  Seed Templates
-                </Button>
-                <Button
-                  variant='destructive'
-                  size='sm'
-                  onClick={async () => {
-                    if (confirm('Bestehende Templates werden ersetzt. Fortfahren?')) {
-                      try {
-                        await seedTemplates(true)
-                      } catch (error) {}
-                    }
-                  }}
-                >
-                  Neu Seed (Force)
-                </Button>
-              </div>
+            <div>
+              <DialogTitle>Expert templates</DialogTitle>
+              <DialogDescription>Choose a structured template for infrastructure documentation.</DialogDescription>
             </div>
           </DialogHeader>
           {templatesLoading ? (
@@ -302,30 +380,18 @@ export function Dashboard() {
           ) : templates.length === 0 ? (
             <div className='flex flex-col items-center justify-center space-y-4 py-8'>
               <p className='text-muted-foreground'>No templates available</p>
-              <div className='flex gap-2'>
-                <Button
-                  variant='outline'
-                  onClick={async () => {
-                    try {
-                      await seedTemplates(false)
-                    } catch (error) {}
-                  }}
-                >
-                  Seed Templates
-                </Button>
-                <Button
-                  variant='destructive'
-                  onClick={async () => {
-                    if (confirm('Bestehende Templates werden ersetzt. Alle 11 Templates werden erstellt. Fortfahren?')) {
-                      try {
-                        await seedTemplates(true)
-                      } catch (error) {}
-                    }
-                  }}
-                >
-                  Neu Seed (Force)
-                </Button>
-              </div>
+              <Button
+                variant='outline'
+                onClick={async () => {
+                  try {
+                    await seedTemplates(false)
+                  } catch {
+                    // handled in hook
+                  }
+                }}
+              >
+                Install expert templates
+              </Button>
             </div>
           ) : (
             <div className='grid gap-4 py-4 md:grid-cols-2 lg:grid-cols-3'>

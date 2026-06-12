@@ -62,7 +62,7 @@ export function Analytics() {
 
         <Card>
           <CardHeader className='flex items-center justify-between space-y-0 pb-2'>
-            <CardTitle className='text-sm font-medium'>Assistant Queries (7d)</CardTitle>
+            <CardTitle className='text-sm font-medium'>Skill Runs (7d)</CardTitle>
             <Database className='h-5 w-5 text-primary' />
           </CardHeader>
           <CardContent>
@@ -146,7 +146,7 @@ export function Analytics() {
           </CardHeader>
           <CardContent className='space-y-4 text-sm'>
             <div className='rounded-md border p-3'>
-              <p className='font-semibold'>Assistant Audience Mix</p>
+              <p className='font-semibold'>Skill Audience Mix</p>
               <div className='mt-2 space-y-1'>
                 {centralize.assistant.byAudience.map((item) => (
                   <div key={item.audience} className='flex justify-between text-xs'>

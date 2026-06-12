@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { FileText, MessageSquare, Settings, Home, BarChart3, Search, Bot, Database, ShieldCheck, Layers } from 'lucide-react'
+import { FileText, Settings, Home, BarChart3, Search, Server, Radio, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useGlobalSearch } from '@/hooks/useGlobalSearch'
 
@@ -31,12 +31,10 @@ export function SearchBar() {
   }, [searchQuery, open])
 
   const pages = [
-    { name: 'Dashboard', icon: Home, href: '/' },
-    { name: 'Automate', icon: Bot, href: '/automate' },
-    { name: 'Centralize', icon: Database, href: '/centralize' },
-    { name: 'Comply', icon: ShieldCheck, href: '/comply' },
+    { name: 'Overview', icon: Home, href: '/' },
     { name: 'Documentation', icon: FileText, href: '/docs' },
-    { name: 'AI Chat', icon: MessageSquare, href: '/chat' },
+    { name: 'Infrastructure', icon: Server, href: '/assets' },
+    { name: 'Network', icon: Radio, href: '/network-devices' },
     { name: 'Analytics', icon: BarChart3, href: '/analytics' },
     { name: 'Settings', icon: Settings, href: '/settings' },
   ]
@@ -67,7 +65,7 @@ export function SearchBar() {
 
       <CommandDialog open={open} onOpenChange={setOpen}>
         <CommandInput 
-          placeholder='Type a command or search...' 
+          placeholder='Search Trust Doc or jump to a workspace...' 
           value={searchQuery}
           onValueChange={setSearchQuery}
         />
