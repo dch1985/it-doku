@@ -17,6 +17,9 @@ export default defineConfig({
   ],
   
   resolve: {
+    // Ensure a single React instance in this workspaces monorepo to avoid
+    // "Invalid hook call" errors from duplicate copies.
+    dedupe: ['react', 'react-dom'],
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
