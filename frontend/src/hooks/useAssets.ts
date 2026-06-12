@@ -93,9 +93,6 @@ export function useAssets(filters?: { type?: string; status?: string; location?:
       return response.json();
     },
     staleTime: 1000 * 60 * 2,
-    onError: (error) => {
-      toast.error(`Assets Error: ${error.message}`);
-    },
   });
 
   // Get asset types

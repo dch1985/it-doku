@@ -4,7 +4,7 @@ import { useTenantStore } from '@/stores/tenantStore'
 
 // Helper function to get API URL (handles both with and without /api)
 const getApiUrl = () => {
-  const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+  const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
   return baseURL.endsWith('/api') ? baseURL : `${baseURL}/api`;
 };
 

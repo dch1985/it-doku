@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { FileText, MessageSquare, Settings, Home, BarChart3, Search, Bot, Database, ShieldCheck, Layers } from 'lucide-react'
+import { FileText, Settings, Home, Search, Bot, Server, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useGlobalSearch } from '@/hooks/useGlobalSearch'
 
@@ -32,12 +32,9 @@ export function SearchBar() {
 
   const pages = [
     { name: 'Dashboard', icon: Home, href: '/' },
-    { name: 'Automate', icon: Bot, href: '/automate' },
-    { name: 'Centralize', icon: Database, href: '/centralize' },
-    { name: 'Comply', icon: ShieldCheck, href: '/comply' },
     { name: 'Documentation', icon: FileText, href: '/docs' },
-    { name: 'AI Chat', icon: MessageSquare, href: '/chat' },
-    { name: 'Analytics', icon: BarChart3, href: '/analytics' },
+    { name: 'Infrastructure', icon: Server, href: '/infrastructure' },
+    { name: 'Agent', icon: Bot, href: '/agent' },
     { name: 'Settings', icon: Settings, href: '/settings' },
   ]
 

@@ -144,7 +144,7 @@ router.post('/', async (req: Request, res: Response) => {
         description: description?.trim(),
         category: category,
         content: content || '',
-        structure: parsedStructure ? JSON.stringify(parsedStructure) : null,
+        structure: parsedStructure ? JSON.stringify(parsedStructure) : '{}',
         tenantId: isGlobal ? null : req.tenant?.id,
         isGlobal: isGlobal === true,
         tags: tags ? JSON.stringify(tags) : null,

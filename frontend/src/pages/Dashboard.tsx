@@ -1,7 +1,4 @@
 ﻿import { useState } from 'react'
-import { useSidebarStore } from '@/stores/sidebarStore'
-import { DocumentsChart } from '@/features/dashboard/components/DocumentsChart'
-import { StorageChart } from '@/features/dashboard/components/StorageChart'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -10,11 +7,29 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { Plus, MessageSquare, FileText, Zap, Database, ShieldCheck } from 'lucide-react'
+import {
+  Plus,
+  FileText,
+  Bot,
+  LayoutTemplate,
+  Server,
+  ShieldCheck,
+  Clock,
+  ArrowUpRight,
+  Activity,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { useDocuments } from '@/hooks/useDocuments'
 import { useTemplates } from '@/hooks/useTemplates'
 import { useAnalytics } from '@/hooks/useAnalytics'
 import { TemplateForm } from '@/components/TemplateForm'
+
+const STATUS_COLORS: Record<string, string> = {
+  PUBLISHED: 'bg-emerald-500',
+  REVIEW: 'bg-amber-500',
+  DRAFT: 'bg-sky-500',
+  ARCHIVED: 'bg-muted-foreground/40',
+}
 
 export function Dashboard() {
   const [newDocDialog, setNewDocDialog] = useState(false)
@@ -23,15 +38,12 @@ export function Dashboard() {
   const [templateFormOpen, setTemplateFormOpen] = useState(false)
   const [newDocTitle, setNewDocTitle] = useState('')
   const [newDocCategory, setNewDocCategory] = useState('DOCUMENTATION')
-  const { toggleChat } = useSidebarStore()
   const { documents, createDocument, refetch } = useDocuments()
   const { templates, loading: templatesLoading, useTemplate, seedTemplates } = useTemplates()
-  const { data: analyticsData } = useAnalytics()
+  const { data: analytics } = useAnalytics()
 
-  const systemMetrics = analyticsData?.system
-  const automationMetrics = analyticsData?.automation
-  const centralizeMetrics = analyticsData?.centralize
-  const complyMetrics = analyticsData?.comply
+  const docMetrics = analytics?.documents
+  const agentMetrics = analytics?.agent
 
   const handleNewDocument = async () => {
     if (!newDocTitle.trim() || !newDocCategory) {
@@ -40,15 +52,18 @@ export function Dashboard() {
     }
 
     try {
-      await createDocument({
+      const newDoc = await createDocument({
         title: newDocTitle,
         category: newDocCategory,
-        content: ''
+        content: '',
       })
       setNewDocDialog(false)
       setNewDocTitle('')
       setNewDocCategory('DOCUMENTATION')
       await refetch()
+      if (newDoc?.id) {
+        window.location.hash = `document/${newDoc.id}`
+      }
     } catch (error) {
       // handled in hook
     }
@@ -56,7 +71,7 @@ export function Dashboard() {
 
   const recentDocuments = [...documents]
     .sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
-    .slice(0, 5)
+    .slice(0, 6)
 
   const formatTimeAgo = (date: Date) => {
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000)
@@ -70,152 +85,192 @@ export function Dashboard() {
     return 'Just now'
   }
 
-  const handleAskAI = () => {
-    toggleChat()
-    toast.info('AI Chat opened!')
-  }
+  const healthScore = agentMetrics?.healthScore ?? 100
+  const healthTone =
+    healthScore >= 85 ? 'text-emerald-500' : healthScore >= 60 ? 'text-amber-500' : 'text-red-500'
+
+  const statusEntries = Object.entries(docMetrics?.byStatus ?? {}).sort(([a], [b]) => a.localeCompare(b))
+  const totalForBar = statusEntries.reduce((sum, [, count]) => sum + count, 0)
 
   return (
-    <div className='space-y-6'>
-      <div className='flex items-center justify-between'>
+    <div className='space-y-8'>
+      <div className='flex flex-col gap-4 md:flex-row md:items-end md:justify-between'>
         <div>
-          <h2 className='text-3xl font-bold tracking-tight'>Welcome back, Driss!</h2>
-          <p className='text-muted-foreground'>Operational insights aligned with Automate · Centralize · Comply.</p>
+          <h2 className='text-3xl font-bold tracking-tight'>Dashboard</h2>
+          <p className='text-muted-foreground'>Your IT documentation workspace at a glance.</p>
         </div>
-        <div className='flex items-center gap-2'>
-          <div className='flex items-center gap-2 rounded-full bg-green-500/10 px-3 py-1.5 text-xs font-medium text-green-600 dark:text-green-400'>
-            <div className='h-2 w-2 animate-pulse rounded-full bg-green-500'></div>
-            Live Updates
-          </div>
-        </div>
-      </div>
-
-      <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
-        <Card>
-          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-            <CardTitle className='text-sm font-medium'>Documents</CardTitle>
-            <span className='text-2xl'>📁</span>
-          </CardHeader>
-          <CardContent>
-            <div className='text-2xl font-bold'>{systemMetrics?.totalDocuments ?? documents.length}</div>
-            <p className='text-xs text-muted-foreground'>{templates.length} templates available</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-            <CardTitle className='text-sm font-medium'>Automation Completion</CardTitle>
-            <Zap className='h-5 w-5 text-primary' />
-          </CardHeader>
-          <CardContent>
-            <div className='text-2xl font-bold'>{automationMetrics?.jobs.completionRate ?? 0}%</div>
-            <p className='text-xs text-muted-foreground'>Jobs completed in the last 7 days</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-            <CardTitle className='text-sm font-medium'>Assistant Queries</CardTitle>
-            <Database className='h-5 w-5 text-primary' />
-          </CardHeader>
-          <CardContent>
-            <div className='text-2xl font-bold'>{centralizeMetrics?.assistant.totalQueries ?? 0}</div>
-            <p className='text-xs text-muted-foreground'>Questions handled in the last 7 days</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-            <CardTitle className='text-sm font-medium'>Open Findings</CardTitle>
-            <ShieldCheck className='h-5 w-5 text-primary' />
-          </CardHeader>
-          <CardContent>
-            <div className='text-2xl font-bold'>
-              {complyMetrics?.findings.openBySeverity.reduce((sum, item) => sum + item.count, 0) ?? 0}
-            </div>
-            <p className='text-xs text-muted-foreground'>Across all severities</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className='grid gap-4 md:grid-cols-2'>
-        <DocumentsChart />
-        <StorageChart />
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>Get started with core workflows</CardDescription>
-        </CardHeader>
-        <CardContent className='flex gap-2 flex-wrap'>
-          <Button onClick={() => setNewDocDialog(true)}>
-            <Plus className='mr-2 h-4 w-4' />
+        <div className='flex gap-2'>
+          <Button variant='outline' onClick={() => setTemplatesDialog(true)} className='gap-2'>
+            <LayoutTemplate className='h-4 w-4' />
+            Templates
+          </Button>
+          <Button onClick={() => setNewDocDialog(true)} className='gap-2'>
+            <Plus className='h-4 w-4' />
             New Document
           </Button>
-          <Button variant='outline' onClick={handleAskAI}>
-            <MessageSquare className='mr-2 h-4 w-4' />
-            Ask AI
-          </Button>
-          <Button variant='outline' onClick={() => setTemplatesDialog(true)}>
-            <FileText className='mr-2 h-4 w-4' />
-            View Templates
-          </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>Latest updates to your documentation</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className='space-y-4'>
-            {recentDocuments.length === 0 ? (
-              <div className='py-8 text-center text-sm text-muted-foreground'>No recent activity</div>
-            ) : (
-              recentDocuments.map((doc) => {
-                const updatedDate = new Date(doc.updatedAt || doc.createdAt)
-                const isRecentlyUpdated = doc.updatedAt && new Date(doc.updatedAt).getTime() !== new Date(doc.createdAt).getTime()
+      {/* KPIs */}
+      <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-4'>
+        <Card>
+          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+            <CardTitle className='text-sm font-medium text-muted-foreground'>Documents</CardTitle>
+            <FileText className='h-4 w-4 text-primary' />
+          </CardHeader>
+          <CardContent>
+            <div className='text-3xl font-bold'>{docMetrics?.total ?? documents.length}</div>
+            <p className='text-xs text-muted-foreground'>
+              {docMetrics?.published ?? 0} published · {docMetrics?.drafts ?? 0} drafts
+            </p>
+          </CardContent>
+        </Card>
 
-                return (
-                  <div
-                    key={doc.id}
-                    className='flex items-start gap-4 rounded-lg p-3 transition-colors hover:bg-accent cursor-pointer'
-                    onClick={() => {
-                      window.location.hash = `document/${doc.id}`
-                    }}
-                  >
-                    <div className='rounded-full bg-muted p-2 text-blue-500'>
-                      <FileText className='h-4 w-4' />
-                    </div>
-                    <div className='flex-1 space-y-1'>
-                      <p className='text-sm font-medium leading-none'>
-                        {isRecentlyUpdated ? `${doc.title} Updated` : `${doc.title} Created`}
-                      </p>
-                      <p className='text-xs text-muted-foreground'>
-                        {formatTimeAgo(updatedDate)} · {doc.category}
-                      </p>
-                    </div>
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      className='h-8 text-xs'
-                      onClick={(e) => {
-                        e.stopPropagation()
+        <Card>
+          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+            <CardTitle className='text-sm font-medium text-muted-foreground'>Documentation Health</CardTitle>
+            <ShieldCheck className={cn('h-4 w-4', healthTone)} />
+          </CardHeader>
+          <CardContent>
+            <div className={cn('text-3xl font-bold', healthTone)}>{healthScore}%</div>
+            <p className='text-xs text-muted-foreground'>
+              {agentMetrics?.openFindings ?? 0} open finding(s) from the agent
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+            <CardTitle className='text-sm font-medium text-muted-foreground'>Needs Attention</CardTitle>
+            <Clock className='h-4 w-4 text-amber-500' />
+          </CardHeader>
+          <CardContent>
+            <div className='text-3xl font-bold'>{(docMetrics?.stale ?? 0) + (docMetrics?.inReview ?? 0)}</div>
+            <p className='text-xs text-muted-foreground'>
+              {docMetrics?.stale ?? 0} stale · {docMetrics?.inReview ?? 0} in review
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+            <CardTitle className='text-sm font-medium text-muted-foreground'>Infrastructure</CardTitle>
+            <Server className='h-4 w-4 text-primary' />
+          </CardHeader>
+          <CardContent>
+            <div className='text-3xl font-bold'>{analytics?.assets.total ?? 0}</div>
+            <p className='text-xs text-muted-foreground'>{analytics?.templates.total ?? 0} templates available</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className='grid gap-6 lg:grid-cols-3'>
+        {/* Recent activity */}
+        <Card className='lg:col-span-2'>
+          <CardHeader>
+            <CardTitle className='flex items-center gap-2'>
+              <Activity className='h-4 w-4' />
+              Recent Documents
+            </CardTitle>
+            <CardDescription>Latest updates to your documentation</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className='space-y-1'>
+              {recentDocuments.length === 0 ? (
+                <div className='py-10 text-center text-sm text-muted-foreground'>
+                  No documents yet — create your first one or start from a template.
+                </div>
+              ) : (
+                recentDocuments.map((doc) => {
+                  const updatedDate = new Date(doc.updatedAt || doc.createdAt)
+                  return (
+                    <div
+                      key={doc.id}
+                      className='group flex cursor-pointer items-center gap-4 rounded-lg px-3 py-2.5 transition-colors hover:bg-accent'
+                      onClick={() => {
                         window.location.hash = `document/${doc.id}`
                       }}
                     >
-                      View
-                    </Button>
-                  </div>
-                )
-              })
-            )}
-          </div>
-        </CardContent>
-      </Card>
+                      <div className='rounded-lg bg-primary/10 p-2'>
+                        <FileText className='h-4 w-4 text-primary' />
+                      </div>
+                      <div className='min-w-0 flex-1'>
+                        <p className='truncate text-sm font-medium'>{doc.title}</p>
+                        <p className='text-xs text-muted-foreground'>
+                          {formatTimeAgo(updatedDate)} · {doc.category}
+                        </p>
+                      </div>
+                      <Badge variant='outline' className='shrink-0 text-[11px]'>
+                        {doc.status}
+                      </Badge>
+                      <ArrowUpRight className='h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100' />
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
+        <div className='space-y-6'>
+          {/* Status breakdown */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Status Overview</CardTitle>
+              <CardDescription>Documents by lifecycle status</CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-4'>
+              {totalForBar === 0 ? (
+                <p className='py-4 text-center text-sm text-muted-foreground'>No data yet.</p>
+              ) : (
+                <>
+                  <div className='flex h-2.5 w-full overflow-hidden rounded-full bg-muted'>
+                    {statusEntries.map(([status, count]) => (
+                      <div
+                        key={status}
+                        className={cn('h-full', STATUS_COLORS[status] ?? 'bg-primary')}
+                        style={{ width: `${(count / totalForBar) * 100}%` }}
+                      />
+                    ))}
+                  </div>
+                  <div className='space-y-2'>
+                    {statusEntries.map(([status, count]) => (
+                      <div key={status} className='flex items-center gap-2 text-sm'>
+                        <span className={cn('h-2 w-2 rounded-full', STATUS_COLORS[status] ?? 'bg-primary')} />
+                        <span className='flex-1 capitalize text-muted-foreground'>{status.toLowerCase()}</span>
+                        <span className='font-medium'>{count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Agent shortcut */}
+          <Card className='border-primary/20 bg-gradient-to-br from-primary/5 to-transparent'>
+            <CardHeader className='pb-2'>
+              <CardTitle className='flex items-center gap-2 text-base'>
+                <Bot className='h-4 w-4 text-primary' />
+                Documentation Agent
+              </CardTitle>
+            </CardHeader>
+            <CardContent className='space-y-3'>
+              <p className='text-sm text-muted-foreground'>
+                {agentMetrics?.lastRun
+                  ? `Last audit: ${new Date(agentMetrics.lastRun.startedAt).toLocaleString()}`
+                  : 'No audit yet. Let the agent check your documentation against best practice.'}
+              </p>
+              <Button variant='outline' className='w-full gap-2' onClick={() => (window.location.hash = 'agent')}>
+                <Bot className='h-4 w-4' />
+                Open Agent
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* New document dialog */}
       <Dialog open={newDocDialog} onOpenChange={setNewDocDialog}>
         <DialogContent>
           <DialogHeader>
@@ -240,8 +295,6 @@ export function Dashboard() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value='DOCUMENTATION'>Documentation</SelectItem>
-                  <SelectItem value='CODE_ANALYSIS'>Code Analysis</SelectItem>
-                  <SelectItem value='TEMPLATE'>Template</SelectItem>
                   <SelectItem value='KNOWLEDGE_BASE'>Knowledge Base</SelectItem>
                   <SelectItem value='MEETING_NOTES'>Meeting Notes</SelectItem>
                   <SelectItem value='TUTORIAL'>Tutorial</SelectItem>
@@ -259,40 +312,26 @@ export function Dashboard() {
         </DialogContent>
       </Dialog>
 
+      {/* Templates dialog */}
       <Dialog open={templatesDialog} onOpenChange={setTemplatesDialog}>
-        <DialogContent className='max-w-4xl max-h-[80vh] overflow-y-auto'>
+        <DialogContent className='max-h-[80vh] max-w-4xl overflow-y-auto'>
           <DialogHeader>
             <div className='flex items-center justify-between'>
               <div>
                 <DialogTitle>Document Templates</DialogTitle>
                 <DialogDescription>Choose a template to create a new document quickly</DialogDescription>
               </div>
-              <div className='flex gap-2'>
-                <Button
-                  variant='outline'
-                  size='sm'
-                  onClick={async () => {
-                    try {
-                      await seedTemplates(false)
-                    } catch (error) {}
-                  }}
-                >
-                  Seed Templates
-                </Button>
-                <Button
-                  variant='destructive'
-                  size='sm'
-                  onClick={async () => {
-                    if (confirm('Bestehende Templates werden ersetzt. Fortfahren?')) {
-                      try {
-                        await seedTemplates(true)
-                      } catch (error) {}
-                    }
-                  }}
-                >
-                  Neu Seed (Force)
-                </Button>
-              </div>
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={async () => {
+                  try {
+                    await seedTemplates(false)
+                  } catch (error) {}
+                }}
+              >
+                Seed Templates
+              </Button>
             </div>
           </DialogHeader>
           {templatesLoading ? (
@@ -302,30 +341,16 @@ export function Dashboard() {
           ) : templates.length === 0 ? (
             <div className='flex flex-col items-center justify-center space-y-4 py-8'>
               <p className='text-muted-foreground'>No templates available</p>
-              <div className='flex gap-2'>
-                <Button
-                  variant='outline'
-                  onClick={async () => {
-                    try {
-                      await seedTemplates(false)
-                    } catch (error) {}
-                  }}
-                >
-                  Seed Templates
-                </Button>
-                <Button
-                  variant='destructive'
-                  onClick={async () => {
-                    if (confirm('Bestehende Templates werden ersetzt. Alle 11 Templates werden erstellt. Fortfahren?')) {
-                      try {
-                        await seedTemplates(true)
-                      } catch (error) {}
-                    }
-                  }}
-                >
-                  Neu Seed (Force)
-                </Button>
-              </div>
+              <Button
+                variant='outline'
+                onClick={async () => {
+                  try {
+                    await seedTemplates(false)
+                  } catch (error) {}
+                }}
+              >
+                Seed Templates
+              </Button>
             </div>
           ) : (
             <div className='grid gap-4 py-4 md:grid-cols-2 lg:grid-cols-3'>
@@ -342,11 +367,13 @@ export function Dashboard() {
                   <CardHeader>
                     <CardTitle className='flex items-center gap-2 text-base'>
                       {template.isNistCompliant && (
-                        <Badge variant='default' className='text-xs'>NIST</Badge>
+                        <Badge variant='default' className='text-xs'>
+                          NIST
+                        </Badge>
                       )}
                       {template.name}
                     </CardTitle>
-                    <CardDescription className='text-xs line-clamp-2'>
+                    <CardDescription className='line-clamp-2 text-xs'>
                       {template.description || 'No description'}
                     </CardDescription>
                   </CardHeader>
@@ -382,7 +409,7 @@ export function Dashboard() {
               if (document?.id) {
                 window.location.hash = `document/${document.id}`
               }
-              toast.success(`Dokument "${title}" erfolgreich erstellt!`)
+              toast.success(`Document "${title}" created successfully!`)
             } catch (error) {
               throw error
             }

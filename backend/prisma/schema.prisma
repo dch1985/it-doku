@@ -574,6 +574,62 @@ model CustomerPortal {
 }
 
 // ==========================================
+// TRUSTDOC AGENT (agentic documentation skills)
+// ==========================================
+model AgentRun {
+  id    String @id @default(uuid())
+  skill String // DOC_HEALTH, COVERAGE_GAP, REVIEW_CYCLE, TEMPLATE_COMPLIANCE
+
+  status  String  @default("RUNNING") // RUNNING, COMPLETED, FAILED
+  summary String? @db.NVarChar(Max) // JSON: { scanned, findings, bySeverity }
+
+  tenantId String?
+  userId   String?
+
+  findings AgentFinding[]
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([tenantId])
+  @@index([skill])
+  @@index([startedAt])
+  @@map("agent_runs")
+}
+
+model AgentFinding {
+  id    String @id @default(uuid())
+  runId String
+  run   AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  skill    String
+  type     String // STALE_DOCUMENT, EMPTY_CONTENT, UNFILLED_PLACEHOLDERS, MISSING_TAGS, STUCK_DRAFT, MISSING_SECTIONS, UNDOCUMENTED_ASSET, REVIEW_OVERDUE
+  severity String @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  message  String @db.NVarChar(Max)
+  detail   String? @db.NVarChar(Max)
+
+  documentId String?
+  assetId    String?
+
+  // Proposed remediation, executed on approval. JSON:
+  // { action: SET_STATUS | ADD_TAGS | APPEND_SECTIONS | CREATE_DOCUMENT, ... }
+  proposedAction String? @db.NVarChar(Max)
+
+  status     String    @default("OPEN") // OPEN, APPLIED, DISMISSED
+  resolvedAt DateTime?
+
+  tenantId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([runId])
+  @@index([status])
+  @@index([tenantId])
+  @@index([documentId])
+  @@map("agent_findings")
+}
+
+// ==========================================
 // PROCESS RECORDING (SOP Generation)
 // ==========================================
 model ProcessRecording {

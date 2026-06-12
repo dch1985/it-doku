@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { FileText, Shield, Sparkles, Users, Zap, Lock, Globe, Server, Layers, Network, GitBranch, CheckCircle2 } from 'lucide-react'
+import { FileText, Shield, Sparkles, Users, Lock, Layers, Network, GitBranch, CheckCircle2 } from 'lucide-react'
 import { useAuthWrapper } from '@/hooks/useAuthWrapper'
 import { useEffect } from 'react'
 
@@ -12,10 +12,10 @@ const platformPillars = [
     details: 'Asset mapping • Service dependency tracking • Policy alignment'
   },
   {
-    title: 'AI Engine',
-    description: 'Context-aware drafting, refactoring, gap analysis. Private by design with on-premise options.',
+    title: 'Agentic AI',
+    description: 'A rule-based documentation expert — no chatbot, no generative AI. It audits your docs against server, network and backup best practice and fixes gaps with your approval.',
     icon: Sparkles,
-    details: 'AI-assisted authoring • Intelligent search • Gap analysis'
+    details: 'Health scans • Coverage analysis • Approved auto-remediation'
   },
   {
     title: 'Templates & Standards',
@@ -39,8 +39,8 @@ const platformPillars = [
 
 const capabilities = [
   {
-    title: 'AI-assisted authoring',
-    description: 'Generate documentation from natural language prompts.',
+    title: 'Agentic audits',
+    description: 'Deterministic skills that find stale, thin and missing documentation.',
     icon: Sparkles
   },
   {
@@ -189,7 +189,7 @@ export function LandingPage() {
           <div className="max-w-5xl mx-auto">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-border bg-card/50 backdrop-blur-sm mb-6">
               <Sparkles className="h-4 w-4 text-primary" />
-              <span className="text-sm text-muted-foreground">AI-powered IT documentation</span>
+              <span className="text-sm text-muted-foreground">Agentic AI for IT documentation — no chatbot required</span>
             </div>
 
             <h1 className="text-6xl lg:text-8xl font-bold tracking-tight mb-6 leading-none">
@@ -200,7 +200,7 @@ export function LandingPage() {
             </h1>
             
             <p className="text-xl lg:text-2xl text-muted-foreground max-w-3xl mb-4 leading-relaxed">
-              TrustDoc is the documentation platform engineered for <strong className="text-foreground">MSPs and IT teams</strong> — combining a knowledge graph, AI, and governance to deliver audit-ready documentation at scale.
+              TrustDoc is the focused documentation workspace for <strong className="text-foreground">MSPs and IT teams</strong> — combining NIST-grade templates, an agentic documentation expert, and governance to deliver audit-ready documentation at scale.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 mt-12">

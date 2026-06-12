@@ -1,292 +1,95 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to AI coding agents working with code in this repository.
 
 ## Project Overview
 
-IT-Dokumentations-Anwendung is a modern, cloud-native IT documentation management system with Microsoft Azure integration. The application enables IT teams to create, manage, and maintain documentation using intelligent templates, automated workflows, and Azure integration.
+**TrustDoc** is a focused IT documentation workspace for MSPs and IT teams. It combines NIST-grade templates with an **agentic documentation expert** — a deterministic, rule-based agent (no chatbot, no generative AI) that audits documentation against server/network/backup/security best practice and applies fixes only after user approval.
 
 **Tech Stack:**
 - **Frontend:** React 19 + TypeScript, Vite, Tailwind CSS, shadcn/ui components
-- **Backend:** Node.js + Express, TypeScript
-- **Infrastructure:** Azure Static Web Apps (frontend), Azure App Service (backend), PostgreSQL (production), SQLite (development)
+- **Backend:** Node.js + Express, TypeScript, Prisma ORM
+- **Database:** SQL Server (Azure SQL in production, Docker container in development)
+- **Auth:** Azure AD via MSAL in production; dev-login when `DEV_AUTH_ENABLED=true`
 
 ## Repository Structure
 
-The repository is organized as a monorepo with three main directories at the root:
+- `frontend/` – the active React app (`@trustdoc/frontend`)
+- `backend/` – the Express API (`@trustdoc/backend`)
+- `frontend-old/`, `legacy/`, `files/` – historical code, do not extend
 
-- `frontend-new/` - Modern React 19 frontend with Vite (current active frontend)
-- `frontend/` - Legacy frontend (being migrated)
-- `backend/` - Express.js API server
+### Frontend (`frontend/`)
 
-### Frontend Architecture (`frontend-new/`)
+- Hash-based routing in `src/PortalApp.tsx` (no react-router). Routes: `#` dashboard, `#docs`, `#document/:id`, `#infrastructure`, `#agent`, `#settings`.
+- Pages live in `src/pages/` (Dashboard, Documents, DocumentDetail, Assets, Agent, Settings, LandingPage).
+- Layout & grouped sidebar: `src/layouts/MainLayout.tsx`.
+- Data fetching via hooks in `src/hooks/` (`useDocuments`, `useTemplates`, `useAssets`, `useAgent`, `useAnalytics`, …); tenant header `X-Tenant-ID` added when a tenant is selected.
+- State: Zustand stores in `src/stores/` (theme, sidebar, tenant, app).
+- UI: shadcn/ui components in `src/components/ui/`, Lucide icons, Tailwind with HSL CSS variables in `src/index.css` (light + dark).
 
-The frontend follows a **feature-based architecture** with clear separation of concerns:
+### Backend (`backend/`)
 
-```
-src/
-├── features/           # Feature modules (dashboard, chat, documentation, settings)
-│   ├── chat/          # AI chat feature with API, components, hooks
-│   ├── dashboard/     # Dashboard with components and hooks
-│   ├── documentation/ # Documentation management
-│   └── settings/      # Settings feature
-├── shared/            # Shared code across features
-│   ├── api/          # Shared API clients
-│   ├── components/   # Shared components
-│   ├── hooks/        # Shared React hooks
-│   ├── types/        # Shared TypeScript types
-│   └── utils/        # Shared utilities
-├── components/        # Global UI components
-│   └── ui/           # shadcn/ui components (button, card, dialog, etc.)
-├── layouts/          # Layout components (MainLayout)
-├── stores/           # Zustand state management (themeStore, sidebarStore)
-├── providers/        # React context providers (QueryProvider)
-├── lib/              # Library utilities (utils.ts)
-└── hooks/            # Global hooks (use-mobile, use-toast)
-```
-
-**Key Architecture Patterns:**
-- **Feature modules** contain their own API clients, components, and hooks
-- **Shared code** is in the `shared/` directory for reusability
-- **State management** uses Zustand with persistence
-- **UI components** from shadcn/ui in `components/ui/`
-- **Styling** with Tailwind CSS + CSS variables for theming
-
-### Backend Architecture (`backend/`)
-
-```
-src/
-├── config/       # Configuration files (database.ts)
-├── controllers/  # Request handlers (document.controller.ts)
-├── routes/       # Route definitions (document.routes.ts, chat.ts, analyze.ts)
-├── services/     # Business logic (document.service.ts)
-├── models/       # Data models
-├── middleware/   # Express middleware
-├── types/        # TypeScript types
-└── utils/        # Utility functions
-prisma/
-└── schema.prisma # Database schema with Document and GeneratedDocumentation models
-```
-
-**Database Schema (Prisma):**
-- **Document** model with fields: title, content, category, tags, status, priority, version
-- **DocumentCategory** enum: SERVER, NETWORK, SECURITY, BACKUP, MONITORING, SOFTWARE, CODE_ANALYSIS
-- **DocumentStatus** enum: DRAFT, PUBLISHED, ARCHIVED, REVIEW
-- **Priority** enum: LOW, MEDIUM, HIGH, CRITICAL
-- **GeneratedDocumentation** model for AI-generated code documentation
+- Entry: `src/index.ts` (port 3001 by default). In dev mode, `devAuthenticate` resolves a demo user for every `/api` request.
+- Routes (`src/routes/`): `documents`, `templates`, `assets`, `agent`, `analytics`, `search`, `comments`, `audit`, `notifications`, `auth`, `tenants`, `upload`.
+- The agent lives in `src/services/agent.service.ts` + `src/routes/agent.ts`. Skills: `DOC_HEALTH`, `TEMPLATE_COMPLIANCE`, `COVERAGE_GAP`, `REVIEW_CYCLE`. Findings persist to `agent_runs` / `agent_findings`; `apply` executes the proposed action (SET_STATUS, ADD_TAGS, APPEND_SECTIONS, CREATE_DOCUMENT) and audit-logs it.
+- Templates: `src/templates/templateDefinitions.ts` (11 seedable NIST/ISO templates) and `src/templates/categoryTemplates.ts` (category skeletons).
+- Schema: `backend/prisma/schema.prisma` (SQL Server provider, no enums — string fields with documented values).
 
 ## Common Development Commands
 
-### Frontend Development
-
 ```bash
-# Navigate to frontend directory
-cd frontend-new
-
-# Install dependencies
+# Backend (from backend/)
 npm install
+npx prisma db push        # sync schema (dev)
+npx prisma generate
+npm run dev               # tsx watch, http://localhost:3001
+npm run build             # tsc
+npx tsc --noEmit          # typecheck
 
-# Start development server (runs on http://localhost:5173)
-npm run dev
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
-
-# Run linter
+# Frontend (from frontend/)
+npm install
+npm run dev               # http://localhost:5173
+npm run build             # vite build
 npm run lint
 ```
 
-### Backend Development
+### Local database
 
 ```bash
-# Navigate to backend directory
-cd backend
-
-# Install dependencies
-npm install
-
-# Start development server with hot reload (runs on http://localhost:3001)
-npm run dev
-
-# Build TypeScript to JavaScript
-npm run build
-
-# Start production server
-npm run start
-
-# Format code with Prettier
-npm run format
-
-# Database commands (Prisma)
-npx prisma migrate dev    # Run migrations in development
-npx prisma generate       # Generate Prisma Client
-npx prisma studio         # Open Prisma Studio GUI
+docker run -d --name trustdoc-sql -e "ACCEPT_EULA=Y" \
+  -e "MSSQL_SA_PASSWORD=YourStrong@Passw0rd" -p 1433:1433 \
+  mcr.microsoft.com/mssql/server:2022-latest
+docker exec trustdoc-sql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa \
+  -P 'YourStrong@Passw0rd' -C -Q "CREATE DATABASE trustdoc"
 ```
 
-### Running Both Servers
+### Environment
 
-Open two terminal windows:
-- **Terminal 1:** `cd backend && npm run dev`
-- **Terminal 2:** `cd frontend-new && npm run dev`
-
-Access the application at:
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:3001
-- API Health Check: http://localhost:3001/api/health
-
-## Configuration
-
-### Environment Variables
-
-#### Backend (`.env` in `backend/`)
+`backend/.env`:
 ```env
-# Azure OpenAI Configuration
-AZURE_OPENAI_ENDPOINT=https://your-resource-name.openai.azure.com
-AZURE_OPENAI_KEY=your-azure-openai-key-here
-AZURE_OPENAI_DEPLOYMENT=gpt-4o
-AZURE_OPENAI_API_VERSION=2024-02-01
-
-# Database Configuration
-DATABASE_URL=postgresql://user:password@localhost:5432/yourdb
-
-# Server Configuration
+DATABASE_URL="sqlserver://localhost:1433;database=trustdoc;user=sa;password=YourStrong@Passw0rd;encrypt=true;trustServerCertificate=true"
 PORT=3001
 NODE_ENV=development
+DEV_AUTH_ENABLED=true
+FRONTEND_URL=http://localhost:5173
 ```
 
-Use `backend/.env.template` as a reference when creating a new `.env` file.
-
-#### Frontend (`.env` in `frontend/`)
+`frontend/.env`:
 ```env
-VITE_API_BASE_URL=http://localhost:3001    # Development
-VITE_API_BASE_URL=/api                     # Production
-VITE_AZURE_CLIENT_ID=your-azure-client-id
+VITE_API_URL=http://localhost:3001
+VITE_DEV_AUTH_ENABLED=true
 ```
 
-## Styling & Theming
+## Product Principles
 
-The application uses:
-- **Tailwind CSS** with custom configuration in `tailwind.config.js`
-- **CSS Variables** for theming (defined in `src/index.css`)
-- **Dark mode** support via class strategy (`'class'` in tailwind config)
-- **shadcn/ui** component library (configuration in `components.json`)
+1. **Lean surface** – Dashboard, Documentation, Infrastructure, Agent, Settings. Do not re-add passwords/contracts/portal/recording features.
+2. **No generative AI** – the agent is deterministic and rule-based. Do not add chatbots or LLM calls.
+3. **Agent acts only with approval** – findings propose actions; `apply` executes them and writes audit logs.
+4. **Conventional Commits** for git messages (feat:, fix:, docs:, chore:, …).
+5. The codebase is fully typed — keep `npx tsc --noEmit` clean in `backend/`.
 
-**Theme System:**
-- Managed by Zustand store (`stores/themeStore.ts`)
-- Supports: `'light'`, `'dark'`, `'system'`
-- Persisted to localStorage
-- Applied in `App.tsx` via `useEffect`
+## Cursor Cloud specific instructions
 
-**Color System:**
-All colors use HSL CSS variables (e.g., `hsl(var(--primary))`):
-- Primary, secondary, accent colors
-- Background, foreground, border colors
-- Card, popover, muted colors
-- Destructive (error) colors
-- Sidebar-specific colors
-
-## State Management
-
-**Zustand** is used for global state management:
-- `stores/themeStore.ts` - Theme preferences (light/dark/system)
-- `stores/sidebarStore.ts` - Sidebar open/closed state
-
-**TanStack Query** (React Query) is configured via `QueryProvider` for:
-- Server state management
-- API data fetching and caching
-- Devtools available in development
-
-## API Integration
-
-Backend API base URL is configured via:
-- Development: `http://localhost:3001`
-- Production: Proxied via `/api`
-
-**Available Endpoints:**
-```
-GET  /api/health          # Health check
-GET  /api/docs            # API documentation
-GET  /api/documents       # Get all documents
-POST /api/documents       # Create document
-GET  /api/documents/:id   # Get single document
-PUT  /api/documents/:id   # Update document
-DELETE /api/documents/:id # Delete document
-```
-
-## Component Guidelines
-
-When working with components:
-1. **Use existing shadcn/ui components** from `src/components/ui/` (button, card, dialog, etc.)
-2. **Feature-specific components** go in `src/features/{feature}/components/`
-3. **Shared components** used across features go in `src/shared/components/`
-4. **Use Lucide icons** for iconography (configured as default in `components.json`)
-5. **Apply Tailwind classes** for styling, using `cn()` utility from `@/lib/utils` for conditional classes
-
-## Path Aliases
-
-TypeScript path aliases are configured in `tsconfig.json` and `vite.config.ts`:
-- `@/*` → `src/*`
-
-Example imports:
-```typescript
-import { Button } from '@/components/ui/button'
-import { useThemeStore } from '@/stores/themeStore'
-import { cn } from '@/lib/utils'
-```
-
-## Design System Guidelines
-
-Follow existing patterns from the codebase:
-- **Layout:** Use `MainLayout` component with sidebar navigation
-- **Spacing:** Use Tailwind spacing scale (e.g., `space-y-6`, `gap-4`)
-- **Typography:** Use semantic heading tags with Tailwind typography classes
-- **Responsiveness:** Mobile-first approach with responsive breakpoints (`md:`, `lg:`)
-- **Dark mode:** Use Tailwind's dark mode classes when needed
-
-## Project Goals & Roadmap
-
-Based on `docs/TEMPLATE_SYSTEM_DESIGN.md`, the project aims to implement:
-1. **Standardized Templates** - NIST-compliant documentation templates
-2. **Structured Fields** - Typed, validated fields for different documentation types
-3. **Change Management** - Version control and change tracking
-4. **Compliance Tracking** - ISO-27001, NIST standards support
-5. **AI Integration** - Azure OpenAI for documentation assistance
-
-**Documentation Categories:**
-- Server documentation
-- Network documentation
-- Security policies
-- Backup procedures
-- Monitoring setup
-- Troubleshooting guides
-
-## Database & ORM
-
-The backend uses **Prisma ORM** with SQLite for development and PostgreSQL for production.
-
-**Key Models:**
-1. **Document** - Main documentation model with categorization, tagging, status tracking, and versioning
-2. **GeneratedDocumentation** - Stores AI-generated documentation for code repositories
-
-**Switching Databases:**
-- Development: SQLite (configured in `prisma/schema.prisma`)
-- Production: PostgreSQL (update `DATABASE_URL` in `.env`)
-
-After changing the database provider in `schema.prisma`, run:
-```bash
-npx prisma generate
-npx prisma migrate dev
-```
-
-## Important Notes
-
-- The `frontend-new/` directory is the **active frontend** being developed
-- The `frontend/` directory is the legacy version being phased out
-- Backend uses `tsx watch` for development hot-reloading
-- Frontend uses Vite's fast HMR for instant updates
-- Use **Conventional Commits** for git messages (feat:, fix:, docs:, etc.)
-- Follow existing TypeScript patterns - the codebase is fully typed
-- Database schema is managed by Prisma - modify `prisma/schema.prisma` and run migrations
+- Start the SQL Server container (or reuse a running one) before backend work; check with `docker ps`.
+- Run backend and frontend dev servers in tmux sessions for manual testing.
+- Seed templates via `POST /api/templates/seed` for a populated demo.

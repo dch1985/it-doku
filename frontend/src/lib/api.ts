@@ -7,7 +7,7 @@
  * Get API URL (handles both with and without /api)
  */
 export function getApiUrl(): string {
-  const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+  const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
   return baseURL.endsWith('/api') ? baseURL : `${baseURL}/api`;
 }
 

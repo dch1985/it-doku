@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { useTenantStore } from '@/stores/tenantStore';
 
 const getApiUrl = () => {
-  const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+  const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
   return baseURL.endsWith('/api') ? baseURL : `${baseURL}/api`;
 };
 

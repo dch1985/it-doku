@@ -1,35 +1,27 @@
 {
-  "name": "@it-doku/backend",
-  "version": "1.0.0",
-  "description": "IT-Doku Backend API",
+  "name": "@trustdoc/backend",
+  "version": "2.0.0",
+  "description": "TrustDoc Backend API",
   "main": "src/index.ts",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "automation:worker": "tsx src/workers/automation.worker.ts",
-    "automation:job": "tsx src/workers/automation.worker.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
   },
   "dependencies": {
-    "@azure/openai": "^2.0.0",
-    "@azure/service-bus": "^7.9.3",
     "@azure/storage-blob": "^12.29.1",
-    "@octokit/rest": "^22.0.0",
     "@prisma/client": "^6.18.0",
-    "@types/diff-match-patch": "^1.0.36",
     "@types/jsonwebtoken": "^9.0.10",
     "cors": "^2.8.5",
-    "diff-match-patch": "^1.0.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "express-rate-limit": "^8.2.1",
     "jsonwebtoken": "^9.0.2",
     "jwks-rsa": "^3.2.0",
     "multer": "^2.0.2",
-    "openai": "^6.7.0",
     "zod": "^4.1.12"
   },
   "devDependencies": {

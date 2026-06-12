@@ -1,11 +1,10 @@
 import { MainLayout } from './layouts/MainLayout'
-import { ChatSidebar } from './features/chat/components/ChatSidebar'
 import { useThemeStore } from './stores/themeStore'
 import { useEffect, useState } from 'react'
 import { Toaster } from 'sonner'
-import { Dashboard, Documents, Settings, Analytics, DocumentDetail, Passwords, Assets, Contracts, NetworkDevices, CustomerPortals, ProcessRecordings } from './router/lazyRoutes'
+import { Dashboard, Documents, Settings, DocumentDetail, Assets, Agent } from './router/lazyRoutes'
 
-type Page = 'dashboard' | 'documents' | 'settings' | 'analytics' | 'document-detail' | 'passwords' | 'assets' | 'contracts' | 'network-devices' | 'customer-portals' | 'process-recordings'
+type Page = 'dashboard' | 'documents' | 'document-detail' | 'infrastructure' | 'agent' | 'settings'
 
 export function PortalApp() {
   const theme = useThemeStore((state) => state.theme)
@@ -31,24 +30,14 @@ export function PortalApp() {
       const hash = window.location.hash.slice(1)
       if (hash === 'docs' || hash === 'documents') {
         setCurrentPage('documents')
+      } else if (hash === 'infrastructure' || hash === 'assets') {
+        setCurrentPage('infrastructure')
+      } else if (hash === 'agent') {
+        setCurrentPage('agent')
       } else if (hash === 'settings') {
         setCurrentPage('settings')
-      } else if (hash === 'analytics') {
-        setCurrentPage('analytics')
-      } else if (hash === 'passwords') {
-        setCurrentPage('passwords')
-      } else if (hash === 'assets') {
-        setCurrentPage('assets')
-      } else if (hash === 'contracts') {
-        setCurrentPage('contracts')
-      } else if (hash === 'network-devices') {
-        setCurrentPage('network-devices')
-      } else if (hash === 'customer-portals') {
-        setCurrentPage('customer-portals')
-      } else if (hash === 'process-recordings') {
-        setCurrentPage('process-recordings')
       } else if (hash.startsWith('document/')) {
-        const id = hash.split('/')[1]  // UUID String, kein parseInt()
+        const id = hash.split('/')[1]
         setSelectedDocumentId(id)
         setCurrentPage('document-detail')
       } else {
@@ -66,26 +55,19 @@ export function PortalApp() {
       <MainLayout>
         {currentPage === 'dashboard' && <Dashboard />}
         {currentPage === 'documents' && <Documents />}
+        {currentPage === 'infrastructure' && <Assets />}
+        {currentPage === 'agent' && <Agent />}
         {currentPage === 'settings' && <Settings />}
-        {currentPage === 'analytics' && <Analytics />}
-        {currentPage === 'passwords' && <Passwords />}
-        {currentPage === 'assets' && <Assets />}
-        {currentPage === 'contracts' && <Contracts />}
-        {currentPage === 'network-devices' && <NetworkDevices />}
-        {currentPage === 'customer-portals' && <CustomerPortals />}
-        {currentPage === 'process-recordings' && <ProcessRecordings />}
         {currentPage === 'document-detail' && selectedDocumentId && (
-          <DocumentDetail 
-            documentId={selectedDocumentId} 
+          <DocumentDetail
+            documentId={selectedDocumentId}
             onBack={() => {
               window.location.hash = 'documents'
-            }} 
+            }}
           />
         )}
       </MainLayout>
-      <ChatSidebar />
       <Toaster theme={theme === 'dark' ? 'dark' : 'light'} richColors position='top-right' />
     </>
   )
 }
-
