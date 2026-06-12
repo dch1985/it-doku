@@ -86,7 +86,7 @@ export function Dashboard() {
   const [newDocTitle, setNewDocTitle] = useState('')
   const [newDocCategory, setNewDocCategory] = useState('DOCUMENTATION')
   const { documents, createDocument, refetch } = useDocuments()
-  const { templates, loading: templatesLoading, useTemplate, seedTemplates } = useTemplates()
+  const { templates, loading: templatesLoading, useTemplate: createFromTemplate, seedTemplates } = useTemplates()
   const { data: analyticsData } = useAnalytics()
 
   const systemMetrics = analyticsData?.system
@@ -443,15 +443,11 @@ export function Dashboard() {
             setSelectedTemplate(null)
           }}
           onSubmit={async (title, customFields) => {
-            try {
-              const document = await useTemplate(selectedTemplate.id, title, customFields)
-              if (document?.id) {
-                window.location.hash = `document/${document.id}`
-              }
-              toast.success(`Dokument "${title}" erfolgreich erstellt!`)
-            } catch (error) {
-              throw error
+            const document = await createFromTemplate(selectedTemplate.id, title, customFields)
+            if (document?.id) {
+              window.location.hash = `document/${document.id}`
             }
+            toast.success(`Dokument "${title}" erfolgreich erstellt!`)
           }}
         />
       )}

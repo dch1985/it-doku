@@ -28,7 +28,7 @@ export function SearchBar() {
       }, 300) // Debounce search
       return () => clearTimeout(timer)
     }
-  }, [searchQuery, open])
+  }, [searchQuery, open, search])
 
   const pages = [
     { name: 'Overview', icon: Home, href: '/' },

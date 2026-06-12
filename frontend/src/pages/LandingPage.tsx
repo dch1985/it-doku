@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { FileText, Shield, Sparkles, Users, Zap, Lock, Globe, Server, Layers, Network, GitBranch, CheckCircle2 } from 'lucide-react'
+import { FileText, Shield, Sparkles, Users, Lock, Layers, Network, GitBranch, CheckCircle2 } from 'lucide-react'
 import { useAuthWrapper } from '@/hooks/useAuthWrapper'
 import { useEffect } from 'react'
 

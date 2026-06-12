@@ -1,7 +1,6 @@
 ﻿import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import chatRouter from './routes/chat.js';
 import documentsRouter from './routes/documents.js'
 import templatesRouter from './routes/templates.js'
 import githubRouter from './routes/github.js';
@@ -21,7 +20,6 @@ import {
   notFoundHandler,
   apiLimiter,
   authLimiter,
-  chatLimiter,
   uploadLimiter,
   authenticate
 } from './middleware/index.js';
@@ -43,7 +41,6 @@ app.use(loggerMiddleware);
 
 // Rate limiting
 app.use('/api/', apiLimiter);
-app.use('/api/chat', chatLimiter);
 app.use('/api/upload', uploadLimiter);
 
 // Routes
@@ -64,7 +61,8 @@ app.get('/api/docs', (req, res) => {
     endpoints: [
       'GET /api/health - Health Check',
       'GET /api/docs - API Documentation',
-      'POST /api/chat - AI Chat Endpoint'
+      'GET /api/documents - Documentation Records',
+      'GET /api/templates - Expert Documentation Templates'
     ]
   });
 });
@@ -74,9 +72,6 @@ app.use('/api/auth', authLimiter, authRouter);
 
 // Tenant Routes (after auth, before tenant-specific routes)
 app.use('/api/tenants', authenticate, tenantsRouter);
-
-// Chat Route
-app.use('/api/chat', chatRouter);
 
 // Documents Routes
 app.use('/api/documents', documentsRouter)
@@ -113,7 +108,6 @@ app.use(errorHandler);
 const server = app.listen(PORT, () => {
   console.log('Backend server running on http://localhost:' + PORT);
   console.log('Azure OpenAI configured:', !!process.env.AZURE_OPENAI_KEY);
-  console.log('Chat endpoint: http://localhost:' + PORT + '/api/chat');
 });
 
 // Handle server errors (e.g., port already in use)
