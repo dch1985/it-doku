@@ -34,7 +34,7 @@ export function Settings() {
           </TabsTrigger>
           <TabsTrigger value='api'>
             <Key className='mr-2 h-4 w-4' />
-            API Keys
+            Skills
           </TabsTrigger>
           <TabsTrigger value='appearance'>
             <Palette className='mr-2 h-4 w-4' />
@@ -91,41 +91,40 @@ export function Settings() {
         <TabsContent value='api' className='space-y-4'>
           <Card>
             <CardHeader>
-              <CardTitle>Azure OpenAI Configuration</CardTitle>
+              <CardTitle>Skill Engine Governance</CardTitle>
               <CardDescription>
-                Manage your Azure OpenAI API credentials
+                Configure how Trust Doc expert skills collect evidence and prepare documentation for review
               </CardDescription>
             </CardHeader>
             <CardContent className='space-y-4'>
               <div className='space-y-2'>
-                <Label htmlFor='endpoint'>Azure Endpoint</Label>
+                <Label htmlFor='skill-policy'>Evidence Policy</Label>
                 <Input 
-                  id='endpoint' 
-                  defaultValue='https://trustdocs.openai.azure.com/' 
-                  placeholder='https://your-resource.openai.azure.com'
+                  id='skill-policy' 
+                  defaultValue='Citations and owner approval required' 
+                  placeholder='Define the evidence policy'
                 />
               </div>
               <div className='space-y-2'>
-                <Label htmlFor='api-key'>API Key</Label>
+                <Label htmlFor='review-policy'>Review Policy</Label>
                 <Input 
-                  id='api-key' 
-                  type='password' 
-                  defaultValue='••••••••••••••••'
-                  placeholder='Your Azure OpenAI API Key'
+                  id='review-policy' 
+                  defaultValue='Human approval before publishing' 
+                  placeholder='Define review requirements'
                 />
               </div>
               <div className='space-y-2'>
-                <Label htmlFor='deployment'>Deployment Name</Label>
-                <Input id='deployment' defaultValue='gpt-4' />
+                <Label htmlFor='trusted-sources'>Trusted Sources</Label>
+                <Input id='trusted-sources' defaultValue='Documents, knowledge nodes, templates, compliance findings' />
               </div>
               <div className='space-y-2'>
-                <Label htmlFor='api-version'>API Version</Label>
-                <Input id='api-version' defaultValue='2024-02-01' />
+                <Label htmlFor='skill-pack'>Active Skill Pack</Label>
+                <Input id='skill-pack' defaultValue='IT documentation essentials' />
               </div>
               <Separator />
               <div className='flex justify-end gap-2'>
-                <Button variant='outline'>Test Connection</Button>
-                <Button onClick={handleSave}>Save API Keys</Button>
+                <Button variant='outline'>Validate Guardrails</Button>
+                <Button onClick={handleSave}>Save Skill Settings</Button>
               </div>
             </CardContent>
           </Card>
@@ -210,9 +209,9 @@ export function Settings() {
               <Separator />
               <div className='flex items-center justify-between'>
                 <div className='space-y-0.5'>
-                  <Label>AI Chat Responses</Label>
+                  <Label>Skill Run Completion</Label>
                   <p className='text-sm text-muted-foreground'>
-                    Notifications for AI chat completions
+                    Notifications when a guided documentation workflow is ready for review
                   </p>
                 </div>
                 <Switch defaultChecked />

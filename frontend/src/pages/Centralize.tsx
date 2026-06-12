@@ -133,9 +133,9 @@ export default function Centralize() {
   return (
     <div className="space-y-10">
       <header className="space-y-2">
-        <h1 className="text-3xl font-semibold">Zentralisierung & Wissenszugriff</h1>
+        <h1 className="text-3xl font-semibold">Knowledge Workspace</h1>
         <p className="text-muted-foreground">
-          Single Source of Truth: Alle Dokumente an einem Ort, ergänzt durch eine konversationelle KI mit kontextbewussten Antworten.
+          Single source of truth: documents, knowledge nodes, citations, and evidence without a chatbot-first workflow.
         </p>
       </header>
 
@@ -175,8 +175,8 @@ export default function Centralize() {
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Assistant Queries</CardTitle>
-              <CardDescription>letzte 7 Tage</CardDescription>
+              <CardTitle>Evidence Queries</CardTitle>
+              <CardDescription>last 7 days</CardDescription>
             </CardHeader>
             <CardContent>
               <p className="text-3xl font-semibold">{centralizeMetrics?.assistant.totalQueries ?? 0}</p>
@@ -187,7 +187,7 @@ export default function Centralize() {
                     <span>{entry.count}</span>
                   </div>
                 ))}
-                {(centralizeMetrics?.assistant.byAudience?.length ?? 0) === 0 && <p>Keine Fragen gestellt.</p>}
+                {(centralizeMetrics?.assistant.byAudience?.length ?? 0) === 0 && <p>No evidence queries yet.</p>}
               </div>
             </CardContent>
           </Card>

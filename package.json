@@ -1,5 +1,5 @@
 {
-  "name": "it-doku-monorepo",
+  "name": "trust-doc-monorepo",
   "version": "1.0.0",
   "private": true,
   "workspaces": [
@@ -23,7 +23,7 @@
     "rimraf": "^5.0.1"
   },
   "author": "Driss Chaouat",
-  "description": "IT-Dokumentation System mit Backend und Frontend",
+  "description": "Trust Doc IT documentation system with backend and frontend",
   "dependencies": {
     "clsx": "^2.1.1"
   }

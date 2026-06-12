@@ -127,7 +127,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <p className="text-center text-sm text-gray-500 mt-6">
               If this problem persists,{' '}
               <a
-                href="mailto:support@it-doku.com"
+                href="mailto:support@trust-doc.com"
                 className="text-cyan-400 hover:text-cyan-300 underline"
               >
                 contact support

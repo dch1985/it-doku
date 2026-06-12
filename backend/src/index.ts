@@ -1,7 +1,6 @@
 ﻿import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import chatRouter from './routes/chat.js';
 import documentsRouter from './routes/documents.js'
 import templatesRouter from './routes/templates.js'
 import githubRouter from './routes/github.js';
@@ -21,7 +20,6 @@ import {
   notFoundHandler,
   apiLimiter,
   authLimiter,
-  chatLimiter,
   uploadLimiter,
   authenticate
 } from './middleware/index.js';
@@ -43,7 +41,6 @@ app.use(loggerMiddleware);
 
 // Rate limiting
 app.use('/api/', apiLimiter);
-app.use('/api/chat', chatLimiter);
 app.use('/api/upload', uploadLimiter);
 
 // Routes
@@ -53,18 +50,20 @@ app.get('/api/health', (req, res) => {
     message: 'Backend API is running!',
     timestamp: new Date().toISOString(),
     version: '1.0.0',
-    azureOpenAI: !!process.env.AZURE_OPENAI_KEY
+    product: 'Trust Doc'
   });
 });
 
 app.get('/api/docs', (req, res) => {
   res.json({
-    title: 'IT-Dokumentation API',
+    title: 'Trust Doc API',
     version: '1.0.0',
     endpoints: [
       'GET /api/health - Health Check',
       'GET /api/docs - API Documentation',
-      'POST /api/chat - AI Chat Endpoint'
+      'GET /api/documents - Documentation Library',
+      'POST /api/assistant/query - Evidence Query',
+      'GET /api/automation/jobs - Skill Workflow Jobs'
     ]
   });
 });
@@ -74,9 +73,6 @@ app.use('/api/auth', authLimiter, authRouter);
 
 // Tenant Routes (after auth, before tenant-specific routes)
 app.use('/api/tenants', authenticate, tenantsRouter);
-
-// Chat Route
-app.use('/api/chat', chatRouter);
 
 // Documents Routes
 app.use('/api/documents', documentsRouter)
@@ -94,7 +90,7 @@ app.use('/api/upload', uploadRouter)
 app.use('/api/analytics', analyticsRouter)
 app.use('/api/search', searchRouter)
 
-// AI & Automation Routes
+// Skill, evidence, and automation routes
 app.use('/api/assistant', assistantRouter)
 app.use('/api/automation', automationRouter)
 
@@ -111,9 +107,8 @@ app.use(errorHandler);
 
 // Start Server
 const server = app.listen(PORT, () => {
-  console.log('Backend server running on http://localhost:' + PORT);
-  console.log('Azure OpenAI configured:', !!process.env.AZURE_OPENAI_KEY);
-  console.log('Chat endpoint: http://localhost:' + PORT + '/api/chat');
+  console.log('Trust Doc API running on http://localhost:' + PORT);
+  console.log('Skill routes enabled: /api/assistant, /api/automation, /api/compliance');
 });
 
 // Handle server errors (e.g., port already in use)

@@ -1,7 +1,6 @@
 ﻿import { QueryProvider } from './providers/QueryProvider'
 import { AuthProvider } from './contexts/AuthContext'
 import { DevAuthProvider } from './contexts/DevAuthContext'
-import { ChatProvider } from './contexts/ChatContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { LandingPage } from './router/lazyRoutes'
 import { PortalApp } from './PortalApp'
@@ -37,9 +36,7 @@ function AppContent() {
 
   return (
     <QueryProvider>
-      <ChatProvider>
-        <PortalApp />
-      </ChatProvider>
+      <PortalApp />
     </QueryProvider>
   );
 }

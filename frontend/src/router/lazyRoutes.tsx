@@ -31,6 +31,11 @@ export const Dashboard = lazyLoad(() => import('@/pages/Dashboard'));
 export const Documents = lazyLoad(() => import('@/pages/Documents'));
 export const DocumentDetail = lazyLoad(() => import('@/pages/DocumentDetail'));
 
+// Trust Doc expert workspaces
+export const AgentSkills = lazyLoad(() => import('@/pages/AgentSkills'));
+export const Centralize = lazyLoad(() => import('@/pages/Centralize'));
+export const Comply = lazyLoad(() => import('@/pages/Comply'));
+
 // Settings
 export const Settings = lazyLoad(() => import('@/pages/Settings'));
 
@@ -54,6 +59,9 @@ export const ProcessRecordings = lazyLoad(() => import('@/pages/ProcessRecording
 export const preloadLandingPage = () => import('@/pages/LandingPage');
 export const preloadDashboard = () => import('@/pages/Dashboard');
 export const preloadDocuments = () => import('@/pages/Documents');
+export const preloadAgentSkills = () => import('@/pages/AgentSkills');
+export const preloadCentralize = () => import('@/pages/Centralize');
+export const preloadComply = () => import('@/pages/Comply');
 export const preloadSettings = () => import('@/pages/Settings');
 export const preloadAnalytics = () => import('@/pages/Analytics');
 export const preloadPasswords = () => import('@/pages/Passwords');

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { SearchBar } from '@/components/SearchBar'
 import { TenantSelector } from '@/components/TenantSelector'
 import { NotificationsDropdown } from '@/components/NotificationsDropdown'
+import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,8 +16,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Menu, X, Home, FileText, MessageSquare, BarChart3, Settings, LogOut, User, Lock, Server, FileSignature, Radio, Globe, Video } from 'lucide-react'
+import { Menu, X, Home, FileText, Settings, LogOut, User, ShieldCheck, Database, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useEffect, useState } from 'react'
 
 interface MainLayoutProps {
   children: React.ReactNode
@@ -25,69 +27,70 @@ interface MainLayoutProps {
 const navigation = [
   { name: 'Dashboard', href: '/', icon: Home },
   { name: 'Documentation', href: '/docs', icon: FileText },
-  { name: 'Passwords', href: '/passwords', icon: Lock },
-  { name: 'Assets', href: '/assets', icon: Server },
-  { name: 'Contracts', href: '/contracts', icon: FileSignature },
-  { name: 'Network Devices', href: '/network-devices', icon: Radio },
-  { name: 'Customer Portals', href: '/customer-portals', icon: Globe },
-  { name: 'Process Recordings', href: '/process-recordings', icon: Video },
-  { name: 'AI Chat', href: '/chat', icon: MessageSquare },
-  { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+  { name: 'Expert Skills', href: '/skills', icon: Sparkles },
+  { name: 'Knowledge', href: '/knowledge', icon: Database },
+  { name: 'Compliance', href: '/compliance', icon: ShieldCheck },
   { name: 'Settings', href: '/settings', icon: Settings },
 ]
 
 export function MainLayout({ children }: MainLayoutProps) {
   const isOpen = useSidebarStore((state) => state.isOpen)
   const toggle = useSidebarStore((state) => state.toggle)
-  const isChatOpen = useSidebarStore((state) => state.isChatOpen)
-  const toggleChat = useSidebarStore((state) => state.toggleChat)
+  const [activeHash, setActiveHash] = useState(window.location.hash.slice(1))
+
+  useEffect(() => {
+    const syncHash = () => setActiveHash(window.location.hash.slice(1))
+    syncHash()
+    window.addEventListener('hashchange', syncHash)
+    return () => window.removeEventListener('hashchange', syncHash)
+  }, [])
+
+  const isActiveLink = (href: string) => {
+    const target = href === '/' ? '' : href.slice(1)
+    if (target === 'docs') {
+      return activeHash === 'docs' || activeHash === 'documents' || activeHash.startsWith('document/')
+    }
+    if (target === 'knowledge') {
+      return activeHash === 'knowledge' || activeHash === 'centralize'
+    }
+    if (target === 'compliance') {
+      return activeHash === 'compliance' || activeHash === 'comply'
+    }
+    return activeHash === target
+  }
 
   return (
-    <div className='flex h-screen overflow-hidden bg-background'>
+    <div className='flex h-screen overflow-hidden bg-gradient-to-br from-background via-background to-muted/30'>
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-64 transform border-r bg-card transition-transform duration-200 ease-in-out lg:relative lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 w-72 transform border-r bg-card/95 backdrop-blur transition-transform duration-200 ease-in-out lg:relative lg:translate-x-0',
           isOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         <div className='flex h-full flex-col'>
-          <div className='flex h-16 items-center gap-2 border-b px-6'>
-            <FileText className='h-6 w-6 text-primary' />
-            <span className='text-lg font-semibold'>IT-Doku</span>
+          <div className='flex h-20 items-center gap-3 border-b px-6'>
+            <div className='rounded-2xl bg-primary p-2 text-primary-foreground shadow-sm'>
+              <ShieldCheck className='h-5 w-5' />
+            </div>
+            <div>
+              <span className='text-xl font-semibold tracking-tight'>Trust Doc</span>
+              <p className='text-xs text-muted-foreground'>IT documentation, verified</p>
+            </div>
           </div>
 
           <nav className='flex-1 space-y-1 overflow-y-auto p-4'>
             {navigation.map((item) => {
               const Icon = item.icon
-              const isActive = item.href === '/chat' ? isChatOpen : false
+              const isActive = isActiveLink(item.href)
               
-              // Special handling for AI Chat button
-              if (item.href === '/chat') {
-                return (
-                  <button
-                    key={item.name}
-                    onClick={toggleChat}
-                    className={cn(
-                      'w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground',
-                      isActive && 'bg-accent text-accent-foreground'
-                    )}
-                    title='AI Chat öffnen'
-                  >
-                    <Icon className='h-4 w-4' />
-                    {item.name}
-                    {isChatOpen && (
-                      <span className='ml-auto h-2 w-2 rounded-full bg-primary' />
-                    )}
-                  </button>
-                )
-              }
-              
-              // Regular navigation links for other items
               return (
                 <a
                   key={item.name}
                   href={`#${item.href === '/' ? '' : item.href.slice(1)}`}
-                  className='flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground'
+                  className={cn(
+                    'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground',
+                    isActive && 'bg-primary text-primary-foreground shadow-sm hover:bg-primary hover:text-primary-foreground'
+                  )}
                 >
                   <Icon className='h-4 w-4' />
                   {item.name}
@@ -95,6 +98,16 @@ export function MainLayout({ children }: MainLayoutProps) {
               )
             })}
           </nav>
+
+          <div className='mx-4 mb-4 rounded-2xl border bg-muted/40 p-4'>
+            <div className='mb-2 flex items-center justify-between'>
+              <p className='text-sm font-medium'>Skill mode</p>
+              <Badge variant='secondary' className='text-[10px]'>No chatbot</Badge>
+            </div>
+            <p className='text-xs leading-relaxed text-muted-foreground'>
+              Guided experts help document servers, infrastructure, networks, backups, and controls with checklists and evidence.
+            </p>
+          </div>
 
           <div className='border-t p-4 space-y-2'>
             <TenantSelector />
@@ -104,7 +117,7 @@ export function MainLayout({ children }: MainLayoutProps) {
       </aside>
 
       <div className='flex flex-1 flex-col overflow-hidden'>
-        <header className='flex h-16 items-center gap-4 border-b bg-card px-6'>
+        <header className='flex h-16 items-center gap-4 border-b bg-card/80 px-6 backdrop-blur'>
   <Button variant='ghost' size='icon' onClick={toggle} className='lg:hidden'>
     {isOpen ? <X className='h-5 w-5' /> : <Menu className='h-5 w-5' />}
   </Button>

@@ -42,8 +42,8 @@ export const devAuthenticate = async (
     let demoUser = await prisma.user.findFirst({
       where: {
         OR: [
-          { email: 'demo@it-doku.local' },
-          { email: 'dev@it-doku.local' },
+          { email: 'demo@trust-doc.local' },
+          { email: 'dev@trust-doc.local' },
         ],
       },
     });
@@ -52,7 +52,7 @@ export const devAuthenticate = async (
       // Create demo user
       demoUser = await prisma.user.create({
         data: {
-          email: 'demo@it-doku.local',
+          email: 'demo@trust-doc.local',
           name: 'Demo User',
           role: 'ADMIN',
         },
@@ -78,7 +78,7 @@ export const devAuthenticate = async (
       console.warn('[Dev Auth] Database unavailable, using mock user for development');
       req.user = {
         id: 'mock-user-id-dev',
-        email: 'demo@it-doku.local',
+        email: 'demo@trust-doc.local',
         name: 'DU Demo User',
         role: 'ADMIN',
       };
@@ -108,8 +108,8 @@ export const devOptionalAuthenticate = async (
     let demoUser = await prisma.user.findFirst({
       where: {
         OR: [
-          { email: 'demo@it-doku.local' },
-          { email: 'dev@it-doku.local' },
+          { email: 'demo@trust-doc.local' },
+          { email: 'dev@trust-doc.local' },
         ],
       },
     });

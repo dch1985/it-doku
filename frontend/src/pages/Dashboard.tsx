@@ -1,5 +1,4 @@
 ﻿import { useState } from 'react'
-import { useSidebarStore } from '@/stores/sidebarStore'
 import { DocumentsChart } from '@/features/dashboard/components/DocumentsChart'
 import { StorageChart } from '@/features/dashboard/components/StorageChart'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { Plus, MessageSquare, FileText, Zap, Database, ShieldCheck } from 'lucide-react'
+import { Plus, FileText, Database, ShieldCheck, Sparkles, Server } from 'lucide-react'
 import { useDocuments } from '@/hooks/useDocuments'
 import { useTemplates } from '@/hooks/useTemplates'
 import { useAnalytics } from '@/hooks/useAnalytics'
@@ -23,15 +22,15 @@ export function Dashboard() {
   const [templateFormOpen, setTemplateFormOpen] = useState(false)
   const [newDocTitle, setNewDocTitle] = useState('')
   const [newDocCategory, setNewDocCategory] = useState('DOCUMENTATION')
-  const { toggleChat } = useSidebarStore()
   const { documents, createDocument, refetch } = useDocuments()
   const { templates, loading: templatesLoading, useTemplate, seedTemplates } = useTemplates()
   const { data: analyticsData } = useAnalytics()
 
   const systemMetrics = analyticsData?.system
-  const automationMetrics = analyticsData?.automation
   const centralizeMetrics = analyticsData?.centralize
   const complyMetrics = analyticsData?.comply
+  const openFindings = complyMetrics?.findings.openBySeverity.reduce((sum, item) => sum + item.count, 0) ?? 0
+  const documentsInReview = documents.filter((document) => document.status === 'REVIEW').length
 
   const handleNewDocument = async () => {
     if (!newDocTitle.trim() || !newDocCategory) {
@@ -70,25 +69,46 @@ export function Dashboard() {
     return 'Just now'
   }
 
-  const handleAskAI = () => {
-    toggleChat()
-    toast.info('AI Chat opened!')
-  }
-
   return (
-    <div className='space-y-6'>
-      <div className='flex items-center justify-between'>
-        <div>
-          <h2 className='text-3xl font-bold tracking-tight'>Welcome back, Driss!</h2>
-          <p className='text-muted-foreground'>Operational insights aligned with Automate · Centralize · Comply.</p>
-        </div>
-        <div className='flex items-center gap-2'>
-          <div className='flex items-center gap-2 rounded-full bg-green-500/10 px-3 py-1.5 text-xs font-medium text-green-600 dark:text-green-400'>
-            <div className='h-2 w-2 animate-pulse rounded-full bg-green-500'></div>
-            Live Updates
+    <div className='space-y-8'>
+      <section className='overflow-hidden rounded-3xl border bg-card shadow-sm'>
+        <div className='grid gap-6 p-8 lg:grid-cols-[1.2fr_0.8fr] lg:p-10'>
+          <div className='space-y-5'>
+            <Badge variant='secondary' className='w-fit rounded-full px-3 py-1'>
+              Trust Doc workspace
+            </Badge>
+            <div className='space-y-3'>
+              <h2 className='max-w-3xl text-4xl font-semibold tracking-tight lg:text-5xl'>
+                Build IT documentation that operators can trust.
+              </h2>
+              <p className='max-w-2xl text-lg text-muted-foreground'>
+                A focused workspace for servers, infrastructure, networks, backup, security controls, and review-ready evidence.
+              </p>
+            </div>
+            <div className='flex flex-wrap gap-3'>
+              <Button size='lg' onClick={() => setNewDocDialog(true)}>
+                <Plus className='mr-2 h-4 w-4' />
+                New Document
+              </Button>
+              <Button size='lg' variant='outline' onClick={() => { window.location.hash = 'skills' }}>
+                <Sparkles className='mr-2 h-4 w-4' />
+                Open Expert Skills
+              </Button>
+            </div>
+          </div>
+          <div className='rounded-3xl border bg-muted/40 p-6'>
+            <p className='text-sm font-medium text-muted-foreground'>Documentation focus</p>
+            <div className='mt-4 space-y-3'>
+              {['Servers and virtual machines', 'Infrastructure dependencies', 'Network and security baselines', 'Backup, DR, and operations runbooks'].map((item) => (
+                <div key={item} className='flex items-center gap-3 rounded-2xl bg-background/70 p-3 text-sm'>
+                  <Server className='h-4 w-4 text-primary' />
+                  {item}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
       <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
         <Card>
@@ -104,23 +124,23 @@ export function Dashboard() {
 
         <Card>
           <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-            <CardTitle className='text-sm font-medium'>Automation Completion</CardTitle>
-            <Zap className='h-5 w-5 text-primary' />
+            <CardTitle className='text-sm font-medium'>Expert Skills</CardTitle>
+            <Sparkles className='h-5 w-5 text-primary' />
           </CardHeader>
           <CardContent>
-            <div className='text-2xl font-bold'>{automationMetrics?.jobs.completionRate ?? 0}%</div>
-            <p className='text-xs text-muted-foreground'>Jobs completed in the last 7 days</p>
+            <div className='text-2xl font-bold'>5</div>
+            <p className='text-xs text-muted-foreground'>Server, infrastructure, security, DR, knowledge</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-            <CardTitle className='text-sm font-medium'>Assistant Queries</CardTitle>
+            <CardTitle className='text-sm font-medium'>Knowledge Coverage</CardTitle>
             <Database className='h-5 w-5 text-primary' />
           </CardHeader>
           <CardContent>
-            <div className='text-2xl font-bold'>{centralizeMetrics?.assistant.totalQueries ?? 0}</div>
-            <p className='text-xs text-muted-foreground'>Questions handled in the last 7 days</p>
+            <div className='text-2xl font-bold'>{centralizeMetrics?.knowledge.documentsWithCoverage ?? 0}</div>
+            <p className='text-xs text-muted-foreground'>Documents linked to knowledge nodes</p>
           </CardContent>
         </Card>
 
@@ -130,10 +150,8 @@ export function Dashboard() {
             <ShieldCheck className='h-5 w-5 text-primary' />
           </CardHeader>
           <CardContent>
-            <div className='text-2xl font-bold'>
-              {complyMetrics?.findings.openBySeverity.reduce((sum, item) => sum + item.count, 0) ?? 0}
-            </div>
-            <p className='text-xs text-muted-foreground'>Across all severities</p>
+            <div className='text-2xl font-bold'>{openFindings}</div>
+            <p className='text-xs text-muted-foreground'>{documentsInReview} documents currently in review</p>
           </CardContent>
         </Card>
       </div>
@@ -145,17 +163,17 @@ export function Dashboard() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>Get started with core workflows</CardDescription>
+          <CardTitle>Focused Actions</CardTitle>
+          <CardDescription>Start the workflows that make IT documentation easier to maintain</CardDescription>
         </CardHeader>
         <CardContent className='flex gap-2 flex-wrap'>
           <Button onClick={() => setNewDocDialog(true)}>
             <Plus className='mr-2 h-4 w-4' />
             New Document
           </Button>
-          <Button variant='outline' onClick={handleAskAI}>
-            <MessageSquare className='mr-2 h-4 w-4' />
-            Ask AI
+          <Button variant='outline' onClick={() => { window.location.hash = 'skills' }}>
+            <Sparkles className='mr-2 h-4 w-4' />
+            Open Expert Skills
           </Button>
           <Button variant='outline' onClick={() => setTemplatesDialog(true)}>
             <FileText className='mr-2 h-4 w-4' />

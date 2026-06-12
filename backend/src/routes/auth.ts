@@ -47,8 +47,8 @@ router.post('/dev-login', async (req: Request, res: Response) => {
     let user = await prisma.user.findFirst({
       where: {
         OR: [
-          { email: 'demo@it-doku.local' },
-          { email: 'dev@it-doku.local' },
+          { email: 'demo@trust-doc.local' },
+          { email: 'dev@trust-doc.local' },
         ],
       },
     });
@@ -56,7 +56,7 @@ router.post('/dev-login', async (req: Request, res: Response) => {
     if (!user) {
       user = await prisma.user.create({
         data: {
-          email: 'demo@it-doku.local',
+          email: 'demo@trust-doc.local',
           name: 'Demo User',
           role: 'ADMIN',
         },

@@ -88,7 +88,7 @@ export default function Automate() {
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold">Automatisierung & Effizienz</h1>
         <p className="text-muted-foreground">
-          Verbinde Quellen, starte KI-Generierungen und behalte Vorschläge im Blick. Ziel: aktuelle Dokumentation ohne manuellen Aufwand.
+          Verbinde Quellen, starte Skill-Workflows und behalte Vorschläge im Blick. Ziel: aktuelle Dokumentation mit nachvollziehbarer Evidenz.
         </p>
       </header>
 

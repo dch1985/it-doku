@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { FileText, Shield, Sparkles, Users, Zap, Lock, Globe, Server, Layers, Network, GitBranch, CheckCircle2 } from 'lucide-react'
+import { FileText, Shield, Sparkles, Users, Lock, Layers, Network, GitBranch, CheckCircle2, ClipboardCheck } from 'lucide-react'
 import { useAuthWrapper } from '@/hooks/useAuthWrapper'
 import { useEffect } from 'react'
 
@@ -12,10 +12,10 @@ const platformPillars = [
     details: 'Asset mapping • Service dependency tracking • Policy alignment'
   },
   {
-    title: 'AI Engine',
-    description: 'Context-aware drafting, refactoring, gap analysis. Private by design with on-premise options.',
+    title: 'Expert Skills',
+    description: 'Task-led agents for servers, infrastructure, security, backup, and operations documentation.',
     icon: Sparkles,
-    details: 'AI-assisted authoring • Intelligent search • Gap analysis'
+    details: 'Guided runbooks • Evidence checks • Human approval'
   },
   {
     title: 'Templates & Standards',
@@ -39,8 +39,8 @@ const platformPillars = [
 
 const capabilities = [
   {
-    title: 'AI-assisted authoring',
-    description: 'Generate documentation from natural language prompts.',
+    title: 'Agentic skill workflows',
+    description: 'Purpose-built documentation experts without a chatbot interface.',
     icon: Sparkles
   },
   {
@@ -69,9 +69,9 @@ const capabilities = [
     icon: FileText
   },
   {
-    title: 'API & webhooks',
-    description: 'Integrate with your existing toolchain seamlessly.',
-    icon: GitBranch
+    title: 'Runbook checklists',
+    description: 'Server, network, backup, and security checklists.',
+    icon: ClipboardCheck
   },
   {
     title: 'Audit packs',
@@ -153,7 +153,7 @@ export function LandingPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <FileText className="h-8 w-8 text-primary" />
-              <span className="text-2xl font-bold tracking-tight">TrustDoc</span>
+              <span className="text-2xl font-bold tracking-tight">Trust Doc</span>
             </div>
             <div className="hidden md:flex items-center gap-8">
               <button onClick={scrollToPlatform} className="text-sm text-muted-foreground hover:text-primary transition-colors">
@@ -189,7 +189,7 @@ export function LandingPage() {
           <div className="max-w-5xl mx-auto">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-border bg-card/50 backdrop-blur-sm mb-6">
               <Sparkles className="h-4 w-4 text-primary" />
-              <span className="text-sm text-muted-foreground">AI-powered IT documentation</span>
+              <span className="text-sm text-muted-foreground">Skill-led IT documentation</span>
             </div>
 
             <h1 className="text-6xl lg:text-8xl font-bold tracking-tight mb-6 leading-none">
@@ -200,7 +200,7 @@ export function LandingPage() {
             </h1>
             
             <p className="text-xl lg:text-2xl text-muted-foreground max-w-3xl mb-4 leading-relaxed">
-              TrustDoc is the documentation platform engineered for <strong className="text-foreground">MSPs and IT teams</strong> — combining a knowledge graph, AI, and governance to deliver audit-ready documentation at scale.
+              Trust Doc is the documentation platform engineered for <strong className="text-foreground">MSPs and IT teams</strong> — combining a knowledge graph, expert skills, and governance to deliver audit-ready documentation at scale.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 mt-12">
@@ -248,7 +248,7 @@ export function LandingPage() {
               Built for <span className="text-primary">mission-critical</span> IT operations
             </h2>
             <p className="text-xl text-muted-foreground leading-relaxed">
-              We take a knowledge-first, innovation-driven approach to developing the infrastructure that underpins the breakthrough technologies of today and tomorrow.
+              We take a knowledge-first approach to documenting the systems your teams operate every day.
             </p>
           </div>
 
@@ -285,7 +285,7 @@ export function LandingPage() {
               Everything you need
             </h2>
             <p className="text-xl text-muted-foreground leading-relaxed">
-              A comprehensive solution for your entire IT documentation lifecycle
+              A focused tool for the IT documentation work that matters most
             </p>
           </div>
           
@@ -426,7 +426,7 @@ export function LandingPage() {
             <div className="flex flex-col md:flex-row justify-between items-center mb-12">
               <div className="flex items-center gap-2 mb-4 md:mb-0">
                 <FileText className="h-6 w-6 text-primary" />
-                <span className="text-xl font-semibold">TrustDoc</span>
+                <span className="text-xl font-semibold">Trust Doc</span>
               </div>
               <div className="flex items-center gap-6">
                 <button onClick={scrollToPlatform} className="text-sm text-muted-foreground hover:text-primary transition-colors">
@@ -448,7 +448,7 @@ export function LandingPage() {
             </div>
             
             <div className="pt-8 border-t border-border/40 text-center text-sm text-muted-foreground">
-              © 2025 TrustDoc Inc. | Privacy | Terms | DPA | Status
+              © 2025 Trust Doc Inc. | Privacy | Terms | DPA | Status
             </div>
           </div>
         </div>

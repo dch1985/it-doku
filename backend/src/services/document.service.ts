@@ -10,7 +10,7 @@ export class DocumentService {
       if (!firstUser) {
         const demoUser = await prisma.user.create({
           data: {
-            email: 'demo@it-doku.local',
+            email: 'demo@trust-doc.local',
             name: 'Demo User',
             role: 'ADMIN'
           }

@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { automationQueue } from '../lib/automation.queue.js';
-import { generateDocumentDraft } from '../lib/openai.client.js';
+import { generateDocumentDraft } from '../lib/skillDraft.client.js';
 
 const AUTO_RUN_ON_PUBLISH = process.env.AUTOMATION_QUEUE_AUTORUN === 'true';
 const RUN_IMMEDIATELY_ON_CREATE = process.env.AUTOMATION_RUN_IMMEDIATE === 'true';

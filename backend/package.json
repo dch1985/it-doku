@@ -1,7 +1,7 @@
 {
-  "name": "@it-doku/backend",
+  "name": "@trust-doc/backend",
   "version": "1.0.0",
-  "description": "IT-Doku Backend API",
+  "description": "Trust Doc Backend API",
   "main": "src/index.ts",
   "type": "module",
   "scripts": {
