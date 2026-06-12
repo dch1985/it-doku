@@ -37,7 +37,13 @@ export const Settings = lazyLoad(() => import('@/pages/Settings'));
 // Analytics
 export const Analytics = lazyLoad(() => import('@/pages/Analytics'));
 
-// Enterprise Features
+// Agents
+export const Agents = lazyLoad(() => import('@/pages/Agents'));
+
+// Infrastructure (consolidated)
+export const Infrastructure = lazyLoad(() => import('@/pages/Infrastructure'));
+
+// Legacy enterprise pages (used within Infrastructure tabs)
 export const Passwords = lazyLoad(() => import('@/pages/Passwords'));
 export const Assets = lazyLoad(() => import('@/pages/Assets'));
 export const Contracts = lazyLoad(() => import('@/pages/Contracts'));

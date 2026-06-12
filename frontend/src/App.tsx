@@ -1,7 +1,6 @@
 ﻿import { QueryProvider } from './providers/QueryProvider'
 import { AuthProvider } from './contexts/AuthContext'
 import { DevAuthProvider } from './contexts/DevAuthContext'
-import { ChatProvider } from './contexts/ChatContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { LandingPage } from './router/lazyRoutes'
 import { PortalApp } from './PortalApp'
@@ -26,7 +25,10 @@ function AppContent() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
-        <div className="text-2xl">Loading...</div>
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-10 w-10 rounded-xl trust-gradient animate-pulse" />
+          <p className="text-muted-foreground">Loading Trust Doc...</p>
+        </div>
       </div>
     );
   }
@@ -37,9 +39,7 @@ function AppContent() {
 
   return (
     <QueryProvider>
-      <ChatProvider>
-        <PortalApp />
-      </ChatProvider>
+      <PortalApp />
     </QueryProvider>
   );
 }

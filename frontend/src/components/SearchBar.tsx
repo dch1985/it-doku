@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { FileText, MessageSquare, Settings, Home, BarChart3, Search, Bot, Database, ShieldCheck, Layers } from 'lucide-react'
+import { FileText, Settings, Home, Search, Bot, Server } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useGlobalSearch } from '@/hooks/useGlobalSearch'
 
@@ -25,19 +25,16 @@ export function SearchBar() {
     if (open && searchQuery.length > 2) {
       const timer = setTimeout(() => {
         search(searchQuery)
-      }, 300) // Debounce search
+      }, 300)
       return () => clearTimeout(timer)
     }
-  }, [searchQuery, open])
+  }, [searchQuery, open, search])
 
   const pages = [
     { name: 'Dashboard', icon: Home, href: '/' },
-    { name: 'Automate', icon: Bot, href: '/automate' },
-    { name: 'Centralize', icon: Database, href: '/centralize' },
-    { name: 'Comply', icon: ShieldCheck, href: '/comply' },
-    { name: 'Documentation', icon: FileText, href: '/docs' },
-    { name: 'AI Chat', icon: MessageSquare, href: '/chat' },
-    { name: 'Analytics', icon: BarChart3, href: '/analytics' },
+    { name: 'Documents', icon: FileText, href: '/docs' },
+    { name: 'Agents', icon: Bot, href: '/agents' },
+    { name: 'Infrastructure', icon: Server, href: '/infrastructure' },
     { name: 'Settings', icon: Settings, href: '/settings' },
   ]
 
@@ -54,7 +51,7 @@ export function SearchBar() {
     <>
       <Button
         variant='outline'
-        className='relative h-9 w-full justify-start text-sm text-muted-foreground sm:pr-12 md:w-40 lg:w-64'
+        className='relative h-9 w-full justify-start text-sm text-muted-foreground sm:pr-12 md:w-40 lg:w-64 rounded-xl'
         onClick={() => setOpen(true)}
       >
         <Search className='mr-2 h-4 w-4' />
@@ -66,74 +63,49 @@ export function SearchBar() {
       </Button>
 
       <CommandDialog open={open} onOpenChange={setOpen}>
-        <CommandInput 
-          placeholder='Type a command or search...' 
+        <CommandInput
+          placeholder='Search documents or navigate...'
           value={searchQuery}
           onValueChange={setSearchQuery}
         />
         <CommandList>
           {searchQuery.length > 2 ? (
-            // Show search results
             loading ? (
-              <div className='py-6 text-center text-sm text-muted-foreground'>
-                Searching...
-              </div>
-            ) : searchResults && searchResults.total > 0 ? (
-              <>
-                {searchResults.documents.length > 0 && (
-                  <CommandGroup heading={`Documents (${searchResults.documents.length})`}>
-                    {searchResults.documents.map((doc) => (
-                      <CommandItem
-                        key={doc.id}
-                        onSelect={() => handleSearchResultClick('document', doc.id)}
-                      >
-                        <FileText className='mr-2 h-4 w-4' />
-                        <span>{doc.title}</span>
-                        <span className='ml-auto text-xs text-muted-foreground'>{doc.category}</span>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                )}
-                {searchResults.knowledge.length > 0 && (
-                  <CommandGroup heading={`Knowledge (${searchResults.knowledge.length})`}>
-                    {searchResults.knowledge.map((node) => (
-                      <CommandItem
-                        key={node.id}
-                        onSelect={() => handleSearchResultClick('knowledge', node.id, node.documentId ?? undefined)}
-                      >
-                        <Layers className='mr-2 h-4 w-4' />
-                        <div className='flex flex-col'>
-                          <span>{node.documentTitle ?? node.type ?? 'Knowledge Node'}</span>
-                          {node.snippet && (
-                            <span className='text-xs text-muted-foreground line-clamp-2'>{node.snippet}</span>
-                          )}
-                        </div>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                )}
-              </>
+              <div className='py-6 text-center text-sm text-muted-foreground'>Searching...</div>
+            ) : searchResults.length > 0 ? (
+              <CommandGroup heading='Results'>
+                {searchResults.map((result) => (
+                  <CommandItem
+                    key={`${result.type}-${result.id}`}
+                    onSelect={() => handleSearchResultClick(result.type, result.id, result.documentId)}
+                  >
+                    <FileText className='mr-2 h-4 w-4' />
+                    <span>{result.title}</span>
+                    <span className='ml-auto text-xs text-muted-foreground'>{result.type}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
             ) : (
               <CommandEmpty>No results found.</CommandEmpty>
             )
           ) : (
-            // Show default navigation
-            <>
-              <CommandGroup heading='Pages'>
-                {pages.map((page) => (
+            <CommandGroup heading='Navigation'>
+              {pages.map((page) => {
+                const Icon = page.icon
+                return (
                   <CommandItem
-                    key={page.href}
+                    key={page.name}
                     onSelect={() => {
                       setOpen(false)
                       window.location.hash = page.href === '/' ? '' : page.href.slice(1)
                     }}
                   >
-                    <page.icon className='mr-2 h-4 w-4' />
+                    <Icon className='mr-2 h-4 w-4' />
                     <span>{page.name}</span>
                   </CommandItem>
-                ))}
-              </CommandGroup>
-            </>
+                )
+              })}
+            </CommandGroup>
           )}
         </CommandList>
       </CommandDialog>

@@ -1,27 +1,27 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { FileText, Shield, Sparkles, Users, Zap, Lock, Globe, Server, Layers, Network, GitBranch, CheckCircle2 } from 'lucide-react'
+import { Shield, Users, Zap, Lock, Globe, Server, Layers, Network, GitBranch, CheckCircle2, Bot } from 'lucide-react'
 import { useAuthWrapper } from '@/hooks/useAuthWrapper'
 import { useEffect } from 'react'
 
 const platformPillars = [
   {
-    title: 'Knowledge Graph',
-    description: 'Structured entities for assets, apps, services, policies. Map your entire IT ecosystem.',
-    icon: Network,
-    details: 'Asset mapping • Service dependency tracking • Policy alignment'
+    title: 'Agent Skills',
+    description: 'Task-oriented IT documentation agents — server docs, gap analysis, network topology, backup procedures. No chatbot, just expert results.',
+    icon: Bot,
+    details: '6 expert skills • NIST-compliant output • One-click execution'
   },
   {
-    title: 'AI Engine',
-    description: 'Context-aware drafting, refactoring, gap analysis. Private by design with on-premise options.',
-    icon: Sparkles,
-    details: 'AI-assisted authoring • Intelligent search • Gap analysis'
-  },
-  {
-    title: 'Templates & Standards',
+    title: 'Smart Templates',
     description: 'Pre-built templates for servers, networks, M365, policies, DR, and SOPs. NIST-compliant by default.',
     icon: Layers,
     details: '15+ templates • Custom workflows • Version control'
+  },
+  {
+    title: 'Infrastructure Hub',
+    description: 'Centralized management of servers, network devices, and credentials linked to your documentation.',
+    icon: Server,
+    details: 'Asset inventory • Network mapping • Credential vault'
   },
   {
     title: 'Governance',
@@ -39,9 +39,9 @@ const platformPillars = [
 
 const capabilities = [
   {
-    title: 'AI-assisted authoring',
-    description: 'Generate documentation from natural language prompts.',
-    icon: Sparkles
+    title: 'Agent skills',
+    description: 'Run focused IT documentation tasks with expert agents.',
+    icon: Bot
   },
   {
     title: 'Smart templates',
@@ -54,9 +54,9 @@ const capabilities = [
     icon: CheckCircle2
   },
   {
-    title: 'Review workflows',
-    description: 'Approval chains and collaborative editing.',
-    icon: Users
+    title: 'Infrastructure docs',
+    description: 'Servers, networks, and credentials in one place.',
+    icon: Server
   },
   {
     title: 'RBAC & SSO',
@@ -66,17 +66,17 @@ const capabilities = [
   {
     title: 'Multi-format export',
     description: 'PDF, DOCX, Markdown export with custom branding.',
-    icon: FileText
+    icon: Globe
   },
   {
-    title: 'API & webhooks',
-    description: 'Integrate with your existing toolchain seamlessly.',
-    icon: GitBranch
+    title: 'Gap analysis',
+    description: 'Automated compliance checks against NIST and ISO standards.',
+    icon: Shield
   },
   {
     title: 'Audit packs',
     description: 'Generate compliance reports in under 60 seconds.',
-    icon: Shield
+    icon: Zap
   }
 ]
 
@@ -152,8 +152,10 @@ export function LandingPage() {
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <FileText className="h-8 w-8 text-primary" />
-              <span className="text-2xl font-bold tracking-tight">TrustDoc</span>
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg trust-gradient">
+                <Shield className="h-4 w-4 text-white" />
+              </div>
+              <span className="text-2xl font-bold tracking-tight">Trust Doc</span>
             </div>
             <div className="hidden md:flex items-center gap-8">
               <button onClick={scrollToPlatform} className="text-sm text-muted-foreground hover:text-primary transition-colors">
@@ -188,8 +190,8 @@ export function LandingPage() {
         <div className="container mx-auto px-6">
           <div className="max-w-5xl mx-auto">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-border bg-card/50 backdrop-blur-sm mb-6">
-              <Sparkles className="h-4 w-4 text-primary" />
-              <span className="text-sm text-muted-foreground">AI-powered IT documentation</span>
+              <Bot className="h-4 w-4 text-primary" />
+              <span className="text-sm text-muted-foreground">Agentic IT documentation</span>
             </div>
 
             <h1 className="text-6xl lg:text-8xl font-bold tracking-tight mb-6 leading-none">
@@ -200,7 +202,7 @@ export function LandingPage() {
             </h1>
             
             <p className="text-xl lg:text-2xl text-muted-foreground max-w-3xl mb-4 leading-relaxed">
-              TrustDoc is the documentation platform engineered for <strong className="text-foreground">MSPs and IT teams</strong> — combining a knowledge graph, AI, and governance to deliver audit-ready documentation at scale.
+              Trust Doc is the documentation platform for <strong className="text-foreground">MSPs and IT teams</strong> — with expert agent skills, NIST templates, and governance to deliver audit-ready infrastructure documentation.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 mt-12">
@@ -389,7 +391,7 @@ export function LandingPage() {
           <div className="max-w-3xl mx-auto text-center">
             <Card className="glass-card border-2 border-primary/20 bg-gradient-to-br from-card to-card/50">
               <CardHeader className="space-y-6 pb-8">
-                <Sparkles className="h-16 w-16 mx-auto text-primary" />
+                <Bot className="h-16 w-16 mx-auto text-primary" />
                 <CardTitle className="text-4xl lg:text-5xl">
                   Ready to get started?
                 </CardTitle>
@@ -425,8 +427,10 @@ export function LandingPage() {
           <div className="max-w-6xl mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-center mb-12">
               <div className="flex items-center gap-2 mb-4 md:mb-0">
-                <FileText className="h-6 w-6 text-primary" />
-                <span className="text-xl font-semibold">TrustDoc</span>
+                <div className="flex h-6 w-6 items-center justify-center rounded trust-gradient">
+                  <Shield className="h-3 w-3 text-white" />
+                </div>
+                <span className="text-xl font-semibold">Trust Doc</span>
               </div>
               <div className="flex items-center gap-6">
                 <button onClick={scrollToPlatform} className="text-sm text-muted-foreground hover:text-primary transition-colors">
@@ -448,7 +452,7 @@ export function LandingPage() {
             </div>
             
             <div className="pt-8 border-t border-border/40 text-center text-sm text-muted-foreground">
-              © 2025 TrustDoc Inc. | Privacy | Terms | DPA | Status
+              © 2025 Trust Doc Inc. | Privacy | Terms | DPA | Status
             </div>
           </div>
         </div>
