@@ -5,97 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.0] - Trust Doc
 
-### Added - Phase 1: Authentication & Authorization
-- Azure AD B2C authentication integration
-- JWT token validation middleware
-- Authentication routes (`/api/auth/me`, `/api/auth/logout`, `/api/auth/verify`)
-- Frontend AuthProvider with MSAL integration
-- ProtectedRoute component for route protection
-- Login/Logout UI in sidebar
-- User profile dropdown with logout functionality
-
-### Added - Phase 2: Multi-Tenancy
-- Tenant and TenantMember models in database schema
-- Tenant middleware for request isolation
-- Tenant-based data filtering in all routes
-- Tenant management API (`/api/tenants`)
-- Tenant selector/switcher component in frontend
-- Tenant store for state management
-- Multi-tenant document isolation
-- Role-based access control per tenant (OWNER, ADMIN, MEMBER, VIEWER)
-
-### Changed
-- Updated README.md with new authentication and multi-tenancy features
-- Extended user schema with Azure AD fields (`azureId`, `azureOID`)
-- Documents, Templates, and Conversations now tenant-aware
-- All document routes require tenant context
-
-### Fixed
-- Fixed Azure SQL Server firewall error handling
-- Improved error messages for database connection issues
-- Fixed CORS configuration for better frontend-backend communication
-- Fixed missing `authLimiter` import in backend index.ts
-
-### Dependencies
-- Backend: Added `jsonwebtoken`, `jwks-rsa`, `@types/jsonwebtoken`
-- Frontend: Added `@azure/msal-browser`, `@azure/msal-react`
-
-### Documentation
-- Created `docs/PHASE_1_2_IMPLEMENTATION.md` with detailed implementation guide
-- Updated `docs/TROUBLESHOOTING.md` with database connection issues
-- Added authentication and multi-tenancy sections to README
-
-## [1.0.0] - 2025-01-XX
+Complete reboot of the product as **Trust Doc**: a focused, modern IT documentation tool with an
+agentic, rule-based AI instead of a chat bot.
 
 ### Added
-- Initial project setup
-- Document management (CRUD)
-- AI chat assistant with Azure OpenAI
-- File upload functionality
-- GitHub integration
-- Template system
-- Rich text editor (TipTap)
-- Dark mode support
-- Analytics dashboard
+- **Agent skill engine** (`backend/src/agent/`): deterministic, traceable skills with persisted
+  run history (steps, findings, actions)
+  - *Coverage Analysis* - finds assets with missing required documentation, optional auto-fix
+  - *Health Audit* - checks required sections, placeholders, substance and review freshness
+  - *Asset Doc Generator* - generates structured drafts pre-filled from the inventory
+- **Expert knowledge base** (`backend/src/agent/knowledge.ts`): required sections per document
+  category, review intervals, coverage rules per asset type, document skeleton generator
+- **Infrastructure inventory**: lightweight asset management (servers, network, storage,
+  applications) feeding the agent
+- **Review workflow**: "Mark reviewed" resets the freshness clock; the agent flags stale
+  documents as "Needs review"
+- **New design system**: indigo-based theme, dark sidebar, Inter typeface, light/dark mode
+- SQLite for zero-config development; seed script with a realistic demo environment
 
----
+### Removed
+- AI chat bot (ChatSidebar, GlobalChat, conversations, Azure OpenAI streaming)
+- Feature overload: password vault, contracts, customer portals, process recordings, network
+  discovery, knowledge graph, compliance module, automation queue, GitHub import, file uploads,
+  multi-tenancy, Azure AD authentication
+- Legacy frontends (`frontend-old/`, `legacy/`) and stale setup/deployment guides
 
-## Upgrade Instructions
+### Changed
+- Backend reduced to a focused API: documents, assets, agent, stats
+- Frontend rebuilt with 6 pages: Dashboard, Documents, Document editor, Infrastructure, Agent,
+  Settings
+- Frontend dependencies cut from ~50 to ~20 packages
 
-### For Phase 1 & 2 Implementation
+## [1.0.0] - 2025-01
 
-1. **Install new dependencies:**
-   ```bash
-   cd backend && npm install jsonwebtoken jwks-rsa @types/jsonwebtoken
-   cd ../frontend && npm install @azure/msal-browser @azure/msal-react
-   ```
-
-2. **Run Prisma migrations:**
-   ```bash
-   cd backend
-   npx prisma migrate dev --name add_azure_ad_fields
-   npx prisma migrate dev --name add_multi_tenancy
-   npx prisma generate
-   ```
-
-3. **Configure environment variables:**
-   - Backend `.env`: Add `AZURE_TENANT_ID` and `AZURE_CLIENT_ID`
-   - Frontend `.env`: Add `VITE_AZURE_CLIENT_ID` and `VITE_AZURE_TENANT_ID`
-
-4. **Restart backend and frontend**
-
----
-
-## Migration Notes
-
-### Breaking Changes
-- All document endpoints now require `X-Tenant-ID` or `X-Tenant-Slug` header
-- Authentication required for most endpoints
-- Document creation requires authenticated user context
-
-### Deprecations
-- Old password-based authentication (replaced by Azure AD B2C)
-- Non-tenant-aware endpoints (all endpoints now tenant-aware)
-
+### Added
+- Initial project setup (IT-Doku): document management, AI chat assistant, file upload,
+  GitHub integration, template system, TipTap editor, dark mode, analytics dashboard

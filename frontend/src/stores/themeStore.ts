@@ -1,21 +1,21 @@
 ﻿import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-type Theme = 'light' | 'dark' | 'system'
+type Theme = 'light' | 'dark'
 
-interface ThemeStore {
+interface ThemeState {
   theme: Theme
   setTheme: (theme: Theme) => void
+  toggle: () => void
 }
 
-export const useThemeStore = create<ThemeStore>()(
+export const useThemeStore = create<ThemeState>()(
   persist(
     (set) => ({
       theme: 'light',
       setTheme: (theme) => set({ theme }),
+      toggle: () => set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })),
     }),
-    {
-      name: 'theme-storage',
-    }
+    { name: 'trustdoc-theme' }
   )
 )

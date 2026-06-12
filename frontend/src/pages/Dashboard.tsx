@@ -1,396 +1,250 @@
-﻿import { useState } from 'react'
-import { useSidebarStore } from '@/stores/sidebarStore'
-import { DocumentsChart } from '@/features/dashboard/components/DocumentsChart'
-import { StorageChart } from '@/features/dashboard/components/StorageChart'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+﻿import { useQuery } from '@tanstack/react-query'
+import { ArrowRight, Bot, FileText, Gauge, Server, TimerReset } from 'lucide-react'
+import { api } from '@/lib/api'
+import { cn, timeAgo } from '@/lib/utils'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { toast } from 'sonner'
-import { Plus, MessageSquare, FileText, Zap, Database, ShieldCheck } from 'lucide-react'
-import { useDocuments } from '@/hooks/useDocuments'
-import { useTemplates } from '@/hooks/useTemplates'
-import { useAnalytics } from '@/hooks/useAnalytics'
-import { TemplateForm } from '@/components/TemplateForm'
+import { Skeleton } from '@/components/ui/skeleton'
+import { CategoryBadge, StatusBadge } from '@/components/badges'
+import { navigate } from '@/lib/navigation'
 
 export function Dashboard() {
-  const [newDocDialog, setNewDocDialog] = useState(false)
-  const [templatesDialog, setTemplatesDialog] = useState(false)
-  const [selectedTemplate, setSelectedTemplate] = useState<any>(null)
-  const [templateFormOpen, setTemplateFormOpen] = useState(false)
-  const [newDocTitle, setNewDocTitle] = useState('')
-  const [newDocCategory, setNewDocCategory] = useState('DOCUMENTATION')
-  const { toggleChat } = useSidebarStore()
-  const { documents, createDocument, refetch } = useDocuments()
-  const { templates, loading: templatesLoading, useTemplate, seedTemplates } = useTemplates()
-  const { data: analyticsData } = useAnalytics()
+  const { data: stats, isLoading: statsLoading } = useQuery({ queryKey: ['stats'], queryFn: api.stats })
+  const { data: documents, isLoading: docsLoading } = useQuery({
+    queryKey: ['documents'],
+    queryFn: () => api.documents.list(),
+  })
 
-  const systemMetrics = analyticsData?.system
-  const automationMetrics = analyticsData?.automation
-  const centralizeMetrics = analyticsData?.centralize
-  const complyMetrics = analyticsData?.comply
-
-  const handleNewDocument = async () => {
-    if (!newDocTitle.trim() || !newDocCategory) {
-      toast.error('Please fill in all fields')
-      return
-    }
-
-    try {
-      await createDocument({
-        title: newDocTitle,
-        category: newDocCategory,
-        content: ''
-      })
-      setNewDocDialog(false)
-      setNewDocTitle('')
-      setNewDocCategory('DOCUMENTATION')
-      await refetch()
-    } catch (error) {
-      // handled in hook
-    }
-  }
-
-  const recentDocuments = [...documents]
-    .sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime())
-    .slice(0, 5)
-
-  const formatTimeAgo = (date: Date) => {
-    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000)
-    const minutes = Math.floor(seconds / 60)
-    const hours = Math.floor(minutes / 60)
-    const days = Math.floor(hours / 24)
-
-    if (days > 0) return `${days} day${days > 1 ? 's' : ''} ago`
-    if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`
-    if (minutes > 0) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`
-    return 'Just now'
-  }
-
-  const handleAskAI = () => {
-    toggleChat()
-    toast.info('AI Chat opened!')
-  }
+  const recent = (documents ?? []).slice(0, 6)
+  const coverage = stats?.coverage
+  const lastRun = stats?.lastAgentRun
 
   return (
-    <div className='space-y-6'>
-      <div className='flex items-center justify-between'>
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className='text-3xl font-bold tracking-tight'>Welcome back, Driss!</h2>
-          <p className='text-muted-foreground'>Operational insights aligned with Automate · Centralize · Comply.</p>
+          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            The current state of your IT documentation, kept honest by the agent.
+          </p>
         </div>
-        <div className='flex items-center gap-2'>
-          <div className='flex items-center gap-2 rounded-full bg-green-500/10 px-3 py-1.5 text-xs font-medium text-green-600 dark:text-green-400'>
-            <div className='h-2 w-2 animate-pulse rounded-full bg-green-500'></div>
-            Live Updates
-          </div>
-        </div>
+        <Button onClick={() => navigate('agent')}>
+          <Bot className="h-4 w-4" />
+          Run the agent
+        </Button>
       </div>
 
-      <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
-        <Card>
-          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-            <CardTitle className='text-sm font-medium'>Documents</CardTitle>
-            <span className='text-2xl'>📁</span>
-          </CardHeader>
-          <CardContent>
-            <div className='text-2xl font-bold'>{systemMetrics?.totalDocuments ?? documents.length}</div>
-            <p className='text-xs text-muted-foreground'>{templates.length} templates available</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-            <CardTitle className='text-sm font-medium'>Automation Completion</CardTitle>
-            <Zap className='h-5 w-5 text-primary' />
-          </CardHeader>
-          <CardContent>
-            <div className='text-2xl font-bold'>{automationMetrics?.jobs.completionRate ?? 0}%</div>
-            <p className='text-xs text-muted-foreground'>Jobs completed in the last 7 days</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-            <CardTitle className='text-sm font-medium'>Assistant Queries</CardTitle>
-            <Database className='h-5 w-5 text-primary' />
-          </CardHeader>
-          <CardContent>
-            <div className='text-2xl font-bold'>{centralizeMetrics?.assistant.totalQueries ?? 0}</div>
-            <p className='text-xs text-muted-foreground'>Questions handled in the last 7 days</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-            <CardTitle className='text-sm font-medium'>Open Findings</CardTitle>
-            <ShieldCheck className='h-5 w-5 text-primary' />
-          </CardHeader>
-          <CardContent>
-            <div className='text-2xl font-bold'>
-              {complyMetrics?.findings.openBySeverity.reduce((sum, item) => sum + item.count, 0) ?? 0}
-            </div>
-            <p className='text-xs text-muted-foreground'>Across all severities</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className='grid gap-4 md:grid-cols-2'>
-        <DocumentsChart />
-        <StorageChart />
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>Get started with core workflows</CardDescription>
-        </CardHeader>
-        <CardContent className='flex gap-2 flex-wrap'>
-          <Button onClick={() => setNewDocDialog(true)}>
-            <Plus className='mr-2 h-4 w-4' />
-            New Document
-          </Button>
-          <Button variant='outline' onClick={handleAskAI}>
-            <MessageSquare className='mr-2 h-4 w-4' />
-            Ask AI
-          </Button>
-          <Button variant='outline' onClick={() => setTemplatesDialog(true)}>
-            <FileText className='mr-2 h-4 w-4' />
-            View Templates
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>Latest updates to your documentation</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className='space-y-4'>
-            {recentDocuments.length === 0 ? (
-              <div className='py-8 text-center text-sm text-muted-foreground'>No recent activity</div>
-            ) : (
-              recentDocuments.map((doc) => {
-                const updatedDate = new Date(doc.updatedAt || doc.createdAt)
-                const isRecentlyUpdated = doc.updatedAt && new Date(doc.updatedAt).getTime() !== new Date(doc.createdAt).getTime()
-
-                return (
-                  <div
-                    key={doc.id}
-                    className='flex items-start gap-4 rounded-lg p-3 transition-colors hover:bg-accent cursor-pointer'
-                    onClick={() => {
-                      window.location.hash = `document/${doc.id}`
-                    }}
-                  >
-                    <div className='rounded-full bg-muted p-2 text-blue-500'>
-                      <FileText className='h-4 w-4' />
-                    </div>
-                    <div className='flex-1 space-y-1'>
-                      <p className='text-sm font-medium leading-none'>
-                        {isRecentlyUpdated ? `${doc.title} Updated` : `${doc.title} Created`}
-                      </p>
-                      <p className='text-xs text-muted-foreground'>
-                        {formatTimeAgo(updatedDate)} · {doc.category}
-                      </p>
-                    </div>
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      className='h-8 text-xs'
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        window.location.hash = `document/${doc.id}`
-                      }}
-                    >
-                      View
-                    </Button>
-                  </div>
-                )
-              })
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Dialog open={newDocDialog} onOpenChange={setNewDocDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create New Document</DialogTitle>
-            <DialogDescription>Start a new documentation document from scratch</DialogDescription>
-          </DialogHeader>
-          <div className='space-y-4 py-4'>
-            <div className='space-y-2'>
-              <Label htmlFor='doc-title'>Document Title</Label>
-              <Input
-                id='doc-title'
-                placeholder='e.g. Server Configuration'
-                value={newDocTitle}
-                onChange={(e) => setNewDocTitle(e.target.value)}
-              />
-            </div>
-            <div className='space-y-2'>
-              <Label htmlFor='doc-category'>Category</Label>
-              <Select value={newDocCategory} onValueChange={setNewDocCategory}>
-                <SelectTrigger id='doc-category'>
-                  <SelectValue placeholder='Select a category' />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value='DOCUMENTATION'>Documentation</SelectItem>
-                  <SelectItem value='CODE_ANALYSIS'>Code Analysis</SelectItem>
-                  <SelectItem value='TEMPLATE'>Template</SelectItem>
-                  <SelectItem value='KNOWLEDGE_BASE'>Knowledge Base</SelectItem>
-                  <SelectItem value='MEETING_NOTES'>Meeting Notes</SelectItem>
-                  <SelectItem value='TUTORIAL'>Tutorial</SelectItem>
-                  <SelectItem value='API_SPEC'>API Specification</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className='flex justify-end gap-2'>
-            <Button variant='outline' onClick={() => setNewDocDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleNewDocument}>Create Document</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={templatesDialog} onOpenChange={setTemplatesDialog}>
-        <DialogContent className='max-w-4xl max-h-[80vh] overflow-y-auto'>
-          <DialogHeader>
-            <div className='flex items-center justify-between'>
-              <div>
-                <DialogTitle>Document Templates</DialogTitle>
-                <DialogDescription>Choose a template to create a new document quickly</DialogDescription>
-              </div>
-              <div className='flex gap-2'>
-                <Button
-                  variant='outline'
-                  size='sm'
-                  onClick={async () => {
-                    try {
-                      await seedTemplates(false)
-                    } catch (error) {}
-                  }}
-                >
-                  Seed Templates
-                </Button>
-                <Button
-                  variant='destructive'
-                  size='sm'
-                  onClick={async () => {
-                    if (confirm('Bestehende Templates werden ersetzt. Fortfahren?')) {
-                      try {
-                        await seedTemplates(true)
-                      } catch (error) {}
-                    }
-                  }}
-                >
-                  Neu Seed (Force)
-                </Button>
-              </div>
-            </div>
-          </DialogHeader>
-          {templatesLoading ? (
-            <div className='flex items-center justify-center py-8'>
-              <div className='text-lg'>Loading templates...</div>
-            </div>
-          ) : templates.length === 0 ? (
-            <div className='flex flex-col items-center justify-center space-y-4 py-8'>
-              <p className='text-muted-foreground'>No templates available</p>
-              <div className='flex gap-2'>
-                <Button
-                  variant='outline'
-                  onClick={async () => {
-                    try {
-                      await seedTemplates(false)
-                    } catch (error) {}
-                  }}
-                >
-                  Seed Templates
-                </Button>
-                <Button
-                  variant='destructive'
-                  onClick={async () => {
-                    if (confirm('Bestehende Templates werden ersetzt. Alle 11 Templates werden erstellt. Fortfahren?')) {
-                      try {
-                        await seedTemplates(true)
-                      } catch (error) {}
-                    }
-                  }}
-                >
-                  Neu Seed (Force)
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className='grid gap-4 py-4 md:grid-cols-2 lg:grid-cols-3'>
-              {templates.map((template) => (
-                <Card
-                  key={template.id}
-                  className='cursor-pointer transition-colors hover:border-primary'
-                  onClick={() => {
-                    setSelectedTemplate(template)
-                    setTemplateFormOpen(true)
-                    setTemplatesDialog(false)
-                  }}
-                >
-                  <CardHeader>
-                    <CardTitle className='flex items-center gap-2 text-base'>
-                      {template.isNistCompliant && (
-                        <Badge variant='default' className='text-xs'>NIST</Badge>
-                      )}
-                      {template.name}
-                    </CardTitle>
-                    <CardDescription className='text-xs line-clamp-2'>
-                      {template.description || 'No description'}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className='pt-0'>
-                    <div className='flex items-center justify-between text-xs text-muted-foreground'>
-                      <span>{template.category}</span>
-                      <span>{template.usageCount} uses</span>
-                    </div>
-                    {template.nistFramework && (
-                      <Badge variant='outline' className='mt-2 text-xs'>
-                        {template.nistFramework}
-                      </Badge>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {selectedTemplate && (
-        <TemplateForm
-          template={selectedTemplate}
-          open={templateFormOpen}
-          onClose={() => {
-            setTemplateFormOpen(false)
-            setSelectedTemplate(null)
-          }}
-          onSubmit={async (title, customFields) => {
-            try {
-              const document = await useTemplate(selectedTemplate.id, title, customFields)
-              if (document?.id) {
-                window.location.hash = `document/${document.id}`
-              }
-              toast.success(`Dokument "${title}" erfolgreich erstellt!`)
-            } catch (error) {
-              throw error
-            }
-          }}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          title="Documents"
+          icon={FileText}
+          loading={statsLoading}
+          value={stats ? String(stats.documents.total) : ''}
+          hint={stats ? `${stats.documents.byStatus.PUBLISHED ?? 0} published` : ''}
+          onClick={() => navigate('documents')}
         />
+        <KpiCard
+          title="Coverage"
+          icon={Gauge}
+          loading={statsLoading}
+          value={coverage ? `${coverage.percent}%` : ''}
+          hint={coverage ? `${coverage.covered} of ${coverage.required} required docs` : ''}
+          tone={coverage && coverage.percent < 70 ? 'warning' : 'default'}
+          onClick={() => navigate('agent')}
+        />
+        <KpiCard
+          title="Stale documents"
+          icon={TimerReset}
+          loading={statsLoading}
+          value={stats ? String(stats.documents.stale) : ''}
+          hint="past their review interval"
+          tone={stats && stats.documents.stale > 0 ? 'destructive' : 'default'}
+          onClick={() => navigate('documents')}
+        />
+        <KpiCard
+          title="Assets"
+          icon={Server}
+          loading={statsLoading}
+          value={stats ? String(stats.assets.total) : ''}
+          hint="in the inventory"
+          onClick={() => navigate('infrastructure')}
+        />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-5">
+        <Card className="lg:col-span-3">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+            <CardTitle className="text-base">Recent documents</CardTitle>
+            <Button variant="ghost" size="sm" onClick={() => navigate('documents')}>
+              View all
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            {docsLoading &&
+              Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+            {!docsLoading && recent.length === 0 && (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                No documents yet. Let the agent generate the first drafts from your inventory.
+              </p>
+            )}
+            {recent.map((doc) => (
+              <button
+                key={doc.id}
+                onClick={() => navigate(`document/${doc.id}`)}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-accent/60"
+              >
+                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{doc.title}</p>
+                  <p className="text-xs text-muted-foreground">Updated {timeAgo(doc.updatedAt)}</p>
+                </div>
+                <CategoryBadge category={doc.category} />
+                <StatusBadge status={doc.status} />
+              </button>
+            ))}
+          </CardContent>
+        </Card>
+
+        <div className="space-y-4 lg:col-span-2">
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base">Documentation coverage</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {statsLoading && <Skeleton className="h-24 w-full" />}
+              {coverage && (
+                <>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-bold tracking-tight">{coverage.percent}%</span>
+                    <span className="text-sm text-muted-foreground">
+                      of required documents exist
+                    </span>
+                  </div>
+                  <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-secondary">
+                    <div
+                      className={cn(
+                        'h-full rounded-full transition-all',
+                        coverage.percent >= 90
+                          ? 'bg-success'
+                          : coverage.percent >= 70
+                            ? 'bg-primary'
+                            : 'bg-warning'
+                      )}
+                      style={{ width: `${coverage.percent}%` }}
+                    />
+                  </div>
+                  <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+                    Based on expert rules: servers need system &amp; backup docs, firewalls need
+                    network &amp; security docs, critical assets need runbooks.
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base">Last agent run</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {statsLoading && <Skeleton className="h-16 w-full" />}
+              {!statsLoading && !lastRun && (
+                <p className="text-sm text-muted-foreground">
+                  The agent has not run yet. Start with a coverage analysis to see where
+                  documentation is missing.
+                </p>
+              )}
+              {lastRun && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold">{lastRun.skillName}</span>
+                    <StatusBadge status={lastRun.status} />
+                  </div>
+                  <p className="text-sm leading-relaxed text-muted-foreground">{lastRun.summary}</p>
+                  <p className="text-xs text-muted-foreground">{timeAgo(lastRun.createdAt)}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {stats && Object.keys(stats.documents.byCategory).length > 0 && (
+        <Card>
+          <CardHeader className="pb-4">
+            <CardTitle className="text-base">Library by category</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(stats.documents.byCategory)
+                .sort((a, b) => b[1] - a[1])
+                .map(([category, count]) => (
+                  <div
+                    key={category}
+                    className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2"
+                  >
+                    <CategoryBadge category={category} />
+                    <span className="text-sm font-semibold">{count}</span>
+                  </div>
+                ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   )
 }
 
-export default Dashboard
+function KpiCard({
+  title,
+  icon: Icon,
+  value,
+  hint,
+  loading,
+  tone = 'default',
+  onClick,
+}: {
+  title: string
+  icon: React.ComponentType<{ className?: string }>
+  value: string
+  hint: string
+  loading?: boolean
+  tone?: 'default' | 'warning' | 'destructive'
+  onClick?: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="rounded-lg border bg-card p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-[13px] font-medium text-muted-foreground">{title}</span>
+        <Icon
+          className={cn(
+            'h-4 w-4',
+            tone === 'warning'
+              ? 'text-warning'
+              : tone === 'destructive'
+                ? 'text-destructive'
+                : 'text-muted-foreground'
+          )}
+        />
+      </div>
+      {loading ? (
+        <Skeleton className="mt-2 h-8 w-16" />
+      ) : (
+        <p
+          className={cn(
+            'mt-1.5 text-2xl font-bold tracking-tight',
+            tone === 'warning' && 'text-warning',
+            tone === 'destructive' && value !== '0' && 'text-destructive'
+          )}
+        >
+          {value}
+        </p>
+      )}
+      <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
+    </button>
+  )
+}
