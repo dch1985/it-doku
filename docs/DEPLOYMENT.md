@@ -85,6 +85,47 @@ npx prisma generate
 
 ---
 
+## Automation Worker & Queue Runbook
+
+Die Automations-Pipeline (`/api/automation/*`) unterstützt drei Betriebsarten, gesteuert über Umgebungsvariablen:
+
+| Zielbild | `AUTOMATION_RUN_IMMEDIATE` | `AUTOMATION_QUEUE_AUTORUN` | `AUTOMATION_QUEUE_PROVIDER` | Hinweise |
+|---|---:|---:|---|---|
+| **Lokale schnelle Tests** | `true` | `false` | `memory` | Jobs werden beim Erstellen direkt im API-Prozess ausgeführt. |
+| **Queue-Flow im gleichen Prozess** | `false` | `true` | `memory` | Queue ist pro Prozess; geeignet für Demo/Entwicklung in einem Backend-Prozess. |
+| **Entkoppelter Worker-Betrieb** | `false` | `true` | `servicebus` | API publiziert, Worker konsumiert über Azure Service Bus. |
+
+### Wichtige Einschränkung
+
+Der `memory`-Provider ist **prozesslokal**. Wenn API und Worker in getrennten Prozessen laufen, werden Nachrichten nicht geteilt. Für echtes asynchrones Producer/Consumer-Verhalten zwischen Prozessen `servicebus` verwenden.
+
+### Worker-Befehle
+
+```bash
+cd backend
+
+# Einzelnen Job manuell ausführen
+npm run automation:job -- <jobId>
+
+# Dauerhafter Worker (Queue-Listener)
+npm run automation:worker
+```
+
+### Minimaler Health-Check nach Deploy (Automate/Centralize/Comply)
+
+```bash
+# 1) API erreichbar?
+curl https://<backend-host>/api/health
+
+# 2) KPI-API (tenant-aware)
+curl -H "X-Tenant-ID: <tenant-id>" https://<backend-host>/api/analytics
+
+# 3) Search-API (validiert q streng)
+curl -H "X-Tenant-ID: <tenant-id>" "https://<backend-host>/api/search?q=runbook&type=documents"
+```
+
+---
+
 ## Post-Deployment
 
 1. Test authentication flow
@@ -92,5 +133,7 @@ npx prisma generate
 3. Test document CRUD operations
 4. Monitor error logs
 5. Set up Application Insights (optional)
-6. (Optional) Automationsjobs testen: `npm run automation:job -- <jobId>` oder Worker starten (`npm run automation:worker`).
+6. Automationsjobs testen: Job via `/api/automation/jobs` anlegen und Status-Übergänge (`PENDING` → `RUNNING` → `COMPLETED|FAILED`) prüfen.
+7. Compliance-Check gegen ein Testdokument ausführen: `POST /api/compliance/quality/check`.
+8. Global Search validieren: `/api/search?q=<term>` mit und ohne `type=knowledge`.
 
