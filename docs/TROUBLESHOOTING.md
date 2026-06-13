@@ -111,7 +111,8 @@ router.get('/', async (req: Request, res: Response) => {
 ## Weitere häufige Probleme
 
 ### Backend läuft nicht
-- Prüfe ob Port 3001 frei ist: `netstat -ano | findstr :3001`
+- Prüfe den konfigurierten Port (`PORT` in `backend/.env`, Standard in `env.sample`: `3002`).
+- Linux/macOS Portcheck: `ss -ltnp | rg 3002`
 - Starte Backend: `cd backend && npm run dev`
 
 ### Frontend kann Backend nicht erreichen
@@ -123,4 +124,103 @@ router.get('/', async (req: Request, res: Response) => {
 - Prüfe `DATABASE_URL` in `backend/.env`
 - Führe Prisma Migrationen aus: `npx prisma migrate dev`
 - Generiere Prisma Client: `npx prisma generate`
+
+---
+
+## Automate / Centralize / Comply - typische Stolperfallen
+
+### Problem: Automationsjobs bleiben auf `PENDING`
+
+**Symptom:**
+- `GET /api/automation/jobs` zeigt dauerhaft `PENDING`.
+
+**Häufige Ursache:**
+- `AUTOMATION_RUN_IMMEDIATE=false` **und** `AUTOMATION_QUEUE_AUTORUN=false`.
+- Oder: `AUTOMATION_QUEUE_PROVIDER=memory` bei getrennten API-/Worker-Prozessen (prozesslokale Queue).
+
+**Lösung:**
+1. Für lokale Direktverarbeitung: `AUTOMATION_RUN_IMMEDIATE=true`.
+2. Für Queue-basierten Betrieb über Prozessgrenzen: `AUTOMATION_QUEUE_PROVIDER=servicebus` + Azure Service Bus Variablen setzen.
+3. Einzeljob manuell verarbeiten:
+   ```bash
+   cd backend
+   npm run automation:job -- <jobId>
+   ```
+
+### Problem: `PATCH /api/automation/connectors/:id` liefert 403
+
+**Symptom:**
+- Fehlermeldung wie `Globale Connectoren können nicht angepasst werden`.
+
+**Ursache:**
+- Globaler Connector (`tenantId == null`) wird tenantseitig geändert.
+
+**Lösung:**
+- Nur tenant-lokale Connectoren toggeln.
+- Im UI sind globale Connectoren bewusst als read-only markiert.
+
+### Problem: Search liefert `Validation failed`
+
+**Symptom:**
+- `Query parameter "q" is required` oder `Query cannot be empty`.
+
+**Ursache:**
+- `GET /api/search` wurde ohne `q` oder mit leerem Query aufgerufen.
+
+**Lösung (Beispiel):**
+```bash
+curl -H "X-Tenant-ID: <tenant-id>" \
+  "http://localhost:3002/api/search?q=backup&type=knowledge&limit=10"
+```
+
+### Problem: Knowledge Node kann nicht aktualisiert/gelöscht werden (`403`)
+
+**Symptom:**
+- `Zugriff verweigert` oder `Zugriff auf das Dokument ist nicht erlaubt`.
+
+**Ursache:**
+- Node oder zugeordnetes Dokument gehört zu einem anderen Tenant.
+
+**Lösung:**
+- Korrektes `X-Tenant-ID` senden.
+- Bei `documentId` prüfen, ob das Ziel-Dokument im gleichen Tenant liegt.
+
+### Problem: Quality Check / Findings-Update schlägt fehl
+
+**Symptom:**
+- `documentId ist erforderlich` bei `/api/compliance/quality/check`
+- oder `Keine Änderungen angegeben` bei `PATCH /api/compliance/quality/findings/:id`
+
+**Ursache:**
+- Pflichtfelder fehlen.
+- Finding-Update ohne `action` (`RESOLVE`/`REOPEN`) oder ohne geänderte `resolution`.
+
+**Lösung:**
+```bash
+# Quality Check
+curl -X POST http://localhost:3002/api/compliance/quality/check \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: <tenant-id>" \
+  -d '{"documentId":"<doc-id>"}'
+
+# Finding schließen
+curl -X PATCH http://localhost:3002/api/compliance/quality/findings/<finding-id> \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: <tenant-id>" \
+  -d '{"action":"RESOLVE","resolution":"Owner ergänzt"}'
+```
+
+### Problem: Review-Status wird abgelehnt
+
+**Symptom:**
+- `Ungültiger Review-Status: ...` bei `PATCH /api/compliance/reviews/:id`.
+
+**Erlaubte Statuswerte:**
+- `PENDING`
+- `APPROVED`
+- `REJECTED`
+- `CHANGES_REQUESTED`
+
+**Lösung:**
+- Nur diese vier Statuswerte senden und optional `comments` ergänzen.
 

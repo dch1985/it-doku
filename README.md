@@ -120,7 +120,7 @@ npm run dev
 
 The application will be available at:
 - Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:3001`
+- Backend API: `http://localhost:3002` (Standard aus `backend/env.sample`)
 
 ---
 
@@ -166,44 +166,132 @@ it-doku/
 
 ---
 
-## 🔌 API Endpoints
+## 🔌 API Endpoints (aktueller Stand)
 
-### Authentication
-- `GET /api/auth/me` - Get current authenticated user
-- `POST /api/auth/logout` - Logout
-- `GET /api/auth/verify` - Verify token
+### System
+- `GET /api/health` - Runtime- und Konfigurationsstatus
+- `GET /api/docs` - Kompakte API-Übersicht
 
-### Tenants
-- `GET /api/tenants` - List user's tenants
-- `GET /api/tenants/:id` - Get tenant details
-- `POST /api/tenants` - Create new tenant
-- `PATCH /api/tenants/:id` - Update tenant (OWNER/ADMIN only)
+### Authentication & Tenants
+- `GET /api/auth/me`
+- `POST /api/auth/logout`
+- `GET /api/auth/verify`
+- `GET /api/tenants`
+- `GET /api/tenants/:id`
+- `POST /api/tenants`
+- `PATCH /api/tenants/:id`
 
-### Documents
-- `GET /api/documents` - List all documents (filtered by tenant)
-- `GET /api/documents/:id` - Get document by ID
-- `POST /api/documents` - Create new document
-- `PUT /api/documents/:id` - Update document
-- `DELETE /api/documents/:id` - Delete document
+### Documentation Core
+- `GET|POST|PUT|DELETE /api/documents[...]` - Dokument-Lifecycle
+- `GET /api/templates`, `GET /api/templates/:id`
+- `POST /api/upload`, `GET /api/upload/document/:documentId`, `GET|DELETE /api/upload/:id`
+- `POST /api/chat`
+- `GET /api/github/repos/:username`, `GET /api/github/readme/:owner/:repo`
 
-> **Note:** All document endpoints require `X-Tenant-ID` or `X-Tenant-Slug` header for tenant isolation.
+### Automate (Connectoren, Jobs, Vorschläge)
+- `GET|POST /api/automation/connectors`
+- `PATCH /api/automation/connectors/:id` (nur tenant-lokale Connectoren)
+- `GET|POST /api/automation/jobs`
+- `GET /api/automation/jobs/:id`
+- `POST /api/automation/jobs/:id/retry`
+- `POST /api/automation/jobs/:id/cancel`
+- `POST /api/automation/jobs/:id/approve`
+- `GET /api/automation/suggestions`
+- `PATCH /api/automation/suggestions/:id`
 
-### File Upload
-- `POST /api/upload` - Upload file attachment
-- `GET /api/upload/document/:documentId` - Get document attachments
-- `GET /api/upload/:id` - Download attachment
-- `DELETE /api/upload/:id` - Delete attachment
+### Centralize (Assistant, Knowledge, Search)
+- `GET /api/assistant/conversations`
+- `POST /api/assistant/query`
+- `GET /api/assistant/traces`
+- `GET|POST /api/knowledge`
+- `PATCH|DELETE /api/knowledge/:id`
+- `GET /api/search?q=<query>[&type=documents|knowledge][&limit=<n>]`
 
-### AI Chat
-- `POST /api/chat` - Send message to AI assistant
+### Comply (Schemas, Findings, Reviews, Traceability)
+- `GET|POST /api/compliance/schemas`
+- `GET|POST /api/compliance/annotations`
+- `GET|POST /api/compliance/trace-links`
+- `GET /api/compliance/quality/findings`
+- `PATCH /api/compliance/quality/findings/:id` (`RESOLVE` / `REOPEN`)
+- `POST /api/compliance/quality/check`
+- `GET|POST /api/compliance/reviews`
+- `PATCH /api/compliance/reviews/:id`
 
-### GitHub Integration
-- `GET /api/github/repos/:username` - List user repositories
-- `GET /api/github/readme/:owner/:repo` - Get repository README
+### Analytics
+- `GET /api/analytics` - KPI-Block für Automate/Centralize/Comply
 
-### Templates
-- `GET /api/templates` - List all templates (tenant-aware)
-- `GET /api/templates/:id` - Get template by ID
+### Mandanten-/Kontextregeln (wichtig)
+- Für tenant-abhängige Daten immer `X-Tenant-ID` setzen.
+- In `development` mit `DEV_AUTH_ENABLED=true` nutzt das Backend den Dev-Auth-Flow; produktiv ist reguläre Authentifizierung erforderlich.
+- `GET /api/search` validiert `q` streng (Pflichtfeld, nicht leer).
+
+---
+
+## 🧭 Operational Runbooks (Automate / Centralize / Comply)
+
+### 1) Automate: Job starten und kontrolliert abarbeiten
+
+```bash
+# Job erzeugen (Intent + optional Dokument/Connector)
+curl -X POST http://localhost:3002/api/automation/jobs \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: <tenant-id>" \
+  -d '{"intent":"UPDATE","documentId":"<doc-id>","title":"Weekly refresh"}'
+
+# Status prüfen
+curl -H "X-Tenant-ID: <tenant-id>" http://localhost:3002/api/automation/jobs
+```
+
+Wenn `AUTOMATION_RUN_IMMEDIATE=false` und `AUTOMATION_QUEUE_AUTORUN=false`, bleiben Jobs auf `PENDING`, bis sie manuell verarbeitet werden:
+
+```bash
+cd backend
+npm run automation:job -- <jobId>
+```
+
+### 2) Centralize: Knowledge Node + suchbare Wissensabdeckung
+
+```bash
+# Node anlegen (optional dokumentgebunden)
+curl -X POST http://localhost:3002/api/knowledge \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: <tenant-id>" \
+  -d '{"type":"PROCESS","content":"Patch windows monthly","documentId":"<doc-id>"}'
+
+# Global Search über Dokumente + Knowledge Nodes
+curl -H "X-Tenant-ID: <tenant-id>" \
+  "http://localhost:3002/api/search?q=patch&type=knowledge&limit=10"
+```
+
+### 3) Comply: Qualitätsprüfung + Findings-Workflow
+
+```bash
+# Qualitätsprüfung ausführen
+curl -X POST http://localhost:3002/api/compliance/quality/check \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: <tenant-id>" \
+  -d '{"documentId":"<doc-id>"}'
+
+# Finding als gelöst markieren
+curl -X PATCH http://localhost:3002/api/compliance/quality/findings/<finding-id> \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: <tenant-id>" \
+  -d '{"action":"RESOLVE","resolution":"Owner section ergänzt"}'
+```
+
+### Queue-/Worker-Betrieb (Kurzfassung)
+
+```bash
+cd backend
+
+# Einzelnen Job manuell ausführen
+npm run automation:job -- <jobId>
+
+# Worker als Listener starten
+npm run automation:worker
+```
+
+Hinweis: Der `memory`-Provider ist pro Prozess. Für echtes asynchrones Queueing zwischen API-Prozess und Worker `AUTOMATION_QUEUE_PROVIDER=servicebus` mit gültigen Azure Service Bus Variablen setzen.
 
 ---
 
@@ -289,16 +377,3 @@ For support, email driss.chaouat@example.com or open an issue on GitHub.
 ---
 
 <p align="center">Made with ❤️ by Driss Chaouat</p>
-
-### Automation Queue & Worker
-
-```bash
-# Einzelnen Job manuell ausführen (Job-ID siehe /api/automation/jobs)
-cd backend
-npm run automation:job -- <jobId>
-
-# Länger laufender Worker (Platzhalter für zukünftigen Queue-Provider)
-npm run automation:worker
-```
-
-> Tipp: Für lokale Tests `AUTOMATION_RUN_IMMEDIATE=true` setzen. In produktiven Setups kann stattdessen eine echte Queue (z. B. Azure Service Bus mit `AUTOMATION_QUEUE_PROVIDER=servicebus`) angeschlossen werden.
