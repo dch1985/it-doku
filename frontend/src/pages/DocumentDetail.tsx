@@ -4,6 +4,7 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Link from '@tiptap/extension-link'
+import { TableKit } from '@tiptap/extension-table'
 import {
   ArrowLeft,
   Bot,
@@ -107,6 +108,7 @@ function Editor({
       StarterKit,
       Placeholder.configure({ placeholder: 'Start documenting…' }),
       Link.configure({ openOnClick: false }),
+      TableKit.configure({ table: { resizable: false } }),
     ],
     content: doc.content,
     editorProps: {
