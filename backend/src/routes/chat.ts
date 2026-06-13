@@ -1,21 +1,8 @@
-﻿import { Router, Request, Response } from 'express';
-import OpenAI from 'openai';
-import dotenv from 'dotenv';
-
-dotenv.config();
+import { Router, Request, Response } from 'express';
+import { llmGateway } from '../core/llm/gateway.js';
+import type { LlmMessage } from '../core/llm/types.js';
 
 const router = Router();
-
-// Azure OpenAI via OpenAI SDK
-const baseURL = (process.env.AZURE_OPENAI_ENDPOINT || '').replace(/\/$/, '') + 
-  '/openai/deployments/' + (process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4');
-
-const client = new OpenAI({
-  apiKey: process.env.AZURE_OPENAI_KEY!,
-  baseURL: baseURL,
-  defaultQuery: { 'api-version': process.env.AZURE_OPENAI_API_VERSION || '2024-02-01' },
-  defaultHeaders: { 'api-key': process.env.AZURE_OPENAI_KEY! },
-});
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -26,44 +13,45 @@ interface ChatRequest {
   messages: ChatMessage[];
 }
 
+const SYSTEM_PROMPT =
+  'Du bist ein hilfreicher IT-Dokumentations-Assistent. Du hilfst Benutzern bei der Erstellung und Verwaltung von ' +
+  'IT-Dokumentation, Server-Dokumentation, Netzwerk-Diagrammen und technischen Runbooks. Antworte praezise, ' +
+  'professionell und hilfreich auf Deutsch.';
+
 router.post('/', async (req: Request, res: Response) => {
   try {
     const { messages } = req.body as ChatRequest;
-    
-    console.log('[Chat] Received', messages.length, 'messages');
+    console.log('[Chat] Received', messages?.length ?? 0, 'messages');
+
+    if (!llmGateway.isConfigured()) {
+      return res.status(503).json({
+        error: 'LLM ist nicht konfiguriert',
+        message: 'Bitte AZURE_OPENAI_ENDPOINT und AZURE_OPENAI_KEY setzen.',
+      });
+    }
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Transfer-Encoding', 'chunked');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    const systemMessage: ChatMessage = {
-      role: 'system',
-      content: 'Du bist ein hilfreicher IT-Dokumentations-Assistent. Du hilfst Benutzern bei der Erstellung und Verwaltung von IT-Dokumentation, Server-Dokumentation, Netzwerk-Diagrammen und technischen Runbooks. Antworte praezise, professionell und hilfreich auf Deutsch.'
-    };
+    const llmMessages: LlmMessage[] = [
+      { role: 'system', content: SYSTEM_PROMPT },
+      ...(messages ?? []).map((message) => ({ role: message.role, content: message.content })),
+    ];
 
-    const stream = await client.chat.completions.create({
-      model: '',
-      messages: [systemMessage, ...messages],
-      stream: true,
-      max_tokens: 2000,
-      temperature: 0.7,
-    });
-
-    for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content;
-      if (content) {
-        res.write(content);
-      }
+    for await (const delta of llmGateway.stream({ messages: llmMessages, temperature: 0.7, maxTokens: 2000 })) {
+      res.write(delta);
     }
 
     res.end();
   } catch (error: any) {
     console.error('[Chat] Error:', error);
-    res.status(500).json({ 
-      error: 'Internal server error',
-      message: error.message 
-    });
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Internal server error', message: error.message });
+    } else {
+      res.end();
+    }
   }
 });
 

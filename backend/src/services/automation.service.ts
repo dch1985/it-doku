@@ -362,6 +362,7 @@ export const automationService = {
         documentTitle: context.document?.title ?? null,
         connectorName: context.connector?.name ?? null,
         payload: context.payload,
+        tenantId: context.tenantId ?? null,
       });
 
       const findings = buildQualityFindings(draft);

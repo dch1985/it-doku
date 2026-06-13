@@ -93,6 +93,8 @@ model User {
   processRecordings ProcessRecording[]
   comments          Comment[]
   notifications     Notification[]
+  reviewsRequested  ReviewRequest[] @relation("ReviewRequester")
+  reviewsAssigned   ReviewRequest[] @relation("ReviewReviewer")
 
   // Metadata
   createdAt   DateTime  @default(now())
@@ -137,6 +139,7 @@ model Document {
   user           User            @relation(fields: [userId], references: [id])
   knowledgeNodes KnowledgeNode[]
   comments       Comment[]
+  reviewRequests ReviewRequest[] @relation("DocumentReviewRequests")
 
   // Timestamps
   createdAt   DateTime  @default(now())
@@ -605,4 +608,309 @@ model ProcessRecording {
   @@index([userId])
   @@index([status])
   @@map("process_recordings")
+}
+
+// ==========================================
+// AUTOMATION / GENERATION PIPELINE
+// ==========================================
+model SourceConnector {
+  id     String  @id @default(uuid())
+  name   String
+  type   String // GITHUB, MSGRAPH, AZURE, NETWORK_SCAN, MANUAL, etc.
+  config String? @db.NVarChar(Max) // JSON as string
+
+  isActive Boolean @default(true)
+  tenantId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([type])
+  @@map("source_connectors")
+}
+
+model GenerationJob {
+  id                String  @id @default(uuid())
+  intent            String  @default("CREATE") // CREATE, UPDATE, DRIFT_CHECK, ANALYZE
+  status            String  @default("PENDING") // PENDING, RUNNING, COMPLETED, FAILED, CANCELLED
+  payload           String? @db.NVarChar(Max) // JSON as string
+  resultDraft       String? @db.NVarChar(Max)
+  error             String? @db.NVarChar(Max)
+
+  documentId        String?
+  sourceConnectorId String?
+  tenantId          String?
+
+  suggestions     UpdateSuggestion[]
+  qualityFindings QualityFinding[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+
+  @@index([tenantId])
+  @@index([status])
+  @@map("generation_jobs")
+}
+
+model UpdateSuggestion {
+  id              String  @id @default(uuid())
+  generationJobId String
+  generationJob   GenerationJob @relation(fields: [generationJobId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  title       String
+  summary     String? @db.NVarChar(Max)
+  status      String  @default("OPEN") // OPEN, APPLIED, DISMISSED
+  diffPreview String? @db.NVarChar(Max)
+  documentId  String?
+  metadata    String? @db.NVarChar(Max) // JSON as string
+
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([generationJobId])
+  @@index([documentId])
+  @@index([status])
+  @@map("update_suggestions")
+}
+
+model QualityFinding {
+  id              String  @id @default(uuid())
+  generationJobId String?
+  generationJob   GenerationJob? @relation(fields: [generationJobId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  category   String // STRUCTURE, COMPLIANCE, TERMINOLOGY, STYLE, GOVERNANCE
+  severity   String // INFO, WARNING, ERROR
+  message    String  @db.NVarChar(Max)
+  location   String?
+  documentId String?
+  resolution String? @db.NVarChar(Max)
+
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([generationJobId])
+  @@index([documentId])
+  @@index([category])
+  @@map("quality_findings")
+}
+
+// ==========================================
+// ASSISTANT TRACEABILITY
+// ==========================================
+model ConversationTrace {
+  id             String  @id @default(uuid())
+  question       String  @db.NVarChar(Max)
+  answer         String  @db.NVarChar(Max)
+  audience       String  @default("PRACTITIONER") // BEGINNER, PRACTITIONER, EXPERT
+  citations      String? @db.NVarChar(Max) // JSON array as string
+  tenantId       String?
+  conversationId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([conversationId])
+  @@index([createdAt])
+  @@map("conversation_traces")
+}
+
+// ==========================================
+// COMPLIANCE: SCHEMAS, ANNOTATIONS, TRACE LINKS, REVIEWS
+// ==========================================
+model TemplateSchema {
+  id          String  @id @default(uuid())
+  name        String
+  description String? @db.NVarChar(Max)
+  format      String  @default("MARKDOWN") // MARKDOWN, HTML, JSON
+  schema      String  @db.NVarChar(Max) // JSON field definitions as string
+  isGlobal    Boolean @default(false)
+  tenantId    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([isGlobal])
+  @@map("template_schemas")
+}
+
+model Annotation {
+  id         String  @id @default(uuid())
+  documentId String
+  key        String // OWNER, CLASSIFICATION, REVIEW_DUE, COMPLIANCE_REF, etc.
+  value      String  @db.NVarChar(Max)
+  location   String?
+  tenantId   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([documentId])
+  @@index([tenantId])
+  @@map("annotations")
+}
+
+model TraceLink {
+  id           String  @id @default(uuid())
+  sourceType   String // DOCUMENT, ASSET, CONTROL, REQUIREMENT, EVIDENCE
+  sourceId     String
+  targetType   String
+  targetId     String
+  relationship String  @default("RELATES_TO") // RELATES_TO, SATISFIES, DEPENDS_ON, DERIVED_FROM
+
+  metadata         String? @db.NVarChar(Max) // JSON as string
+  tenantId         String?
+  sourceDocumentId String?
+  targetDocumentId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([sourceDocumentId])
+  @@index([targetDocumentId])
+  @@map("trace_links")
+}
+
+model ReviewRequest {
+  id          String  @id @default(uuid())
+  documentId  String
+  document    Document @relation("DocumentReviewRequests", fields: [documentId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "review_document")
+
+  requestedBy String
+  requester   User    @relation("ReviewRequester", fields: [requestedBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "review_requester")
+
+  reviewerId  String
+  reviewer    User    @relation("ReviewReviewer", fields: [reviewerId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "review_reviewer")
+
+  status   String  @default("PENDING") // PENDING, APPROVED, REJECTED, CHANGES_REQUESTED
+  comments String? @db.NVarChar(Max)
+
+  reviewedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([documentId])
+  @@index([reviewerId])
+  @@index([status])
+  @@map("review_requests")
+}
+
+// ==========================================
+// ATTACHMENTS
+// ==========================================
+model Attachment {
+  id           String @id @default(uuid())
+  documentId   String
+  filename     String
+  originalName String
+  mimeType     String
+  size         Int
+  path         String @db.NVarChar(Max)
+
+  createdAt DateTime @default(now())
+
+  @@index([documentId])
+  @@map("attachments")
+}
+
+// ==========================================
+// AGENTIC CORE ENGINE: RUNS, STEPS, EVIDENCE
+// ==========================================
+model AgentRun {
+  id           String  @id @default(uuid())
+  skillId      String?
+  skillVersion String?
+  status       String  @default("PENDING") // PENDING, RUNNING, AWAITING_REVIEW, COMPLETED, FAILED, CANCELLED
+  trigger      String  @default("MANUAL") // MANUAL, SCHEDULE, EVENT
+  goal         String? @db.NVarChar(Max)
+  input        String? @db.NVarChar(Max) // JSON as string
+  output       String? @db.NVarChar(Max) // JSON structured result as string
+  summary      String? @db.NVarChar(Max)
+  error        String? @db.NVarChar(Max)
+
+  tenantId       String?
+  userId         String?
+  documentId     String?
+  conversationId String?
+
+  stepCount        Int @default(0)
+  promptTokens     Int @default(0)
+  completionTokens Int @default(0)
+
+  steps    AgentStep[]
+  evidence Evidence[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([skillId])
+  @@map("agent_runs")
+}
+
+model AgentStep {
+  id         String   @id @default(uuid())
+  agentRunId String
+  agentRun   AgentRun @relation(fields: [agentRunId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  index    Int
+  phase    String // PLAN, ACT, OBSERVE, VERIFY, FINALIZE
+  type     String  @default("MESSAGE") // MESSAGE, TOOL_CALL, VALIDATION
+  toolName String?
+  input    String? @db.NVarChar(Max)
+  output   String? @db.NVarChar(Max)
+  status   String  @default("OK") // OK, ERROR
+  error    String? @db.NVarChar(Max)
+
+  promptTokens     Int @default(0)
+  completionTokens Int @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([agentRunId])
+  @@map("agent_steps")
+}
+
+model Evidence {
+  id          String   @id @default(uuid())
+  agentRunId  String
+  agentRun    AgentRun @relation(fields: [agentRunId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  agentStepId String?
+
+  sourceType String // TOOL, CONNECTOR, DOCUMENT, DATABASE
+  source     String // tool name / connector id
+  reference  String? // e.g. asset:123, document:abc
+  claim      String? @db.NVarChar(Max)
+  data       String? @db.NVarChar(Max) // JSON snapshot of the observed fact
+  dataHash   String?
+
+  tenantId  String?
+  createdAt DateTime @default(now())
+
+  @@index([agentRunId])
+  @@index([tenantId])
+  @@map("evidence")
+}
+
+model LlmUsage {
+  id               String  @id @default(uuid())
+  tenantId         String?
+  userId           String?
+  feature          String // CHAT, ANALYZE, AGENT, DRAFT, ASSISTANT
+  model            String?
+  promptTokens     Int     @default(0)
+  completionTokens Int     @default(0)
+  totalTokens      Int     @default(0)
+  agentRunId       String?
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([feature])
+  @@index([createdAt])
+  @@map("llm_usage")
 }

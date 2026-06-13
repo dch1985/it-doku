@@ -11,6 +11,7 @@ import tenantsRouter from './routes/tenants.js';
 import automationRouter from './routes/automation.js';
 import complianceRouter from './routes/compliance.js';
 import assistantRouter from './routes/assistant.js';
+import agentRouter from './routes/agent.js';
 import analyticsRouter from './routes/analytics.js';
 import searchRouter from './routes/search.js';
 import knowledgeRouter from './routes/knowledge.js';
@@ -96,6 +97,7 @@ app.use('/api/search', searchRouter)
 
 // AI & Automation Routes
 app.use('/api/assistant', assistantRouter)
+app.use('/api/agent', agentRouter)
 app.use('/api/automation', automationRouter)
 
 // Compliance Routes
