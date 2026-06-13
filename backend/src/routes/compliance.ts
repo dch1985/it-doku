@@ -157,8 +157,16 @@ router.post('/trace-links', async (req: Request, res: Response) => {
 
 router.get('/quality/findings', async (req: Request, res: Response) => {
   try {
+    const tenantId = req.tenant?.id;
+    if (!tenantId) {
+      throw new ApplicationError('Tenant-Kontext ist erforderlich', 400);
+    }
+
     const { documentId } = req.query;
-    const findings = await complianceService.listQualityFindings(documentId ? String(documentId) : undefined);
+    const findings = await complianceService.listQualityFindings(
+      tenantId,
+      documentId ? String(documentId) : undefined,
+    );
 
     res.json(findings);
   } catch (error: any) {
@@ -172,6 +180,11 @@ router.get('/quality/findings', async (req: Request, res: Response) => {
 
 router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
   try {
+    const tenantId = req.tenant?.id;
+    if (!tenantId) {
+      throw new ApplicationError('Tenant-Kontext ist erforderlich', 400);
+    }
+
     const body = req.body as UpdateFindingBody;
     const action = body?.action ? body.action.toUpperCase() : undefined;
 
@@ -179,10 +192,14 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
       throw new ApplicationError(`Ungültige Aktion: ${action}`, 400);
     }
 
-    const finding = await complianceService.updateQualityFinding(req.params.id, {
-      action: action as 'RESOLVE' | 'REOPEN' | undefined,
-      resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
-    });
+    const finding = await complianceService.updateQualityFinding(
+      req.params.id,
+      tenantId,
+      {
+        action: action as 'RESOLVE' | 'REOPEN' | undefined,
+        resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
+      },
+    );
 
     res.json(finding);
   } catch (error: any) {
@@ -196,12 +213,17 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
 
 router.post('/quality/check', async (req: Request, res: Response) => {
   try {
+    const tenantId = req.tenant?.id;
+    if (!tenantId) {
+      throw new ApplicationError('Tenant-Kontext ist erforderlich', 400);
+    }
+
     const { documentId } = req.body ?? {};
     if (!documentId) {
       throw new ApplicationError('documentId ist erforderlich', 400);
     }
 
-    const findings = await complianceService.runQualityChecks(String(documentId));
+    const findings = await complianceService.runQualityChecks(String(documentId), tenantId);
     res.json({
       documentId: String(documentId),
       findings,
