@@ -120,7 +120,7 @@ npm run dev
 
 The application will be available at:
 - Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:3001`
+- Backend API: `http://localhost:3002` (or `http://localhost:$PORT`)
 
 ---
 
@@ -142,7 +142,7 @@ it-doku/
 │   │   └── index.ts           # Server entry point
 │   └── uploads/               # File storage directory
 │
-├── frontend-new/
+├── frontend/
 │   ├── src/
 │   │   ├── components/        # Reusable components
 │   │   │   ├── ui/           # shadcn/ui components
@@ -168,42 +168,129 @@ it-doku/
 
 ## 🔌 API Endpoints
 
-### Authentication
-- `GET /api/auth/me` - Get current authenticated user
-- `POST /api/auth/logout` - Logout
-- `GET /api/auth/verify` - Verify token
+Tenant-scoped routes require `X-Tenant-ID` or `X-Tenant-Slug`.
+In dev mode (`NODE_ENV=development` or `DEV_AUTH_ENABLED=true`) requests can run without tenant headers.
 
-### Tenants
-- `GET /api/tenants` - List user's tenants
-- `GET /api/tenants/:id` - Get tenant details
-- `POST /api/tenants` - Create new tenant
-- `PATCH /api/tenants/:id` - Update tenant (OWNER/ADMIN only)
+### Platform Basics
+- `GET /api/auth/me`, `POST /api/auth/logout`, `GET /api/auth/verify`
+- `GET /api/tenants`, `GET /api/tenants/:id`, `POST /api/tenants`, `PATCH /api/tenants/:id`
+- `GET|POST|PUT|DELETE /api/documents...`
+- `GET /api/templates`, `GET /api/templates/:id`
+- `POST /api/upload`, `GET /api/upload/document/:documentId`, `GET|DELETE /api/upload/:id`
 
-### Documents
-- `GET /api/documents` - List all documents (filtered by tenant)
-- `GET /api/documents/:id` - Get document by ID
-- `POST /api/documents` - Create new document
-- `PUT /api/documents/:id` - Update document
-- `DELETE /api/documents/:id` - Delete document
+### Automate (`/api/automation`)
+- Connectors: `GET /connectors`, `POST /connectors`, `PATCH /connectors/:id`
+- Jobs: `GET /jobs`, `POST /jobs`, `GET /jobs/:id`
+- Job actions: `POST /jobs/:id/approve`, `POST /jobs/:id/retry`, `POST /jobs/:id/cancel`
+- Suggestions: `GET /suggestions`, `PATCH /suggestions/:id`
 
-> **Note:** All document endpoints require `X-Tenant-ID` or `X-Tenant-Slug` header for tenant isolation.
+**Constraints**
+- `POST /connectors` requires `name` + `type`.
+- Global connectors (`tenantId = null`) cannot be toggled by tenants.
+- Job processing behavior depends on env flags:
+  - `AUTOMATION_QUEUE_AUTORUN=true` → publish to queue provider.
+  - `AUTOMATION_RUN_IMMEDIATE=true` (with autorun false) → synchronous processing.
+  - both false → job remains `PENDING` until retried/processed manually.
 
-### File Upload
-- `POST /api/upload` - Upload file attachment
-- `GET /api/upload/document/:documentId` - Get document attachments
-- `GET /api/upload/:id` - Download attachment
-- `DELETE /api/upload/:id` - Delete attachment
+### Centralize (`/api/knowledge`, `/api/assistant`, `/api/search`)
+- Knowledge nodes: `GET /api/knowledge`, `POST /api/knowledge`, `PATCH|DELETE /api/knowledge/:id`
+- Assistant: `GET /api/assistant/conversations`, `POST /api/assistant/query`, `GET /api/assistant/traces`
+- Search: `GET /api/search?q=<query>` (`type=documents|knowledge` optional)
 
-### AI Chat
-- `POST /api/chat` - Send message to AI assistant
+**Constraints**
+- Knowledge node create requires `content` + `type`.
+- If `documentId` is set, the document must belong to the active tenant.
+- Assistant citations include both document and knowledge sources for traceability.
 
-### GitHub Integration
-- `GET /api/github/repos/:username` - List user repositories
-- `GET /api/github/readme/:owner/:repo` - Get repository README
+### Comply (`/api/compliance`)
+- Schemas: `GET /schemas`, `POST /schemas`
+- Annotations: `GET /annotations`, `POST /annotations`
+- Trace links: `GET /trace-links`, `POST /trace-links`
+- Findings: `GET /quality/findings`, `PATCH /quality/findings/:id`, `POST /quality/check`
+- Reviews: `GET /reviews`, `POST /reviews`, `PATCH /reviews/:id`
 
-### Templates
-- `GET /api/templates` - List all templates (tenant-aware)
-- `GET /api/templates/:id` - Get template by ID
+**Constraints**
+- `POST /quality/check` requires `documentId`.
+- Finding actions accept only `RESOLVE` or `REOPEN`.
+- Review statuses accept `PENDING`, `APPROVED`, `REJECTED`, `CHANGES_REQUESTED`.
+
+### Analytics
+- `GET /api/analytics` returns KPI blocks for:
+  - `system` (documents/templates/users),
+  - `automation` (job success, connector health, suggestions),
+  - `centralize` (assistant usage, knowledge coverage),
+  - `comply` (open findings, review cycle, REQ-ID coverage).
+
+---
+
+## 🧭 Workflow Quick Start (Automate → Centralize → Comply)
+
+### 1) Automate: Create connector + generation job
+```bash
+curl -X POST http://localhost:3002/api/automation/connectors \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: <tenant-id>" \
+  -d '{
+    "name": "GitHub Source",
+    "type": "GIT",
+    "config": { "repo": "org/repo", "branch": "main" }
+  }'
+
+curl -X POST http://localhost:3002/api/automation/jobs \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: <tenant-id>" \
+  -d '{
+    "title": "Generate runbook draft",
+    "intent": "CREATE",
+    "connectorId": "<connector-id>",
+    "payload": { "scope": "ops", "language": "de" }
+  }'
+```
+
+### 2) Centralize: Add/update knowledge nodes and query assistant
+```bash
+curl -X POST http://localhost:3002/api/knowledge \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: <tenant-id>" \
+  -d '{
+    "content": "Service restart requires CAB approval in production.",
+    "type": "PROCESS",
+    "documentId": "<optional-document-id>"
+  }'
+
+curl -X POST http://localhost:3002/api/assistant/query \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: <tenant-id>" \
+  -d '{
+    "question": "How should we handle production restart approvals?",
+    "audience": "PRACTITIONER",
+    "title": "Ops QA Session"
+  }'
+```
+
+### 3) Comply: Run checks, resolve findings, and trigger review
+```bash
+curl -X POST http://localhost:3002/api/compliance/quality/check \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: <tenant-id>" \
+  -d '{ "documentId": "<document-id>" }'
+
+curl -X PATCH http://localhost:3002/api/compliance/quality/findings/<finding-id> \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: <tenant-id>" \
+  -d '{ "action": "RESOLVE", "resolution": "Owner + review section added" }'
+
+curl -X POST http://localhost:3002/api/compliance/reviews \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: <tenant-id>" \
+  -d '{
+    "documentId": "<document-id>",
+    "reviewerId": "<user-id>",
+    "comments": "Please validate ISO-27001 mapping."
+  }'
+```
+
+Quality checks are currently heuristic (placeholder text, plaintext password patterns, missing review/owner hints). They are a guardrail, not a full policy engine.
 
 ---
 
@@ -279,8 +366,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ### Implementation Guides
 - [Phase 1 & 2: Authentication & Multi-Tenancy](docs/PHASE_1_2_IMPLEMENTATION.md)
+- [Deployment Guide](docs/DEPLOYMENT.md)
 - [Troubleshooting Guide](docs/TROUBLESHOOTING.md)
 - [Gap Analysis](docs/GAP_ANALYSIS.md)
+- [AI Transformation Roadmap](docs/AI_TRANSFORMATION_ROADMAP.md)
 
 ## 📧 Support
 
@@ -289,16 +378,3 @@ For support, email driss.chaouat@example.com or open an issue on GitHub.
 ---
 
 <p align="center">Made with ❤️ by Driss Chaouat</p>
-
-### Automation Queue & Worker
-
-```bash
-# Einzelnen Job manuell ausführen (Job-ID siehe /api/automation/jobs)
-cd backend
-npm run automation:job -- <jobId>
-
-# Länger laufender Worker (Platzhalter für zukünftigen Queue-Provider)
-npm run automation:worker
-```
-
-> Tipp: Für lokale Tests `AUTOMATION_RUN_IMMEDIATE=true` setzen. In produktiven Setups kann stattdessen eine echte Queue (z. B. Azure Service Bus mit `AUTOMATION_QUEUE_PROVIDER=servicebus`) angeschlossen werden.
