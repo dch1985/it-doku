@@ -266,11 +266,17 @@ router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateReviewBody;
     const status = body?.status ? String(body.status).toUpperCase() : undefined;
+    const actorId = req.user?.id;
+
+    if (!actorId) {
+      throw new ApplicationError('Authentifizierung erforderlich', 403);
+    }
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
       status: status as any,
-      comments: body?.comments ?? null,
+      comments: body?.comments,
       tenantId: req.tenant?.id ?? null,
+      actorId,
     });
 
     res.json(review);
