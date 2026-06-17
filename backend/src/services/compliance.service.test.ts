@@ -9,6 +9,9 @@ type RestoreFn = () => void;
 function mockPrismaMethod(path: string[], replacement: (...args: any[]) => any): RestoreFn {
   let target: any = prisma;
   for (let index = 0; index < path.length - 1; index += 1) {
+    if (target[path[index]] === undefined) {
+      target[path[index]] = {};
+    }
     target = target[path[index]];
   }
 
