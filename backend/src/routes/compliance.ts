@@ -174,6 +174,7 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateFindingBody;
     const action = body?.action ? body.action.toUpperCase() : undefined;
+    const hasResolutionField = Object.prototype.hasOwnProperty.call(body ?? {}, 'resolution');
 
     if (action && action !== 'RESOLVE' && action !== 'REOPEN') {
       throw new ApplicationError(`Ungültige Aktion: ${action}`, 400);
@@ -181,7 +182,9 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
 
     const finding = await complianceService.updateQualityFinding(req.params.id, {
       action: action as 'RESOLVE' | 'REOPEN' | undefined,
-      resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
+      resolution: hasResolutionField
+        ? (typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null)
+        : undefined,
     });
 
     res.json(finding);
@@ -266,10 +269,11 @@ router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateReviewBody;
     const status = body?.status ? String(body.status).toUpperCase() : undefined;
+    const hasCommentsField = Object.prototype.hasOwnProperty.call(body ?? {}, 'comments');
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
       status: status as any,
-      comments: body?.comments ?? null,
+      comments: hasCommentsField ? body?.comments ?? null : undefined,
       tenantId: req.tenant?.id ?? null,
     });
 
