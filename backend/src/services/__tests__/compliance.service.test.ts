@@ -7,6 +7,7 @@ import { complianceService } from '../compliance.service.js';
 const prismaClient = prisma as any;
 
 test('listQualityFindings scopes query to tenant relations', async (t) => {
+  prismaClient.qualityFinding = prismaClient.qualityFinding ?? {};
   const originalFindMany = prismaClient.qualityFinding.findMany;
 
   let receivedWhere: Record<string, unknown> | null = null;
@@ -30,6 +31,7 @@ test('listQualityFindings scopes query to tenant relations', async (t) => {
 });
 
 test('updateQualityFinding denies access to other tenant finding', async (t) => {
+  prismaClient.qualityFinding = prismaClient.qualityFinding ?? {};
   const originalFindUnique = prismaClient.qualityFinding.findUnique;
   const originalUpdate = prismaClient.qualityFinding.update;
 
