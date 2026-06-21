@@ -21,6 +21,9 @@ type UpdateReviewBody = {
   comments?: string | null;
 };
 
+const hasBodyField = (body: Record<string, unknown> | undefined, field: string) =>
+  body !== undefined && Object.prototype.hasOwnProperty.call(body, field);
+
 const router = Router();
 const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
 
@@ -172,8 +175,13 @@ router.get('/quality/findings', async (req: Request, res: Response) => {
 
 router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
   try {
-    const body = req.body as UpdateFindingBody;
+    const body = (req.body ?? {}) as UpdateFindingBody & Record<string, unknown>;
     const action = body?.action ? body.action.toUpperCase() : undefined;
+    const resolution = hasBodyField(body, 'resolution')
+      ? typeof body?.resolution === 'string'
+        ? body.resolution
+        : body?.resolution ?? null
+      : undefined;
 
     if (action && action !== 'RESOLVE' && action !== 'REOPEN') {
       throw new ApplicationError(`Ungültige Aktion: ${action}`, 400);
@@ -181,7 +189,7 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
 
     const finding = await complianceService.updateQualityFinding(req.params.id, {
       action: action as 'RESOLVE' | 'REOPEN' | undefined,
-      resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
+      resolution,
     });
 
     res.json(finding);
@@ -264,12 +272,13 @@ router.post('/reviews', async (req: Request, res: Response) => {
 
 router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
-    const body = req.body as UpdateReviewBody;
+    const body = (req.body ?? {}) as UpdateReviewBody & Record<string, unknown>;
     const status = body?.status ? String(body.status).toUpperCase() : undefined;
+    const comments = hasBodyField(body, 'comments') ? body?.comments ?? null : undefined;
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
       status: status as any,
-      comments: body?.comments ?? null,
+      comments,
       tenantId: req.tenant?.id ?? null,
     });
 
