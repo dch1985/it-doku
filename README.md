@@ -13,6 +13,7 @@
 ## ✨ Features
 
 ### 🎯 Core Features
+
 - **📝 Rich Text Editor** - Full-featured document editor with TipTap
 - **🤖 AI Chat Assistant** - Powered by Azure OpenAI GPT-4
 - **📁 File Management** - Upload, manage, and download attachments (PDF, Word, Excel, Images)
@@ -22,6 +23,7 @@
 - **📱 Responsive Design** - Works seamlessly on all devices
 
 ### 🚀 Advanced Features
+
 - **GitHub Integration** - Import repositories and README files
 - **Version History** - Track all document changes
 - **Export Options** - Export to PDF, Markdown, or JSON
@@ -36,6 +38,7 @@
 ## 🛠️ Tech Stack
 
 ### Frontend
+
 - **React 19** with TypeScript
 - **Vite** for blazing-fast development
 - **shadcn/ui** + Tailwind CSS for beautiful UI
@@ -44,6 +47,7 @@
 - **Sonner** for toast notifications
 
 ### Backend
+
 - **Express.js** with TypeScript
 - **Prisma ORM** for database management
 - **SQL Server** for data persistence (Azure SQL)
@@ -58,7 +62,8 @@
 ## 📦 Installation
 
 ### Prerequisites
-- Node.js 18+ 
+
+- Node.js 18+
 - npm or yarn
 - Azure SQL Server (or compatible SQL Server database)
 - Azure AD B2C App Registration (for authentication)
@@ -66,6 +71,7 @@
 - GitHub Personal Access Token (optional, for GitHub integration)
 
 ### Backend Setup
+
 ```bash
 # Clone the repository
 git clone https://github.com/dch1985/it-doku.git
@@ -100,6 +106,7 @@ npm run dev
 ```
 
 ### Frontend Setup
+
 ```bash
 # Install frontend dependencies
 cd ../frontend
@@ -119,12 +126,14 @@ npm run dev
 ```
 
 The application will be available at:
+
 - Frontend: `http://localhost:5173`
 - Backend API: `http://localhost:3002`
 
 ---
 
 ## 📚 Project Structure
+
 ```
 it-doku/
 ├── backend/
@@ -165,12 +174,14 @@ it-doku/
 > Send `X-Tenant-ID` (or `X-Tenant-Slug`) for tenant-scoped reads/writes. In local dev mode (`DEV_AUTH_ENABLED=true`), auth and tenant checks are relaxed for faster testing.
 
 ### Core platform
+
 - `GET /api/health`, `GET /api/docs`
 - `GET /api/auth/me`, `POST /api/auth/logout`, `GET /api/auth/verify`
 - `POST /api/auth/dev-login` (development mode only)
 - `GET /api/tenants`, `GET /api/tenants/:id`, `POST /api/tenants`, `PATCH /api/tenants/:id`
 
 ### Documentation + content interfaces
+
 - `GET|POST|PUT|DELETE /api/documents[/:id]`
 - `GET /api/templates`, `GET /api/templates/:id`
 - `POST /api/chat`
@@ -178,6 +189,7 @@ it-doku/
 - `POST /api/upload`, `GET /api/upload/document/:documentId`, `GET /api/upload/:id`, `DELETE /api/upload/:id`
 
 ### Assistant + knowledge graph
+
 - `GET /api/assistant/conversations`
 - `POST /api/assistant/query`
 - `GET /api/assistant/traces`
@@ -187,6 +199,7 @@ it-doku/
 - `DELETE /api/knowledge/:id`
 
 ### Automation (connectors, generation jobs, suggestions)
+
 - `GET|POST /api/automation/connectors`
 - `PATCH /api/automation/connectors/:id` (tenant-local connectors only)
 - `GET|POST /api/automation/jobs`
@@ -198,6 +211,7 @@ it-doku/
 - `PATCH /api/automation/suggestions/:id`
 
 ### Compliance + review workflow
+
 - `GET|POST /api/compliance/schemas`
 - `GET|POST /api/compliance/annotations`
 - `GET|POST /api/compliance/trace-links`
@@ -208,12 +222,14 @@ it-doku/
 - `PATCH /api/compliance/reviews/:id`
 
 ### Insights + search
+
 - `GET /api/analytics`
 - `GET /api/search?q=<query>&type=<documents|knowledge>&limit=<n>`
 
 ## 🔄 Operational workflows
 
 ### Automation job lifecycle (Automate page)
+
 1. Create or activate a source connector via `/api/automation/connectors`.
 2. Create a job via `/api/automation/jobs` (`intent`, optional `documentId`, optional `connectorId`, optional `payload`).
 3. Processing behavior depends on environment flags:
@@ -223,6 +239,7 @@ it-doku/
 5. Resolve suggestions via `/api/automation/suggestions/:id` (`APPLIED` / `DISMISSED`).
 
 ### Compliance review lifecycle (Comply page)
+
 1. Define reusable schema constraints in `/api/compliance/schemas`.
 2. Add traceability metadata through `/api/compliance/annotations` and `/api/compliance/trace-links`.
 3. Run checks via `/api/compliance/quality/check`, then resolve/reopen findings.
@@ -241,6 +258,7 @@ npm run automation:worker
 ```
 
 Environment flags used by the automation service:
+
 - `AUTOMATION_QUEUE_PROVIDER=memory|servicebus`
 - `AUTOMATION_QUEUE_AUTORUN=true|false`
 - `AUTOMATION_RUN_IMMEDIATE=true|false`
@@ -251,15 +269,19 @@ Environment flags used by the automation service:
 ## 🎨 Screenshots
 
 ### Dashboard
+
 ![Dashboard](docs/screenshots/dashboard.png)
 
 ### Document Editor
+
 ![Editor](docs/screenshots/editor.png)
 
 ### AI Chat
+
 ![Chat](docs/screenshots/chat.png)
 
 ### File Upload
+
 ![Upload](docs/screenshots/upload.png)
 
 ---
@@ -267,12 +289,14 @@ Environment flags used by the automation service:
 ## 🚀 Deployment
 
 ### Backend (Railway/Heroku)
+
 1. Push code to GitHub
 2. Connect repository to Railway/Heroku
 3. Set environment variables
 4. Deploy!
 
 ### Frontend (Vercel/Netlify)
+
 1. Push code to GitHub
 2. Connect repository to Vercel/Netlify
 3. Build command: `npm run build`
@@ -302,6 +326,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 👨‍💻 Author
 
 **Driss Chaouat**
+
 - GitHub: [@dch1985](https://github.com/dch1985)
 - Role: IT Consultant - Microsoft 365 Cloud Services
 
@@ -319,6 +344,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📚 Documentation
 
 ### Implementation Guides
+
 - [Phase 1 & 2: Authentication & Multi-Tenancy](docs/PHASE_1_2_IMPLEMENTATION.md)
 - [Troubleshooting Guide](docs/TROUBLESHOOTING.md)
 - [Gap Analysis](docs/GAP_ANALYSIS.md)

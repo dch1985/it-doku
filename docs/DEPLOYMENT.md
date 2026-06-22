@@ -90,6 +90,7 @@ AUTOMATION_QUEUE_PROVIDER=memory
 ```
 
 Behavior:
+
 - `POST /api/automation/jobs` processes the job inline.
 - `POST /api/automation/jobs/:id/retry` also processes inline.
 
@@ -113,6 +114,7 @@ npm run automation:worker
 ```
 
 Operational checks:
+
 - New jobs move through `PENDING` → `RUNNING` → `COMPLETED` or `FAILED`.
 - Queue misconfiguration surfaces as runtime errors in worker/backend logs.
 
@@ -163,4 +165,3 @@ curl -s "http://localhost:8080/api/compliance/quality/findings?documentId=<docum
   -H "Authorization: Bearer <token>" \
   -H "X-Tenant-ID: <tenant-id>"
 ```
-
