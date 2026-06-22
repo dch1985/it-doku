@@ -120,7 +120,7 @@ npm run dev
 
 The application will be available at:
 - Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:3001`
+- Backend API: `http://localhost:3002`
 
 ---
 
@@ -132,30 +132,23 @@ it-doku/
 │   │   └── schema.prisma      # Database schema
 │   ├── src/
 │   │   ├── routes/            # API routes
-│   │   │   ├── chat.ts        # AI chat endpoints
-│   │   │   ├── documents.ts   # Document CRUD
-│   │   │   ├── templates.ts   # Templates management
-│   │   │   ├── github.ts      # GitHub integration
-│   │   │   └── upload.ts      # File upload handling
+│   │   │   ├── auth.ts / tenants.ts
+│   │   │   ├── documents.ts / templates.ts / upload.ts / github.ts
+│   │   │   ├── assistant.ts / search.ts / analytics.ts
+│   │   │   ├── automation.ts / compliance.ts / knowledge.ts
+│   │   │   └── chat.ts
 │   │   ├── services/          # Business logic
 │   │   ├── lib/               # Utilities
+│   │   ├── workers/           # Queue/worker entrypoints
 │   │   └── index.ts           # Server entry point
 │   └── uploads/               # File storage directory
 │
-├── frontend-new/
+├── frontend/
 │   ├── src/
 │   │   ├── components/        # Reusable components
 │   │   │   ├── ui/           # shadcn/ui components
-│   │   │   ├── DocumentEditor.tsx
-│   │   │   ├── FileUpload.tsx
-│   │   │   └── ChatSidebar.tsx
-│   │   ├── pages/            # Page components
-│   │   │   ├── Dashboard.tsx
-│   │   │   ├── Documents.tsx
-│   │   │   ├── DocumentDetail.tsx
-│   │   │   ├── Analytics.tsx
-│   │   │   └── Settings.tsx
-│   │   ├── hooks/            # Custom React hooks
+│   │   ├── pages/            # Dashboard / Automate / Centralize / Comply
+│   │   ├── hooks/            # API and state hooks
 │   │   ├── stores/           # State management
 │   │   ├── lib/              # Utilities
 │   │   └── App.tsx           # Main app component
@@ -168,42 +161,90 @@ it-doku/
 
 ## 🔌 API Endpoints
 
-### Authentication
-- `GET /api/auth/me` - Get current authenticated user
-- `POST /api/auth/logout` - Logout
-- `GET /api/auth/verify` - Verify token
+> **Auth & tenant context:** Most `/api/*` routes are protected and tenant-aware.  
+> Send `X-Tenant-ID` (or `X-Tenant-Slug`) for tenant-scoped reads/writes. In local dev mode (`DEV_AUTH_ENABLED=true`), auth and tenant checks are relaxed for faster testing.
 
-### Tenants
-- `GET /api/tenants` - List user's tenants
-- `GET /api/tenants/:id` - Get tenant details
-- `POST /api/tenants` - Create new tenant
-- `PATCH /api/tenants/:id` - Update tenant (OWNER/ADMIN only)
+### Core platform
+- `GET /api/health`, `GET /api/docs`
+- `GET /api/auth/me`, `POST /api/auth/logout`, `GET /api/auth/verify`
+- `POST /api/auth/dev-login` (development mode only)
+- `GET /api/tenants`, `GET /api/tenants/:id`, `POST /api/tenants`, `PATCH /api/tenants/:id`
 
-### Documents
-- `GET /api/documents` - List all documents (filtered by tenant)
-- `GET /api/documents/:id` - Get document by ID
-- `POST /api/documents` - Create new document
-- `PUT /api/documents/:id` - Update document
-- `DELETE /api/documents/:id` - Delete document
+### Documentation + content interfaces
+- `GET|POST|PUT|DELETE /api/documents[/:id]`
+- `GET /api/templates`, `GET /api/templates/:id`
+- `POST /api/chat`
+- `GET /api/github/repos/:username`, `GET /api/github/readme/:owner/:repo`
+- `POST /api/upload`, `GET /api/upload/document/:documentId`, `GET /api/upload/:id`, `DELETE /api/upload/:id`
 
-> **Note:** All document endpoints require `X-Tenant-ID` or `X-Tenant-Slug` header for tenant isolation.
+### Assistant + knowledge graph
+- `GET /api/assistant/conversations`
+- `POST /api/assistant/query`
+- `GET /api/assistant/traces`
+- `GET /api/knowledge?documentId=<id>`
+- `POST /api/knowledge`
+- `PATCH /api/knowledge/:id`
+- `DELETE /api/knowledge/:id`
 
-### File Upload
-- `POST /api/upload` - Upload file attachment
-- `GET /api/upload/document/:documentId` - Get document attachments
-- `GET /api/upload/:id` - Download attachment
-- `DELETE /api/upload/:id` - Delete attachment
+### Automation (connectors, generation jobs, suggestions)
+- `GET|POST /api/automation/connectors`
+- `PATCH /api/automation/connectors/:id` (tenant-local connectors only)
+- `GET|POST /api/automation/jobs`
+- `GET /api/automation/jobs/:id`
+- `POST /api/automation/jobs/:id/approve`
+- `POST /api/automation/jobs/:id/retry`
+- `POST /api/automation/jobs/:id/cancel`
+- `GET /api/automation/suggestions`
+- `PATCH /api/automation/suggestions/:id`
 
-### AI Chat
-- `POST /api/chat` - Send message to AI assistant
+### Compliance + review workflow
+- `GET|POST /api/compliance/schemas`
+- `GET|POST /api/compliance/annotations`
+- `GET|POST /api/compliance/trace-links`
+- `GET /api/compliance/quality/findings`
+- `PATCH /api/compliance/quality/findings/:id`
+- `POST /api/compliance/quality/check`
+- `GET|POST /api/compliance/reviews`
+- `PATCH /api/compliance/reviews/:id`
 
-### GitHub Integration
-- `GET /api/github/repos/:username` - List user repositories
-- `GET /api/github/readme/:owner/:repo` - Get repository README
+### Insights + search
+- `GET /api/analytics`
+- `GET /api/search?q=<query>&type=<documents|knowledge>&limit=<n>`
 
-### Templates
-- `GET /api/templates` - List all templates (tenant-aware)
-- `GET /api/templates/:id` - Get template by ID
+## 🔄 Operational workflows
+
+### Automation job lifecycle (Automate page)
+1. Create or activate a source connector via `/api/automation/connectors`.
+2. Create a job via `/api/automation/jobs` (`intent`, optional `documentId`, optional `connectorId`, optional `payload`).
+3. Processing behavior depends on environment flags:
+   - `AUTOMATION_QUEUE_AUTORUN=true`: publish to queue provider (`memory` or `servicebus`).
+   - `AUTOMATION_RUN_IMMEDIATE=true`: process synchronously on create/retry.
+4. Monitor and control jobs via `/api/automation/jobs`, `.../retry`, `.../cancel`, `.../approve`.
+5. Resolve suggestions via `/api/automation/suggestions/:id` (`APPLIED` / `DISMISSED`).
+
+### Compliance review lifecycle (Comply page)
+1. Define reusable schema constraints in `/api/compliance/schemas`.
+2. Add traceability metadata through `/api/compliance/annotations` and `/api/compliance/trace-links`.
+3. Run checks via `/api/compliance/quality/check`, then resolve/reopen findings.
+4. Trigger review requests via `/api/compliance/reviews` and track status transitions (`PENDING`, `APPROVED`, `CHANGES_REQUESTED`, `REJECTED`).
+
+## 🧰 Automation queue commands
+
+```bash
+cd backend
+
+# One-off processing (same worker entrypoint, explicit job id)
+npm run automation:job -- <jobId>
+
+# Long-running queue listener (required for queued mode in production)
+npm run automation:worker
+```
+
+Environment flags used by the automation service:
+- `AUTOMATION_QUEUE_PROVIDER=memory|servicebus`
+- `AUTOMATION_QUEUE_AUTORUN=true|false`
+- `AUTOMATION_RUN_IMMEDIATE=true|false`
+- For Service Bus mode: `AZURE_SERVICE_BUS_CONNECTION_STRING`, `AZURE_SERVICE_BUS_QUEUE_NAME`
 
 ---
 
@@ -289,16 +330,3 @@ For support, email driss.chaouat@example.com or open an issue on GitHub.
 ---
 
 <p align="center">Made with ❤️ by Driss Chaouat</p>
-
-### Automation Queue & Worker
-
-```bash
-# Einzelnen Job manuell ausführen (Job-ID siehe /api/automation/jobs)
-cd backend
-npm run automation:job -- <jobId>
-
-# Länger laufender Worker (Platzhalter für zukünftigen Queue-Provider)
-npm run automation:worker
-```
-
-> Tipp: Für lokale Tests `AUTOMATION_RUN_IMMEDIATE=true` setzen. In produktiven Setups kann stattdessen eine echte Queue (z. B. Azure Service Bus mit `AUTOMATION_QUEUE_PROVIDER=servicebus`) angeschlossen werden.
