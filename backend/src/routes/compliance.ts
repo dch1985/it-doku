@@ -179,10 +179,15 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
       throw new ApplicationError(`Ungültige Aktion: ${action}`, 400);
     }
 
-    const finding = await complianceService.updateQualityFinding(req.params.id, {
-      action: action as 'RESOLVE' | 'REOPEN' | undefined,
-      resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
-    });
+    const findingChanges: UpdateFindingBody = {};
+    if (action) {
+      findingChanges.action = action as 'RESOLVE' | 'REOPEN';
+    }
+    if (Object.prototype.hasOwnProperty.call(body ?? {}, 'resolution')) {
+      findingChanges.resolution = body?.resolution ?? null;
+    }
+
+    const finding = await complianceService.updateQualityFinding(req.params.id, findingChanges);
 
     res.json(finding);
   } catch (error: any) {
@@ -267,10 +272,22 @@ router.patch('/reviews/:id', async (req: Request, res: Response) => {
     const body = req.body as UpdateReviewBody;
     const status = body?.status ? String(body.status).toUpperCase() : undefined;
 
-    const review = await complianceService.updateReviewRequest(req.params.id, {
-      status: status as any,
-      comments: body?.comments ?? null,
+    const changes: UpdateReviewBody & { tenantId?: string | null } = {
       tenantId: req.tenant?.id ?? null,
+    };
+
+    if (status) {
+      changes.status = status;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body ?? {}, 'comments')) {
+      changes.comments = body?.comments ?? null;
+    }
+
+    const review = await complianceService.updateReviewRequest(req.params.id, {
+      status: changes.status as any,
+      comments: changes.comments,
+      tenantId: changes.tenantId,
     });
 
     res.json(review);
