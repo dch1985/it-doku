@@ -144,16 +144,45 @@ export const complianceService = {
     });
   },
 
-  listQualityFindings(documentId?: string) {
+  listQualityFindings(tenantId?: string | null, documentId?: string) {
+    const tenantScope = tenantId
+      ? [
+          { document: { tenantId } },
+          { generationJob: { tenantId } },
+        ]
+      : null;
+
     return prisma.qualityFinding.findMany({
       where: {
         ...(documentId ? { documentId } : {}),
+        ...(tenantScope ? { OR: tenantScope } : {}),
       },
       orderBy: { createdAt: 'desc' },
     });
   },
 
-  async updateQualityFinding(id: string, changes: QualityFindingUpdatePayload) {
+  async updateQualityFinding(
+    id: string,
+    changes: QualityFindingUpdatePayload,
+    tenantId?: string | null
+  ) {
+    if (tenantId) {
+      const finding = await prisma.qualityFinding.findFirst({
+        where: {
+          id,
+          OR: [
+            { document: { tenantId } },
+            { generationJob: { tenantId } },
+          ],
+        },
+        select: { id: true },
+      });
+
+      if (!finding) {
+        throw new ApplicationError('Quality Finding wurde nicht gefunden', 404);
+      }
+    }
+
     const payload = changes ?? {};
     const data: Record<string, unknown> = {};
 
@@ -180,7 +209,7 @@ export const complianceService = {
     });
   },
 
-  async runQualityChecks(documentId: string) {
+  async runQualityChecks(documentId: string, tenantId?: string | null) {
     const document = await prisma.document.findUnique({
       where: { id: documentId },
       select: {
@@ -188,11 +217,16 @@ export const complianceService = {
         content: true,
         title: true,
         category: true,
+        tenantId: true,
       },
     });
 
     if (!document) {
       throw new Error('Dokument nicht gefunden');
+    }
+
+    if (tenantId && document.tenantId && tenantId !== document.tenantId) {
+      throw new ApplicationError('Zugriff auf dieses Dokument ist nicht erlaubt', 403);
     }
 
     const text = stripHtml(document.content);
