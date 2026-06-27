@@ -21,6 +21,24 @@ type UpdateReviewBody = {
   comments?: string | null;
 };
 
+export function mapReviewUpdateBody(body: UpdateReviewBody, tenantId?: string | null) {
+  const payload: {
+    status?: string;
+    comments?: string | null;
+    tenantId?: string | null;
+  } = {
+    status: body?.status ? String(body.status).toUpperCase() : undefined,
+    tenantId: tenantId ?? null,
+  };
+
+  // Preserve existing comments unless the client explicitly sends this field.
+  if (Object.prototype.hasOwnProperty.call(body ?? {}, 'comments')) {
+    payload.comments = body?.comments ?? null;
+  }
+
+  return payload;
+}
+
 const router = Router();
 const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
 
@@ -265,12 +283,11 @@ router.post('/reviews', async (req: Request, res: Response) => {
 router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateReviewBody;
-    const status = body?.status ? String(body.status).toUpperCase() : undefined;
+    const mappedPayload = mapReviewUpdateBody(body, req.tenant?.id ?? null);
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
-      status: status as any,
-      comments: body?.comments ?? null,
-      tenantId: req.tenant?.id ?? null,
+      ...mappedPayload,
+      status: mappedPayload.status as any,
     });
 
     res.json(review);
