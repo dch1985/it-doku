@@ -144,16 +144,41 @@ export const complianceService = {
     });
   },
 
-  listQualityFindings(documentId?: string) {
+  listQualityFindings(tenantId?: string | null, documentId?: string) {
     return prisma.qualityFinding.findMany({
       where: {
         ...(documentId ? { documentId } : {}),
+        ...(tenantId
+          ? {
+              OR: [
+                { document: { tenantId } },
+                { generationJob: { tenantId } },
+              ],
+            }
+          : {}),
       },
       orderBy: { createdAt: 'desc' },
     });
   },
 
-  async updateQualityFinding(id: string, changes: QualityFindingUpdatePayload) {
+  async updateQualityFinding(id: string, changes: QualityFindingUpdatePayload, tenantId?: string | null) {
+    if (tenantId) {
+      const finding = await prisma.qualityFinding.findFirst({
+        where: {
+          id,
+          OR: [
+            { document: { tenantId } },
+            { generationJob: { tenantId } },
+          ],
+        },
+        select: { id: true },
+      });
+
+      if (!finding) {
+        throw new ApplicationError('Zugriff auf dieses Finding ist nicht erlaubt', 403);
+      }
+    }
+
     const payload = changes ?? {};
     const data: Record<string, unknown> = {};
 
@@ -180,9 +205,12 @@ export const complianceService = {
     });
   },
 
-  async runQualityChecks(documentId: string) {
-    const document = await prisma.document.findUnique({
-      where: { id: documentId },
+  async runQualityChecks(documentId: string, tenantId?: string | null) {
+    const document = await prisma.document.findFirst({
+      where: {
+        id: documentId,
+        ...(tenantId ? { tenantId } : {}),
+      },
       select: {
         id: true,
         content: true,
