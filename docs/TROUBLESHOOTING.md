@@ -1,126 +1,180 @@
 # Troubleshooting Guide
 
-## Problem: "Failed to load documents"
+This page focuses on current production/dev issues around tenant-aware APIs, automation workers, and compliance workflows.
 
-### Ursache: Azure SQL Server Firewall blockiert Verbindung
+## Quick triage checklist
 
-**Fehlermeldung:**
-```
-Cannot open server 'itdokusql1969' requested by the login. 
-Client with IP address '87.169.155.196' is not allowed to access the server.
-```
+1. Verify backend is running: `curl http://localhost:3002/api/health`
+2. Verify frontend API base: `VITE_API_URL` in `frontend/.env`
+3. For protected routes, send:
+   - `Authorization: Bearer <token>`
+   - `X-Tenant-ID: <tenant-id>` (or `X-Tenant-Slug`)
+4. Verify selected automation mode in backend env:
+   - `AUTOMATION_RUN_IMMEDIATE`
+   - `AUTOMATION_QUEUE_AUTORUN`
+   - `AUTOMATION_QUEUE_PROVIDER`
 
-### Lösungen:
+## Problem: `Tenant identifier required`
 
-#### Option 1: Azure Portal - Firewall-Regel hinzufügen (Empfohlen)
+### Symptom
 
-1. Gehe zu [Azure Portal](https://portal.azure.com)
-2. Navigiere zu deiner SQL Server Instanz (`itdokusql1969`)
-3. Gehe zu **Settings** → **Networking** oder **Firewalls and virtual networks**
-4. Klicke auf **Add client IPv4 address** oder **+ Add a firewall rule**
-5. Füge deine aktuelle IP-Adresse hinzu: `87.169.155.196`
-6. ODER aktiviere **Allow Azure services and resources to access this server** (wenn du von Azure aus zugreifst)
-7. Speichere die Änderungen (kann bis zu 5 Minuten dauern)
+- Backend responds `400` with message:
+  - `Tenant identifier required. Please provide X-Tenant-ID or X-Tenant-Slug header.`
 
-**Alternative via Azure CLI:**
+### Cause
+
+- Tenant middleware enforces tenant context for most non-public endpoints.
+
+### Fix
+
 ```bash
-az sql server firewall-rule create \
-  --resource-group <your-resource-group> \
-  --server itdokusql1969 \
-  --name MyIP \
-  --start-ip-address 87.169.155.196 \
-  --end-ip-address 87.169.155.196
+curl "$API_BASE/analytics" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-ID: $TENANT_ID"
 ```
 
-#### Option 2: Temporäre lokale Datenbank für Entwicklung
+### Notes
 
-Falls du für die Entwicklung eine lokale Datenbank verwenden möchtest:
+- In dev mode (`NODE_ENV=development` or `DEV_AUTH_ENABLED=true`) tenantless requests may pass for some routes, but do not rely on this in production tests.
 
-1. Ändere `backend/prisma/schema.prisma`:
-```prisma
-datasource db {
-  provider = "sqlite"  // Statt "sqlserver"
-  url      = "file:./dev.db"
-}
+## Problem: Automation jobs stay `PENDING`
+
+### Symptom
+
+- `GET /api/automation/jobs` shows jobs stuck in `PENDING`.
+
+### Typical causes
+
+1. Both flags disabled:
+   - `AUTOMATION_RUN_IMMEDIATE=false`
+   - `AUTOMATION_QUEUE_AUTORUN=false`
+2. Queue provider is `servicebus` but no worker is running.
+3. Service Bus env vars are missing.
+
+### Fix paths
+
+#### Option A: Immediate local processing
+
+```env
+AUTOMATION_RUN_IMMEDIATE=true
+AUTOMATION_QUEUE_AUTORUN=false
+AUTOMATION_QUEUE_PROVIDER=memory
 ```
 
-2. Führe Migrationen aus:
+#### Option B: Queue + worker
+
+```env
+AUTOMATION_RUN_IMMEDIATE=false
+AUTOMATION_QUEUE_AUTORUN=false
+AUTOMATION_QUEUE_PROVIDER=servicebus
+AZURE_SERVICE_BUS_CONNECTION_STRING=...
+AZURE_SERVICE_BUS_QUEUE_NAME=...
+```
+
+Then start worker:
+
 ```bash
 cd backend
-npx prisma migrate dev --name init
-npx prisma generate
+npm run automation:worker
 ```
 
-3. Erstelle einen Demo-User:
-```bash
-npx prisma studio
-# Oder via SQL:
-npx prisma db execute --stdin <<< "INSERT INTO users (id, email, name, role) VALUES ('demo-user-id', 'demo@local.dev', 'Demo User', 'ADMIN');"
-```
-
-#### Option 3: IP-Adresse dynamisch hinzufügen (PowerShell Script)
-
-Erstelle ein Script, das deine aktuelle IP-Adresse automatisch hinzufügt:
-
-```powershell
-# Get current IP
-$currentIP = (Invoke-WebRequest -Uri "https://api.ipify.org" -UseBasicParsing).Content
-
-# Add to Azure SQL Firewall via Azure CLI
-az sql server firewall-rule create \
-  --resource-group <your-resource-group> \
-  --server itdokusql1969 \
-  --name "DevIP-$(Get-Date -Format 'yyyyMMdd')" \
-  --start-ip-address $currentIP \
-  --end-ip-address $currentIP
-```
-
-### Prüfung ob Problem behoben ist:
+### Incident recovery
 
 ```bash
-# Test Backend API
-curl http://localhost:3001/api/health
-
-# Test Documents Endpoint
-curl http://localhost:3001/api/documents
+cd backend
+npm run automation:job -- <jobId>
 ```
 
-### Temporäre Workaround (wenn Firewall nicht geändert werden kann)
+## Problem: Connector toggle fails with `Globale Connectoren können nicht angepasst werden`
 
-Falls du die Firewall-Regel nicht sofort ändern kannst, implementiere eine Fallback-Lösung:
+### Symptom
 
-```typescript
-// backend/src/routes/documents.ts
-router.get('/', async (req: Request, res: Response) => {
-  try {
-    const documents = await prisma.document.findMany({
-      orderBy: { updatedAt: 'desc' }
-    })
-    res.json(documents)
-  } catch (error: any) {
-    // Fallback: Return empty array if database is unavailable
-    if (error.code === 'P1001' || error.message.includes('firewall')) {
-      console.warn('[Documents] Database firewall issue - returning empty array')
-      return res.json([])
-    }
-    throw error
-  }
-})
+- `PATCH /api/automation/connectors/:id` returns `403`.
+
+### Cause
+
+- Global connectors (`tenantId == null`) are intentionally immutable from tenant scope.
+
+### Fix
+
+- Create/manage a tenant-scoped connector for runtime toggling.
+- Do not expect global connectors to be toggleable in the tenant UI.
+
+## Problem: Search returns documents but no knowledge nodes
+
+### Symptom
+
+- `/api/search?q=...` returns empty `knowledge` array while documents exist.
+
+### Likely causes
+
+1. Knowledge nodes are not assigned to tenant-owned documents.
+2. Orphan nodes were created without tenant metadata.
+3. Query text does not match `content`, `tags`, `metadata`, or node type.
+
+### Fix
+
+1. Check nodes:
+
+```bash
+curl "$API_BASE/knowledge" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-ID: $TENANT_ID"
 ```
 
-## Weitere häufige Probleme
+2. Update or recreate nodes with correct document assignment and tenant context.
+3. Re-run search using `type=knowledge` for focused debugging.
 
-### Backend läuft nicht
-- Prüfe ob Port 3001 frei ist: `netstat -ano | findstr :3001`
-- Starte Backend: `cd backend && npm run dev`
+## Problem: Compliance quality checks create no useful findings
 
-### Frontend kann Backend nicht erreichen
-- Prüfe CORS-Einstellungen im Backend
-- Prüfe ob `VITE_API_URL` in `frontend/.env` korrekt gesetzt ist
-- Prüfe Browser-Konsole für CORS-Fehler
+### Symptom
 
-### Datenbank-Fehler
-- Prüfe `DATABASE_URL` in `backend/.env`
-- Führe Prisma Migrationen aus: `npx prisma migrate dev`
-- Generiere Prisma Client: `npx prisma generate`
+- `POST /api/compliance/quality/check` returns empty findings or only low-signal hints.
 
+### Cause
+
+- Current checks are rule-based and look for explicit patterns, e.g.:
+  - placeholder text (`lorem ipsum`, `dummy text`)
+  - plain-text password patterns
+  - missing review/owner wording
+
+### Fix
+
+- Ensure document contains auditable sections (review process, owner, concrete controls).
+- Re-run:
+
+```bash
+curl -X POST "$API_BASE/compliance/quality/check" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-ID: $TENANT_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"documentId":"<document-id>"}'
+```
+
+## Problem: `Failed to load documents` or SQL connectivity errors
+
+### Symptom
+
+- Errors similar to firewall/network access denial for SQL Server.
+
+### Fix options
+
+1. Add firewall rule in Azure SQL for current client IP.
+2. Confirm `DATABASE_URL` is reachable from backend runtime.
+3. Validate DB connectivity before frontend debugging.
+
+### Verification
+
+```bash
+curl http://localhost:3002/api/health
+curl "$API_BASE/documents" -H "Authorization: Bearer $TOKEN" -H "X-Tenant-ID: $TENANT_ID"
+```
+
+## Problem: Frontend cannot reach backend
+
+### Checks
+
+- `frontend/.env` contains correct `VITE_API_URL`
+- Backend `FRONTEND_URL` allows frontend origin
+- Browser network tab does not show CORS rejection
+- Backend route prefix is `/api/*` (do not call bare `/analytics`, etc.)

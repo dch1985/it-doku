@@ -1,6 +1,6 @@
 # 📚 IT-Doku - AI-Powered IT Documentation System
 
-> A modern, full-stack enterprise documentation platform with AI chat, GitHub integration, and file management capabilities.
+> A modern, full-stack enterprise documentation platform with tenant-aware workflows for Automate, Centralize, and Comply.
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
 ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
@@ -13,6 +13,7 @@
 ## ✨ Features
 
 ### 🎯 Core Features
+
 - **📝 Rich Text Editor** - Full-featured document editor with TipTap
 - **🤖 AI Chat Assistant** - Powered by Azure OpenAI GPT-4
 - **📁 File Management** - Upload, manage, and download attachments (PDF, Word, Excel, Images)
@@ -22,6 +23,7 @@
 - **📱 Responsive Design** - Works seamlessly on all devices
 
 ### 🚀 Advanced Features
+
 - **GitHub Integration** - Import repositories and README files
 - **Version History** - Track all document changes
 - **Export Options** - Export to PDF, Markdown, or JSON
@@ -36,6 +38,7 @@
 ## 🛠️ Tech Stack
 
 ### Frontend
+
 - **React 19** with TypeScript
 - **Vite** for blazing-fast development
 - **shadcn/ui** + Tailwind CSS for beautiful UI
@@ -44,6 +47,7 @@
 - **Sonner** for toast notifications
 
 ### Backend
+
 - **Express.js** with TypeScript
 - **Prisma ORM** for database management
 - **SQL Server** for data persistence (Azure SQL)
@@ -58,7 +62,8 @@
 ## 📦 Installation
 
 ### Prerequisites
-- Node.js 18+ 
+
+- Node.js 18+
 - npm or yarn
 - Azure SQL Server (or compatible SQL Server database)
 - Azure AD B2C App Registration (for authentication)
@@ -66,6 +71,7 @@
 - GitHub Personal Access Token (optional, for GitHub integration)
 
 ### Backend Setup
+
 ```bash
 # Clone the repository
 git clone https://github.com/dch1985/it-doku.git
@@ -100,6 +106,7 @@ npm run dev
 ```
 
 ### Frontend Setup
+
 ```bash
 # Install frontend dependencies
 cd ../frontend
@@ -119,12 +126,15 @@ npm run dev
 ```
 
 The application will be available at:
+
 - Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:3001`
+- Backend API: `http://localhost:3002`
+- Health Check: `http://localhost:3002/api/health`
 
 ---
 
 ## 📚 Project Structure
+
 ```
 it-doku/
 ├── backend/
@@ -132,30 +142,31 @@ it-doku/
 │   │   └── schema.prisma      # Database schema
 │   ├── src/
 │   │   ├── routes/            # API routes
-│   │   │   ├── chat.ts        # AI chat endpoints
-│   │   │   ├── documents.ts   # Document CRUD
-│   │   │   ├── templates.ts   # Templates management
-│   │   │   ├── github.ts      # GitHub integration
-│   │   │   └── upload.ts      # File upload handling
+│   │   │   ├── automation.ts  # Connector/job/suggestion workflows
+│   │   │   ├── compliance.ts  # Findings, annotations, reviews
+│   │   │   ├── knowledge.ts   # Knowledge node CRUD
+│   │   │   ├── analytics.ts   # KPI aggregation
+│   │   │   ├── search.ts      # Global document + knowledge search
+│   │   │   └── assistant.ts   # Conversation + trace endpoints
 │   │   ├── services/          # Business logic
-│   │   ├── lib/               # Utilities
+│   │   ├── workers/           # Automation worker entrypoint
+│   │   ├── lib/               # Queue + OpenAI helpers
 │   │   └── index.ts           # Server entry point
 │   └── uploads/               # File storage directory
 │
-├── frontend-new/
+├── frontend/
 │   ├── src/
 │   │   ├── components/        # Reusable components
-│   │   │   ├── ui/           # shadcn/ui components
-│   │   │   ├── DocumentEditor.tsx
-│   │   │   ├── FileUpload.tsx
-│   │   │   └── ChatSidebar.tsx
+│   │   │   ├── ui/            # shadcn/ui components
+│   │   │   ├── SearchBar.tsx
+│   │   │   └── TenantSelector.tsx
 │   │   ├── pages/            # Page components
 │   │   │   ├── Dashboard.tsx
 │   │   │   ├── Documents.tsx
 │   │   │   ├── DocumentDetail.tsx
 │   │   │   ├── Analytics.tsx
 │   │   │   └── Settings.tsx
-│   │   ├── hooks/            # Custom React hooks
+│   │   ├── hooks/            # API + feature hooks
 │   │   ├── stores/           # State management
 │   │   ├── lib/              # Utilities
 │   │   └── App.tsx           # Main app component
@@ -168,75 +179,108 @@ it-doku/
 
 ## 🔌 API Endpoints
 
-### Authentication
-- `GET /api/auth/me` - Get current authenticated user
-- `POST /api/auth/logout` - Logout
-- `GET /api/auth/verify` - Verify token
+### Core Platform
 
-### Tenants
-- `GET /api/tenants` - List user's tenants
-- `GET /api/tenants/:id` - Get tenant details
-- `POST /api/tenants` - Create new tenant
-- `PATCH /api/tenants/:id` - Update tenant (OWNER/ADMIN only)
+- `GET /api/health` - Service health and OpenAI config flag
+- `GET /api/docs` - Minimal API info payload
+- `GET /api/auth/*` - Auth/session endpoints
+- `GET /api/tenants` - Tenant membership context
+- `GET|POST|PUT|DELETE /api/documents` - Document CRUD
+- `GET|POST /api/templates` - Template listing and creation
+- `GET /api/github/*` - GitHub import helpers
+- `POST|GET|DELETE /api/upload/*` - File upload lifecycle
 
-### Documents
-- `GET /api/documents` - List all documents (filtered by tenant)
-- `GET /api/documents/:id` - Get document by ID
-- `POST /api/documents` - Create new document
-- `PUT /api/documents/:id` - Update document
-- `DELETE /api/documents/:id` - Delete document
+### Automate (`/api/automation`)
 
-> **Note:** All document endpoints require `X-Tenant-ID` or `X-Tenant-Slug` header for tenant isolation.
+- `GET|POST /connectors` - List or create source connectors
+- `PATCH /connectors/:id` - Toggle connector activation (`isActive`)
+- `GET|POST /jobs` - List jobs or create generation jobs
+- `GET /jobs/:id` - Job details with findings + suggestions
+- `POST /jobs/:id/{approve|retry|cancel}` - Job control actions
+- `GET /suggestions` - List update suggestions
+- `PATCH /suggestions/:id` - Set suggestion status (`APPLIED` / `DISMISSED`)
 
-### File Upload
-- `POST /api/upload` - Upload file attachment
-- `GET /api/upload/document/:documentId` - Get document attachments
-- `GET /api/upload/:id` - Download attachment
-- `DELETE /api/upload/:id` - Delete attachment
+### Centralize (`/api/assistant`, `/api/knowledge`, `/api/search`)
 
-### AI Chat
-- `POST /api/chat` - Send message to AI assistant
+- `GET /assistant/conversations` - Conversation history (tenant/user scope)
+- `POST /assistant/query` - Ask question and persist trace + citations
+- `GET /assistant/traces` - Recent audit traces
+- `GET|POST /knowledge` - List/create knowledge nodes
+- `PATCH|DELETE /knowledge/:id` - Update/remove knowledge node
+- `GET /search?q=<term>&type=<documents|knowledge>` - Ranked global search
 
-### GitHub Integration
-- `GET /api/github/repos/:username` - List user repositories
-- `GET /api/github/readme/:owner/:repo` - Get repository README
+### Comply (`/api/compliance`)
 
-### Templates
-- `GET /api/templates` - List all templates (tenant-aware)
-- `GET /api/templates/:id` - Get template by ID
+- `GET|POST /schemas` - Compliance template schemas
+- `GET|POST /annotations` - Structured document annotations
+- `GET|POST /trace-links` - Requirement/control traceability links
+- `GET /quality/findings` - Quality findings
+- `PATCH /quality/findings/:id` - Resolve/reopen findings
+- `POST /quality/check` - Run synchronous quality checks for one document
+- `GET|POST /reviews` - Review request workflow
+- `PATCH /reviews/:id` - Update review status/comments
+
+### Analytics
+
+- `GET /api/analytics` - Aggregated Automate/Centralize/Comply KPIs
+
+> **Tenant context:** Most non-public routes expect `X-Tenant-ID` (or `X-Tenant-Slug`).
+> In development mode (`NODE_ENV=development` or `DEV_AUTH_ENABLED=true`), tenantless access is partially relaxed.
 
 ---
 
 ## 🎨 Screenshots
 
 ### Dashboard
+
 ![Dashboard](docs/screenshots/dashboard.png)
 
 ### Document Editor
+
 ![Editor](docs/screenshots/editor.png)
 
 ### AI Chat
+
 ![Chat](docs/screenshots/chat.png)
 
 ### File Upload
+
 ![Upload](docs/screenshots/upload.png)
 
 ---
 
 ## 🚀 Deployment
 
-### Backend (Railway/Heroku)
-1. Push code to GitHub
-2. Connect repository to Railway/Heroku
-3. Set environment variables
-4. Deploy!
+### Backend
 
-### Frontend (Vercel/Netlify)
-1. Push code to GitHub
-2. Connect repository to Vercel/Netlify
-3. Build command: `npm run build`
-4. Output directory: `dist`
-5. Deploy!
+1. Deploy `backend/` as a Node service.
+2. Set required env vars (`DATABASE_URL`, auth config, OpenAI config as needed).
+3. Choose automation execution mode:
+   - **Synchronous local mode:** `AUTOMATION_RUN_IMMEDIATE=true`
+   - **Queue auto-consume mode:** `AUTOMATION_QUEUE_AUTORUN=true`
+   - **External worker mode:** `AUTOMATION_QUEUE_PROVIDER=servicebus` + worker process
+4. Run Prisma migrate/generate during release.
+
+### Frontend
+
+1. Deploy `frontend/` (Vite build).
+2. Set `VITE_API_URL` to backend base URL (with or without `/api`; both are supported by frontend URL helpers).
+3. Ensure auth app registration values are configured for target environment.
+
+### Automation Worker Runbook
+
+```bash
+cd backend
+
+# Process a single job manually
+npm run automation:job -- <jobId>
+
+# Run long-lived queue worker
+npm run automation:worker
+```
+
+> `AUTOMATION_QUEUE_PROVIDER=memory` is best for local development.
+> `AUTOMATION_QUEUE_PROVIDER=servicebus` requires `AZURE_SERVICE_BUS_CONNECTION_STRING` and `AZURE_SERVICE_BUS_QUEUE_NAME`.
 
 ---
 
@@ -261,6 +305,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 👨‍💻 Author
 
 **Driss Chaouat**
+
 - GitHub: [@dch1985](https://github.com/dch1985)
 - Role: IT Consultant - Microsoft 365 Cloud Services
 
@@ -278,8 +323,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📚 Documentation
 
 ### Implementation Guides
+
 - [Phase 1 & 2: Authentication & Multi-Tenancy](docs/PHASE_1_2_IMPLEMENTATION.md)
 - [Troubleshooting Guide](docs/TROUBLESHOOTING.md)
+- [Deployment Guide](docs/DEPLOYMENT.md)
 - [Gap Analysis](docs/GAP_ANALYSIS.md)
 
 ## 📧 Support
@@ -289,16 +336,3 @@ For support, email driss.chaouat@example.com or open an issue on GitHub.
 ---
 
 <p align="center">Made with ❤️ by Driss Chaouat</p>
-
-### Automation Queue & Worker
-
-```bash
-# Einzelnen Job manuell ausführen (Job-ID siehe /api/automation/jobs)
-cd backend
-npm run automation:job -- <jobId>
-
-# Länger laufender Worker (Platzhalter für zukünftigen Queue-Provider)
-npm run automation:worker
-```
-
-> Tipp: Für lokale Tests `AUTOMATION_RUN_IMMEDIATE=true` setzen. In produktiven Setups kann stattdessen eine echte Queue (z. B. Azure Service Bus mit `AUTOMATION_QUEUE_PROVIDER=servicebus`) angeschlossen werden.
