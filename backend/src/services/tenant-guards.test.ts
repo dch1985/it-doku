@@ -15,8 +15,30 @@ function swapMethod(target: Record<string, unknown>, key: string, replacement: u
   };
 }
 
+function ensureDelegate(delegateName: string) {
+  const prismaObject = prisma as unknown as Record<string, unknown>;
+  const hadOwnDelegate = Object.prototype.hasOwnProperty.call(prismaObject, delegateName);
+  const originalDelegate = prismaObject[delegateName];
+
+  if (!originalDelegate || typeof originalDelegate !== 'object') {
+    prismaObject[delegateName] = {};
+  }
+
+  return {
+    delegate: prismaObject[delegateName] as Record<string, unknown>,
+    restore: () => {
+      if (hadOwnDelegate) {
+        prismaObject[delegateName] = originalDelegate;
+      } else {
+        delete prismaObject[delegateName];
+      }
+    },
+  };
+}
+
 test('approveJob blocks cross-tenant job approval', async () => {
-  const generationJob = prisma.generationJob as unknown as Record<string, unknown>;
+  const generationJobDelegate = ensureDelegate('generationJob');
+  const generationJob = generationJobDelegate.delegate;
   const restoreFindUnique = swapMethod(generationJob, 'findUnique', async () => ({
     id: 'job-1',
     tenantId: 'tenant-b',
@@ -36,11 +58,13 @@ test('approveJob blocks cross-tenant job approval', async () => {
   } finally {
     restoreFindUnique();
     restoreUpdate();
+    generationJobDelegate.restore();
   }
 });
 
 test('updateSuggestion blocks cross-tenant suggestion updates', async () => {
-  const updateSuggestion = prisma.updateSuggestion as unknown as Record<string, unknown>;
+  const updateSuggestionDelegate = ensureDelegate('updateSuggestion');
+  const updateSuggestion = updateSuggestionDelegate.delegate;
   const restoreFindUnique = swapMethod(updateSuggestion, 'findUnique', async () => ({
     id: 'suggestion-1',
     generationJob: {
@@ -70,11 +94,13 @@ test('updateSuggestion blocks cross-tenant suggestion updates', async () => {
   } finally {
     restoreFindUnique();
     restoreUpdate();
+    updateSuggestionDelegate.restore();
   }
 });
 
 test('listQualityFindings applies tenant scope in query', async () => {
-  const qualityFinding = prisma.qualityFinding as unknown as Record<string, unknown>;
+  const qualityFindingDelegate = ensureDelegate('qualityFinding');
+  const qualityFinding = qualityFindingDelegate.delegate;
   let capturedWhere: unknown;
 
   const restoreFindMany = swapMethod(qualityFinding, 'findMany', async (args: any) => {
@@ -93,11 +119,13 @@ test('listQualityFindings applies tenant scope in query', async () => {
     });
   } finally {
     restoreFindMany();
+    qualityFindingDelegate.restore();
   }
 });
 
 test('updateQualityFinding blocks cross-tenant finding updates', async () => {
-  const qualityFinding = prisma.qualityFinding as unknown as Record<string, unknown>;
+  const qualityFindingDelegate = ensureDelegate('qualityFinding');
+  const qualityFinding = qualityFindingDelegate.delegate;
   const restoreFindUnique = swapMethod(qualityFinding, 'findUnique', async () => ({
     id: 'finding-1',
     document: {
@@ -128,6 +156,7 @@ test('updateQualityFinding blocks cross-tenant finding updates', async () => {
   } finally {
     restoreFindUnique();
     restoreUpdate();
+    qualityFindingDelegate.restore();
   }
 });
 
