@@ -4,6 +4,7 @@ import { devAuthenticate } from '../middleware/auth.dev.middleware.js';
 import { tenantMiddleware } from '../middleware/tenant.middleware.js';
 import { ApplicationError } from '../middleware/errorHandler.js';
 import { complianceService } from '../services/compliance.service.js';
+import { buildReviewUpdatePayload, type UpdateReviewBody } from './compliance.utils.js';
 
 type UpdateFindingBody = {
   resolution?: string | null;
@@ -13,11 +14,6 @@ type UpdateFindingBody = {
 type CreateReviewBody = {
   documentId: string;
   reviewerId: string;
-  comments?: string | null;
-};
-
-type UpdateReviewBody = {
-  status?: string;
   comments?: string | null;
 };
 
@@ -158,7 +154,10 @@ router.post('/trace-links', async (req: Request, res: Response) => {
 router.get('/quality/findings', async (req: Request, res: Response) => {
   try {
     const { documentId } = req.query;
-    const findings = await complianceService.listQualityFindings(documentId ? String(documentId) : undefined);
+    const findings = await complianceService.listQualityFindings(
+      documentId ? String(documentId) : undefined,
+      req.tenant?.id ?? null,
+    );
 
     res.json(findings);
   } catch (error: any) {
@@ -182,7 +181,7 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
     const finding = await complianceService.updateQualityFinding(req.params.id, {
       action: action as 'RESOLVE' | 'REOPEN' | undefined,
       resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
-    });
+    }, req.tenant?.id ?? null);
 
     res.json(finding);
   } catch (error: any) {
@@ -201,7 +200,10 @@ router.post('/quality/check', async (req: Request, res: Response) => {
       throw new ApplicationError('documentId ist erforderlich', 400);
     }
 
-    const findings = await complianceService.runQualityChecks(String(documentId));
+    const findings = await complianceService.runQualityChecks(
+      String(documentId),
+      req.tenant?.id ?? null,
+    );
     res.json({
       documentId: String(documentId),
       findings,
@@ -264,12 +266,12 @@ router.post('/reviews', async (req: Request, res: Response) => {
 
 router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
-    const body = req.body as UpdateReviewBody;
-    const status = body?.status ? String(body.status).toUpperCase() : undefined;
+    const body = req.body as UpdateReviewBody | undefined;
+    const updatePayload = buildReviewUpdatePayload(body);
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
-      status: status as any,
-      comments: body?.comments ?? null,
+      status: updatePayload.status as any,
+      comments: updatePayload.comments,
       tenantId: req.tenant?.id ?? null,
     });
 
