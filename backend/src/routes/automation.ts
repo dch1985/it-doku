@@ -126,7 +126,12 @@ router.get('/jobs/:id', async (req: Request, res: Response) => {
 
 router.post('/jobs/:id/approve', async (req: Request, res: Response) => {
   try {
-    const job = await automationService.approveJob(req.params.id);
+    const existingJob = await automationService.getJobWithDetails(req.params.id);
+    if (!existingJob || existingJob.tenantId !== req.tenant?.id) {
+      return res.status(404).json({ error: 'Job nicht gefunden' });
+    }
+
+    const job = await automationService.approveJob(existingJob.id);
 
     res.json(job);
   } catch (error: any) {
@@ -154,6 +159,11 @@ router.get('/suggestions', async (req: Request, res: Response) => {
 
 router.patch('/suggestions/:id', async (req: Request, res: Response) => {
   try {
+    const existingSuggestion = await automationService.getSuggestionWithJob(req.params.id);
+    if (!existingSuggestion || existingSuggestion.generationJob?.tenantId !== req.tenant?.id) {
+      return res.status(404).json({ error: 'Suggestion nicht gefunden' });
+    }
+
     const body = req.body as UpdateSuggestionBody;
     const suggestion = await automationService.updateSuggestion(req.params.id, {
       status: body.status,
