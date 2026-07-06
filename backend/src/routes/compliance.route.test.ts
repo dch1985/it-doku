@@ -28,7 +28,7 @@ async function sendRequest(
   const { port } = server.address() as AddressInfo;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}${path}`, {
+    const response = await fetch(`http://localhost:${port}${path}`, {
       method,
       headers: {
         'Content-Type': 'application/json',
