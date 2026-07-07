@@ -158,7 +158,10 @@ router.post('/trace-links', async (req: Request, res: Response) => {
 router.get('/quality/findings', async (req: Request, res: Response) => {
   try {
     const { documentId } = req.query;
-    const findings = await complianceService.listQualityFindings(documentId ? String(documentId) : undefined);
+    const findings = await complianceService.listQualityFindings(
+      req.tenant?.id,
+      documentId ? String(documentId) : undefined,
+    );
 
     res.json(findings);
   } catch (error: any) {
@@ -182,7 +185,7 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
     const finding = await complianceService.updateQualityFinding(req.params.id, {
       action: action as 'RESOLVE' | 'REOPEN' | undefined,
       resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
-    });
+    }, req.tenant?.id);
 
     res.json(finding);
   } catch (error: any) {
@@ -201,7 +204,7 @@ router.post('/quality/check', async (req: Request, res: Response) => {
       throw new ApplicationError('documentId ist erforderlich', 400);
     }
 
-    const findings = await complianceService.runQualityChecks(String(documentId));
+    const findings = await complianceService.runQualityChecks(String(documentId), req.tenant?.id);
     res.json({
       documentId: String(documentId),
       findings,
