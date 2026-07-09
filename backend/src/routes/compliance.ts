@@ -21,6 +21,14 @@ type UpdateReviewBody = {
   comments?: string | null;
 };
 
+function normalizeReviewComments(body: UpdateReviewBody | undefined): string | null | undefined {
+  if (!body || !Object.prototype.hasOwnProperty.call(body, 'comments')) {
+    return undefined;
+  }
+
+  return body.comments ?? null;
+}
+
 const router = Router();
 const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
 
@@ -266,10 +274,11 @@ router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateReviewBody;
     const status = body?.status ? String(body.status).toUpperCase() : undefined;
+    const comments = normalizeReviewComments(body);
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
       status: status as any,
-      comments: body?.comments ?? null,
+      comments,
       tenantId: req.tenant?.id ?? null,
     });
 
