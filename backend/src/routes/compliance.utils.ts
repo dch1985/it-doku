@@ -16,5 +16,9 @@ export function getOptionalNullableStringField(
   }
 
   const value = (body as Record<string, unknown>)[key];
-  return typeof value === 'string' ? value : value ?? null;
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  return null;
 }
