@@ -158,7 +158,10 @@ router.post('/trace-links', async (req: Request, res: Response) => {
 router.get('/quality/findings', async (req: Request, res: Response) => {
   try {
     const { documentId } = req.query;
-    const findings = await complianceService.listQualityFindings(documentId ? String(documentId) : undefined);
+    const findings = await complianceService.listQualityFindings(
+      req.tenant?.id ?? null,
+      documentId ? String(documentId) : undefined,
+    );
 
     res.json(findings);
   } catch (error: any) {
@@ -174,14 +177,19 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateFindingBody;
     const action = body?.action ? body.action.toUpperCase() : undefined;
+    const hasResolution = Object.prototype.hasOwnProperty.call(body ?? {}, 'resolution');
 
     if (action && action !== 'RESOLVE' && action !== 'REOPEN') {
       throw new ApplicationError(`Ungültige Aktion: ${action}`, 400);
     }
 
-    const finding = await complianceService.updateQualityFinding(req.params.id, {
+    const finding = await complianceService.updateQualityFinding(req.params.id, req.tenant?.id ?? null, {
       action: action as 'RESOLVE' | 'REOPEN' | undefined,
-      resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
+      resolution: hasResolution
+        ? typeof body?.resolution === 'string'
+          ? body.resolution
+          : body?.resolution ?? null
+        : undefined,
     });
 
     res.json(finding);
@@ -201,7 +209,7 @@ router.post('/quality/check', async (req: Request, res: Response) => {
       throw new ApplicationError('documentId ist erforderlich', 400);
     }
 
-    const findings = await complianceService.runQualityChecks(String(documentId));
+    const findings = await complianceService.runQualityChecks(String(documentId), req.tenant?.id ?? null);
     res.json({
       documentId: String(documentId),
       findings,
@@ -266,10 +274,11 @@ router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateReviewBody;
     const status = body?.status ? String(body.status).toUpperCase() : undefined;
+    const hasComments = Object.prototype.hasOwnProperty.call(body ?? {}, 'comments');
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
       status: status as any,
-      comments: body?.comments ?? null,
+      comments: hasComments ? body?.comments ?? null : undefined,
       tenantId: req.tenant?.id ?? null,
     });
 
