@@ -10,6 +10,9 @@
 - [ ] Configure Azure SQL Server firewall rules
 - [ ] Test database connection
 - [ ] Test authentication endpoints
+- [ ] Decide automation mode (`AUTOMATION_RUN_IMMEDIATE` vs queue-based autorun)
+- [ ] If queue-based: configure Service Bus credentials and queue name
+- [ ] Validate tenant context forwarding (`X-Tenant-ID`/`X-Tenant-Slug`) from frontend or API gateway
 
 ### Frontend
 
@@ -35,11 +38,11 @@ AZURE_OPENAI_ENDPOINT=your-endpoint
 AZURE_OPENAI_DEPLOYMENT=gpt-4o
 AZURE_OPENAI_API_VERSION=2024-02-01
 FRONTEND_URL=https://your-frontend-domain.com
-AUTOMATION_QUEUE_AUTORUN=false
+AUTOMATION_QUEUE_AUTORUN=true
 AUTOMATION_RUN_IMMEDIATE=false
-AUTOMATION_QUEUE_PROVIDER=memory
-AZURE_SERVICE_BUS_CONNECTION_STRING=
-AZURE_SERVICE_BUS_QUEUE_NAME=
+AUTOMATION_QUEUE_PROVIDER=servicebus
+AZURE_SERVICE_BUS_CONNECTION_STRING=Endpoint=sb://...
+AZURE_SERVICE_BUS_QUEUE_NAME=automation-jobs
 ```
 
 ### Frontend Production
@@ -72,6 +75,20 @@ VITE_AZURE_TENANT_ID=your-tenant-id
 
 ---
 
+## Automation Queue Operating Modes
+
+Use one mode per environment:
+
+| Mode | Core variables | Recommended use |
+|------|----------------|-----------------|
+| Immediate execution | `AUTOMATION_RUN_IMMEDIATE=true`, `AUTOMATION_QUEUE_AUTORUN=false` | Local development and quick smoke checks |
+| Queue autorun (memory) | `AUTOMATION_QUEUE_AUTORUN=true`, `AUTOMATION_QUEUE_PROVIDER=memory` | Single-instance test environments |
+| Queue autorun (Service Bus) | `AUTOMATION_QUEUE_AUTORUN=true`, `AUTOMATION_QUEUE_PROVIDER=servicebus` + Service Bus env vars | Production / multi-instance |
+
+If `AUTOMATION_QUEUE_PROVIDER=servicebus`, both `AZURE_SERVICE_BUS_CONNECTION_STRING` and `AZURE_SERVICE_BUS_QUEUE_NAME` are required.
+
+---
+
 ## Migration Commands
 
 ```bash
@@ -90,7 +107,38 @@ npx prisma generate
 1. Test authentication flow
 2. Test tenant creation
 3. Test document CRUD operations
-4. Monitor error logs
-5. Set up Application Insights (optional)
-6. (Optional) Automationsjobs testen: `npm run automation:job -- <jobId>` oder Worker starten (`npm run automation:worker`).
+4. Smoke test Automate/Centralize/Comply endpoints with tenant header
+5. Monitor error logs
+6. Set up Application Insights (optional)
+7. (Optional) Automationsjob testen: `npm run automation:job -- <jobId>`
+8. (Optional) Worker starten: `npm run automation:worker`
+
+### Smoke Test Commands
+
+> Replace placeholders with real IDs.
+
+```bash
+BASE_URL=https://your-backend-api.com
+
+# Health
+curl "$BASE_URL/api/health"
+
+# Automation connectors
+curl -H "X-Tenant-ID: <tenantId>" "$BASE_URL/api/automation/connectors"
+
+# Knowledge nodes for one document
+curl -H "X-Tenant-ID: <tenantId>" "$BASE_URL/api/knowledge?documentId=<documentId>"
+
+# Run compliance quality check
+curl -X POST "$BASE_URL/api/compliance/quality/check" \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: <tenantId>" \
+  -d '{"documentId":"<documentId>"}'
+
+# Create review request
+curl -X POST "$BASE_URL/api/compliance/reviews" \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: <tenantId>" \
+  -d '{"documentId":"<documentId>","reviewerId":"<reviewerId>","comments":"Release readiness review"}'
+```
 
