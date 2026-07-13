@@ -124,3 +124,64 @@ router.get('/', async (req: Request, res: Response) => {
 - Führe Prisma Migrationen aus: `npx prisma migrate dev`
 - Generiere Prisma Client: `npx prisma generate`
 
+### Automate: Connector kann nicht aktiviert/deaktiviert werden
+
+**Symptom:** `PATCH /api/automation/connectors/:id` liefert `403` mit Hinweis auf globale Connectoren.
+
+**Ursache:** Globale Connectoren (`tenantId = null`) sind absichtlich schreibgeschützt.
+
+**Lösung:**
+1. Erstelle einen tenant-spezifischen Connector via `POST /api/automation/connectors`.
+2. Verwende danach `PATCH /api/automation/connectors/:id` mit `{ "isActive": true|false }`.
+3. Prüfe, dass der Request den korrekten Tenant-Header enthält.
+
+### Automate/Centralize/Comply liefern leere Listen oder 403
+
+**Symptom:** Endpoints wie `/api/automation/jobs`, `/api/knowledge`, `/api/compliance/reviews` liefern keine Daten oder Zugriff verweigert.
+
+**Ursache:** Tenant-Kontext fehlt oder verweist auf den falschen Tenant.
+
+**Lösung:**
+- Sende `X-Tenant-ID` (oder `X-Tenant-Slug`) in allen tenant-spezifischen Requests.
+- Prüfe im Frontend, dass ein Tenant aktiv ausgewählt ist.
+- Verifiziere den Header schnell per cURL:
+
+```bash
+curl -H "X-Tenant-ID: <tenantId>" http://localhost:3002/api/automation/jobs
+```
+
+### Queue-Mode mit Service Bus startet nicht
+
+**Symptom:** Worker oder API melden Fehler beim Initialisieren der Queue.
+
+**Häufige Ursache:** `AUTOMATION_QUEUE_PROVIDER=servicebus`, aber eine der Pflichtvariablen fehlt.
+
+**Checkliste:**
+1. `AUTOMATION_QUEUE_PROVIDER=servicebus`
+2. `AZURE_SERVICE_BUS_CONNECTION_STRING` gesetzt
+3. `AZURE_SERVICE_BUS_QUEUE_NAME` gesetzt
+4. Danach Worker neu starten: `cd backend && npm run automation:worker`
+
+### Compliance: Quality Finding Update schlägt fehl
+
+**Symptom:** `PATCH /api/compliance/quality/findings/:id` gibt `400` (`Keine Änderungen angegeben`).
+
+**Ursache:** Der Request enthält weder `action` noch eine `resolution`.
+
+**Lösung (eine der Varianten):**
+- Finding lösen: `{ "action": "RESOLVE", "resolution": "..." }`
+- Finding wieder öffnen: `{ "action": "REOPEN" }`
+- Nur Resolution setzen/ändern: `{ "resolution": "..." }`
+
+### Compliance: Review-Status wird abgelehnt
+
+**Symptom:** `PATCH /api/compliance/reviews/:id` liefert `400` mit `Ungültiger Review-Status`.
+
+**Erlaubte Statuswerte:**
+- `PENDING`
+- `APPROVED`
+- `REJECTED`
+- `CHANGES_REQUESTED`
+
+**Tipp:** Status immer in Großbuchstaben senden.
+

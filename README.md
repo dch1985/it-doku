@@ -120,7 +120,7 @@ npm run dev
 
 The application will be available at:
 - Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:3001`
+- Backend API: `http://localhost:3002`
 
 ---
 
@@ -136,13 +136,18 @@ it-doku/
 │   │   │   ├── documents.ts   # Document CRUD
 │   │   │   ├── templates.ts   # Templates management
 │   │   │   ├── github.ts      # GitHub integration
+│   │   │   ├── automation.ts  # Connectoren, Jobs, Suggestions
+│   │   │   ├── knowledge.ts   # Knowledge Node management
+│   │   │   ├── compliance.ts  # Quality, Traceability, Reviews
+│   │   │   ├── assistant.ts   # Conversational assistant + traces
+│   │   │   ├── search.ts      # Global search (documents + knowledge)
 │   │   │   └── upload.ts      # File upload handling
 │   │   ├── services/          # Business logic
 │   │   ├── lib/               # Utilities
 │   │   └── index.ts           # Server entry point
 │   └── uploads/               # File storage directory
 │
-├── frontend-new/
+├── frontend/
 │   ├── src/
 │   │   ├── components/        # Reusable components
 │   │   │   ├── ui/           # shadcn/ui components
@@ -167,6 +172,8 @@ it-doku/
 ---
 
 ## 🔌 API Endpoints
+
+> **Wichtig:** Tenant-spezifische Workflows (`/api/automation`, `/api/knowledge`, `/api/compliance`, `/api/assistant`, `/api/search`, `/api/analytics`) erwarten Tenant-Kontext. Für diese Endpoints immer `X-Tenant-ID` oder `X-Tenant-Slug` mitsenden.
 
 ### Authentication
 - `GET /api/auth/me` - Get current authenticated user
@@ -197,13 +204,113 @@ it-doku/
 ### AI Chat
 - `POST /api/chat` - Send message to AI assistant
 
+### Assistant (Centralize)
+- `GET /api/assistant/conversations` - Conversation history for current user + tenant
+- `POST /api/assistant/query` - Ask a question with optional `audience`, `conversationId`, `title`
+- `GET /api/assistant/traces` - Latest Q/A traces with persisted citations
+
+### Automation (Automate)
+- `GET /api/automation/connectors` - List tenant + global connectors
+- `POST /api/automation/connectors` - Create connector (`name`, `type`, optional `config`)
+- `PATCH /api/automation/connectors/:id` - Toggle `isActive` (nur tenant-eigene Connectoren)
+- `GET /api/automation/jobs` - List generation jobs incl. suggestions + quality findings
+- `POST /api/automation/jobs` - Create generation job (`intent`, `documentId`, `connectorId`, `payload`, `title`)
+- `GET /api/automation/jobs/:id` - Job details
+- `POST /api/automation/jobs/:id/retry` - Retry job (nicht erlaubt bei `RUNNING`)
+- `POST /api/automation/jobs/:id/cancel` - Cancel pending/running job
+- `POST /api/automation/jobs/:id/approve` - Mark job as completed/approved
+- `GET /api/automation/suggestions` - List update suggestions
+- `PATCH /api/automation/suggestions/:id` - Update suggestion status (z. B. `APPLIED`, `DISMISSED`)
+
+### Knowledge (Centralize)
+- `GET /api/knowledge?documentId=<id>` - List knowledge nodes (optional document filter)
+- `POST /api/knowledge` - Create node (`content`, `type`, optional `documentId`, `tags`, `metadata`, `connections`)
+- `PATCH /api/knowledge/:id` - Update node fields
+- `DELETE /api/knowledge/:id` - Delete node
+
+### Compliance (Comply)
+- `GET /api/compliance/schemas` / `POST /api/compliance/schemas` - Template schema management
+- `GET /api/compliance/annotations` / `POST /api/compliance/annotations` - Compliance annotations
+- `GET /api/compliance/trace-links` / `POST /api/compliance/trace-links` - Traceability links
+- `GET /api/compliance/quality/findings` - List quality findings
+- `PATCH /api/compliance/quality/findings/:id` - Resolve/reopen finding (`action`: `RESOLVE` | `REOPEN`)
+- `POST /api/compliance/quality/check` - Run quality checks for one document
+- `GET /api/compliance/reviews` / `POST /api/compliance/reviews` - Review request workflow
+- `PATCH /api/compliance/reviews/:id` - Update review status (`PENDING`, `APPROVED`, `REJECTED`, `CHANGES_REQUESTED`)
+
+### Search & Analytics
+- `GET /api/search?q=<query>&type=documents|knowledge` - Global search across documents + knowledge nodes
+- `GET /api/analytics` - KPI payload for dashboard tabs (system, automate, centralize, comply)
+
 ### GitHub Integration
 - `GET /api/github/repos/:username` - List user repositories
-- `GET /api/github/readme/:owner/:repo` - Get repository README
+- `GET /api/github/repos/:owner/:repo/readme` - Get repository README
+- `GET /api/github/repos/:owner/:repo/structure?path=` - Browse repository structure
+- `GET /api/github/repos/:owner/:repo/file?path=` - Fetch file content
+- `POST /api/github/repos/:owner/:repo/import` - Import README as document (tenant/user context required)
+- `GET /api/github/search?q=<query>` - Search GitHub code
 
 ### Templates
 - `GET /api/templates` - List all templates (tenant-aware)
 - `GET /api/templates/:id` - Get template by ID
+
+---
+
+## 🧭 Operational Runbooks (Automate / Centralize / Comply)
+
+### 1) Automation queue mode konfigurieren
+
+```env
+# backend/.env
+AUTOMATION_QUEUE_AUTORUN=false
+AUTOMATION_RUN_IMMEDIATE=true
+AUTOMATION_QUEUE_PROVIDER=memory
+```
+
+- **Sofortausführung lokal**: `AUTOMATION_RUN_IMMEDIATE=true` (Jobs werden direkt verarbeitet).
+- **Queue-basiert**: `AUTOMATION_QUEUE_AUTORUN=true` und optional `AUTOMATION_QUEUE_PROVIDER=servicebus`.
+- Für `servicebus` müssen zusätzlich gesetzt sein:
+  - `AZURE_SERVICE_BUS_CONNECTION_STRING`
+  - `AZURE_SERVICE_BUS_QUEUE_NAME`
+
+### 2) Worker / Einzeljob ausführen
+
+```bash
+cd backend
+
+# Einzelnen Job manuell ausführen
+npm run automation:job -- <jobId>
+
+# Dauerhaften Queue-Listener starten
+npm run automation:worker
+```
+
+### 3) Quality- & Review-Workflow (Beispiel mit cURL)
+
+```bash
+# Quality Check für ein Dokument starten
+curl -X POST http://localhost:3002/api/compliance/quality/check \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: <tenantId>" \
+  -d '{"documentId":"<documentId>"}'
+
+# Finding als gelöst markieren
+curl -X PATCH http://localhost:3002/api/compliance/quality/findings/<findingId> \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: <tenantId>" \
+  -d '{"action":"RESOLVE","resolution":"Owner ergänzt und Review-Prozess dokumentiert"}'
+```
+
+### 4) Knowledge Nodes gezielt einem Dokument zuordnen
+
+```bash
+curl -X POST http://localhost:3002/api/knowledge \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: <tenantId>" \
+  -d '{"content":"Backup läuft täglich 02:00 UTC","type":"PROCESS","documentId":"<documentId>"}'
+```
+
+> Hinweis: Global Connectoren (`tenantId = null`) sind bewusst schreibgeschützt und können nicht via `PATCH /api/automation/connectors/:id` umgeschaltet werden.
 
 ---
 
@@ -289,16 +396,3 @@ For support, email driss.chaouat@example.com or open an issue on GitHub.
 ---
 
 <p align="center">Made with ❤️ by Driss Chaouat</p>
-
-### Automation Queue & Worker
-
-```bash
-# Einzelnen Job manuell ausführen (Job-ID siehe /api/automation/jobs)
-cd backend
-npm run automation:job -- <jobId>
-
-# Länger laufender Worker (Platzhalter für zukünftigen Queue-Provider)
-npm run automation:worker
-```
-
-> Tipp: Für lokale Tests `AUTOMATION_RUN_IMMEDIATE=true` setzen. In produktiven Setups kann stattdessen eine echte Queue (z. B. Azure Service Bus mit `AUTOMATION_QUEUE_PROVIDER=servicebus`) angeschlossen werden.
