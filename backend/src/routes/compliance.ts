@@ -21,6 +21,35 @@ type UpdateReviewBody = {
   comments?: string | null;
 };
 
+const hasOwn = (value: unknown, key: string) =>
+  Boolean(value) && Object.prototype.hasOwnProperty.call(value, key);
+
+export const buildFindingUpdatePayload = (body: UpdateFindingBody) => {
+  const action = body?.action ? body.action.toUpperCase() : undefined;
+
+  if (action && action !== 'RESOLVE' && action !== 'REOPEN') {
+    throw new ApplicationError(`Ungültige Aktion: ${action}`, 400);
+  }
+
+  return {
+    action: action as 'RESOLVE' | 'REOPEN' | undefined,
+    resolution: hasOwn(body, 'resolution')
+      ? typeof body?.resolution === 'string'
+        ? body.resolution
+        : body?.resolution ?? null
+      : undefined,
+  };
+};
+
+export const buildReviewUpdatePayload = (body: UpdateReviewBody) => {
+  const status = body?.status ? String(body.status).toUpperCase() : undefined;
+
+  return {
+    status,
+    comments: hasOwn(body, 'comments') ? body?.comments ?? null : undefined,
+  };
+};
+
 const router = Router();
 const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
 
@@ -173,16 +202,10 @@ router.get('/quality/findings', async (req: Request, res: Response) => {
 router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateFindingBody;
-    const action = body?.action ? body.action.toUpperCase() : undefined;
-
-    if (action && action !== 'RESOLVE' && action !== 'REOPEN') {
-      throw new ApplicationError(`Ungültige Aktion: ${action}`, 400);
-    }
-
-    const finding = await complianceService.updateQualityFinding(req.params.id, {
-      action: action as 'RESOLVE' | 'REOPEN' | undefined,
-      resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
-    });
+    const finding = await complianceService.updateQualityFinding(
+      req.params.id,
+      buildFindingUpdatePayload(body),
+    );
 
     res.json(finding);
   } catch (error: any) {
@@ -265,11 +288,11 @@ router.post('/reviews', async (req: Request, res: Response) => {
 router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateReviewBody;
-    const status = body?.status ? String(body.status).toUpperCase() : undefined;
+    const payload = buildReviewUpdatePayload(body);
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
-      status: status as any,
-      comments: body?.comments ?? null,
+      status: payload.status as any,
+      comments: payload.comments,
       tenantId: req.tenant?.id ?? null,
     });
 
