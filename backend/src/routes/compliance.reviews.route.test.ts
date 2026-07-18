@@ -35,7 +35,7 @@ async function patchReview(body: Record<string, unknown>): Promise<PatchReviewRe
       throw new Error('Test server address unavailable');
     }
 
-    const response = await fetch(`http://127.0.0.1:${address.port}/api/compliance/reviews/review-123`, {
+    const response = await fetch(`http://localhost:${address.port}/api/compliance/reviews/review-123`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
