@@ -51,6 +51,7 @@ export interface ReviewRequestUpdatePayload {
   status?: ReviewStatus;
   comments?: string | null;
   tenantId?: string | null;
+  actorUserId?: string | null;
 }
 
 export interface QualityFindingUpdatePayload {
@@ -144,16 +145,57 @@ export const complianceService = {
     });
   },
 
-  listQualityFindings(documentId?: string) {
+  listQualityFindings(tenantId?: string | null, documentId?: string) {
     return prisma.qualityFinding.findMany({
       where: {
         ...(documentId ? { documentId } : {}),
+        ...(tenantId
+          ? {
+              OR: [
+                {
+                  document: {
+                    tenantId,
+                  },
+                },
+                {
+                  generationJob: {
+                    tenantId,
+                  },
+                },
+              ],
+            }
+          : {}),
       },
       orderBy: { createdAt: 'desc' },
     });
   },
 
-  async updateQualityFinding(id: string, changes: QualityFindingUpdatePayload) {
+  async updateQualityFinding(id: string, changes: QualityFindingUpdatePayload, tenantId?: string | null) {
+    const existing = await prisma.qualityFinding.findUnique({
+      where: { id },
+      include: {
+        document: {
+          select: {
+            tenantId: true,
+          },
+        },
+        generationJob: {
+          select: {
+            tenantId: true,
+          },
+        },
+      },
+    });
+
+    if (!existing) {
+      throw new ApplicationError('Quality Finding wurde nicht gefunden', 404);
+    }
+
+    const resourceTenantId = existing.document?.tenantId ?? existing.generationJob?.tenantId ?? null;
+    if (tenantId && resourceTenantId !== tenantId) {
+      throw new ApplicationError('Zugriff auf dieses Quality Finding ist nicht erlaubt', 403);
+    }
+
     const payload = changes ?? {};
     const data: Record<string, unknown> = {};
 
@@ -175,12 +217,12 @@ export const complianceService = {
     }
 
     return prisma.qualityFinding.update({
-      where: { id },
+      where: { id: existing.id },
       data,
     });
   },
 
-  async runQualityChecks(documentId: string) {
+  async runQualityChecks(documentId: string, tenantId?: string | null) {
     const document = await prisma.document.findUnique({
       where: { id: documentId },
       select: {
@@ -188,11 +230,16 @@ export const complianceService = {
         content: true,
         title: true,
         category: true,
+        tenantId: true,
       },
     });
 
     if (!document) {
-      throw new Error('Dokument nicht gefunden');
+      throw new ApplicationError('Dokument nicht gefunden', 404);
+    }
+
+    if (tenantId && document.tenantId !== tenantId) {
+      throw new ApplicationError('Zugriff auf dieses Dokument ist nicht erlaubt', 403);
     }
 
     const text = stripHtml(document.content);
@@ -307,7 +354,9 @@ export const complianceService = {
   async updateReviewRequest(id: string, payload: ReviewRequestUpdatePayload) {
     const review = await prisma.reviewRequest.findUnique({
       where: { id },
-      include: { document: { select: { tenantId: true } } },
+      include: {
+        document: { select: { tenantId: true } },
+      },
     });
 
     if (!review) {
@@ -316,6 +365,10 @@ export const complianceService = {
 
     if (payload.tenantId && review.document?.tenantId && payload.tenantId !== review.document.tenantId) {
       throw new ApplicationError('Zugriff auf dieses Review ist nicht erlaubt', 403);
+    }
+
+    if (payload.actorUserId && payload.actorUserId !== review.reviewerId) {
+      throw new ApplicationError('Nur der zugewiesene Reviewer darf den Status ändern', 403);
     }
 
     const data: Record<string, unknown> = {};

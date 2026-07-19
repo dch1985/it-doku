@@ -14,6 +14,7 @@ import assistantRouter from './routes/assistant.js';
 import analyticsRouter from './routes/analytics.js';
 import searchRouter from './routes/search.js';
 import knowledgeRouter from './routes/knowledge.js';
+import usersRouter from './routes/users.js';
 import {
   loggerMiddleware,
   errorLogger,
@@ -103,6 +104,9 @@ app.use('/api/compliance', complianceRouter)
 
 // Knowledge Node Management
 app.use('/api/knowledge', knowledgeRouter)
+
+// User directory for tenant-scoped workflows (e.g. compliance reviewers)
+app.use('/api/users', usersRouter)
 
 // Error handling - must be last
 app.use(notFoundHandler);
