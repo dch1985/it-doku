@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma.js';
+import { ApplicationError } from '../middleware/errorHandler.js';
 
 export interface AssistantQueryInput {
   question: string;
@@ -180,27 +181,46 @@ export const assistantService = {
     const normalizedAudience = normalizeAudience(input.audience);
     const question = input.question;
 
-    let conversationId = input.conversationId ?? null;
+    if (!input.tenantId || !input.userId) {
+      throw new ApplicationError('Tenant- und Benutzerkontext sind für Assistant-Konversationen erforderlich', 400);
+    }
 
-    if (conversationId) {
-      const updated = await prisma.conversation.update({
-        where: { id: conversationId },
-        data: {
-          updatedAt: new Date(),
-          messages: {
-            create: [
-              { role: 'USER', content: question },
-              { role: 'ASSISTANT', content: answer },
-            ],
-          },
+    let conversationId: string;
+
+    if (input.conversationId) {
+      const existingConversation = await prisma.conversation.findUnique({
+        where: { id: input.conversationId },
+        select: {
+          id: true,
+          tenantId: true,
+          userId: true,
         },
-      }).catch(async () => {
+      });
+
+      if (existingConversation) {
+        if (existingConversation.tenantId !== input.tenantId || existingConversation.userId !== input.userId) {
+          throw new ApplicationError('Zugriff auf diese Conversation ist nicht erlaubt', 403);
+        }
+
+        await prisma.conversation.update({
+          where: { id: existingConversation.id },
+          data: {
+            updatedAt: new Date(),
+            messages: {
+              create: [
+                { role: 'USER', content: question },
+                { role: 'ASSISTANT', content: answer },
+              ],
+            },
+          },
+        });
+        conversationId = existingConversation.id;
+      } else {
         const created = await prisma.conversation.create({
           data: {
-            id: conversationId ?? undefined,
             title: input.title ?? 'Assistant Session',
-            tenantId: input.tenantId ?? 'PUBLIC',
-            userId: input.userId ?? 'SYSTEM',
+            tenantId: input.tenantId,
+            userId: input.userId,
             messages: {
               create: [
                 { role: 'USER', content: question },
@@ -210,18 +230,13 @@ export const assistantService = {
           },
         });
         conversationId = created.id;
-        return created;
-      });
-
-      if (!updated) {
-        // conversation was recreated in catch block above
       }
     } else {
       const created = await prisma.conversation.create({
         data: {
           title: input.title ?? 'Assistant Session',
-          tenantId: input.tenantId ?? 'PUBLIC',
-          userId: input.userId ?? 'SYSTEM',
+          tenantId: input.tenantId,
+          userId: input.userId,
           messages: {
             create: [
               { role: 'USER', content: question },
@@ -239,12 +254,12 @@ export const assistantService = {
         answer,
         audience: normalizedAudience,
         citations: JSON.stringify(citations),
-        tenantId: input.tenantId ?? null,
-        conversationId: conversationId ?? undefined,
+        tenantId: input.tenantId,
+        conversationId,
       },
     });
 
-    return { conversationId: conversationId!, audience: normalizedAudience, traceId: trace.id, citations };
+    return { conversationId, audience: normalizedAudience, traceId: trace.id, citations };
   },
 
   listTraces(tenantId?: string | null) {
