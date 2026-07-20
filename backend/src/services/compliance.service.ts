@@ -58,6 +58,18 @@ export interface QualityFindingUpdatePayload {
   action?: 'RESOLVE' | 'REOPEN' | null;
 }
 
+type QualityFindingScopeRecord = {
+  id: string;
+  document: { tenantId: string | null } | null;
+  generationJob: { tenantId: string | null } | null;
+};
+
+function belongsToTenant(finding: QualityFindingScopeRecord, tenantId: string): boolean {
+  const documentTenantId = finding.document?.tenantId ?? null;
+  const generationJobTenantId = finding.generationJob?.tenantId ?? null;
+  return documentTenantId === tenantId || generationJobTenantId === tenantId;
+}
+
 export const complianceService = {
   listTemplateSchemas(tenantId?: string | null) {
     return prisma.templateSchema.findMany({
@@ -144,13 +156,46 @@ export const complianceService = {
     });
   },
 
-  listQualityFindings(documentId?: string) {
+  listQualityFindings(tenantId: string, documentId?: string) {
     return prisma.qualityFinding.findMany({
       where: {
         ...(documentId ? { documentId } : {}),
+        OR: [
+          { document: { tenantId } },
+          { generationJob: { tenantId } },
+        ],
       },
       orderBy: { createdAt: 'desc' },
     });
+  },
+
+  async assertQualityFindingTenantAccess(id: string, tenantId: string) {
+    const finding = await prisma.qualityFinding.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        document: {
+          select: {
+            tenantId: true,
+          },
+        },
+        generationJob: {
+          select: {
+            tenantId: true,
+          },
+        },
+      },
+    });
+
+    if (!finding) {
+      throw new ApplicationError('Quality Finding wurde nicht gefunden', 404);
+    }
+
+    if (!belongsToTenant(finding, tenantId)) {
+      throw new ApplicationError('Zugriff auf dieses Quality Finding ist nicht erlaubt', 403);
+    }
+
+    return finding;
   },
 
   async updateQualityFinding(id: string, changes: QualityFindingUpdatePayload) {
@@ -180,7 +225,7 @@ export const complianceService = {
     });
   },
 
-  async runQualityChecks(documentId: string) {
+  async runQualityChecks(documentId: string, tenantId?: string | null) {
     const document = await prisma.document.findUnique({
       where: { id: documentId },
       select: {
@@ -188,11 +233,16 @@ export const complianceService = {
         content: true,
         title: true,
         category: true,
+        tenantId: true,
       },
     });
 
     if (!document) {
       throw new Error('Dokument nicht gefunden');
+    }
+
+    if (tenantId && document.tenantId !== tenantId) {
+      throw new ApplicationError('Zugriff auf dieses Dokument ist nicht erlaubt', 403);
     }
 
     const text = stripHtml(document.content);
