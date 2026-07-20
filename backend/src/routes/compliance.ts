@@ -27,6 +27,14 @@ const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH
 router.use(isDevMode ? devAuthenticate : authenticate);
 router.use(tenantMiddleware);
 
+function requireTenantId(req: Request): string {
+  const tenantId = req.tenant?.id;
+  if (!tenantId) {
+    throw new ApplicationError('Tenant-Kontext ist erforderlich', 400);
+  }
+  return tenantId;
+}
+
 router.get('/schemas', async (req: Request, res: Response) => {
   try {
     const schemas = await complianceService.listTemplateSchemas(req.tenant?.id);
@@ -158,12 +166,16 @@ router.post('/trace-links', async (req: Request, res: Response) => {
 router.get('/quality/findings', async (req: Request, res: Response) => {
   try {
     const { documentId } = req.query;
-    const findings = await complianceService.listQualityFindings(documentId ? String(documentId) : undefined);
+    const tenantId = requireTenantId(req);
+    const findings = await complianceService.listQualityFindings(
+      tenantId,
+      documentId ? String(documentId) : undefined
+    );
 
     res.json(findings);
   } catch (error: any) {
     console.error('[Compliance] Failed to load quality findings', error);
-    res.status(500).json({
+    res.status(error.statusCode ?? 500).json({
       error: 'Failed to load quality findings',
       message: error.message ?? 'Unexpected error',
     });
@@ -172,6 +184,9 @@ router.get('/quality/findings', async (req: Request, res: Response) => {
 
 router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
   try {
+    const tenantId = requireTenantId(req);
+    await complianceService.assertQualityFindingTenantAccess(req.params.id, tenantId);
+
     const body = req.body as UpdateFindingBody;
     const action = body?.action ? body.action.toUpperCase() : undefined;
 
@@ -196,12 +211,13 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
 
 router.post('/quality/check', async (req: Request, res: Response) => {
   try {
+    const tenantId = requireTenantId(req);
     const { documentId } = req.body ?? {};
     if (!documentId) {
       throw new ApplicationError('documentId ist erforderlich', 400);
     }
 
-    const findings = await complianceService.runQualityChecks(String(documentId));
+    const findings = await complianceService.runQualityChecks(String(documentId), tenantId);
     res.json({
       documentId: String(documentId),
       findings,
