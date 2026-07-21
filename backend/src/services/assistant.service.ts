@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma.js';
+import { ApplicationError } from '../middleware/errorHandler.js';
 
 export interface AssistantQueryInput {
   question: string;
@@ -179,28 +180,40 @@ export const assistantService = {
   async appendConversation(input: AssistantQueryInput, answer: string, citations: AssistantCitation[] = []) {
     const normalizedAudience = normalizeAudience(input.audience);
     const question = input.question;
+    const actorTenantId = input.tenantId ?? 'PUBLIC';
+    const actorUserId = input.userId ?? 'SYSTEM';
 
     let conversationId = input.conversationId ?? null;
 
     if (conversationId) {
-      const updated = await prisma.conversation.update({
+      const existingConversation = await prisma.conversation.findUnique({
         where: { id: conversationId },
-        data: {
-          updatedAt: new Date(),
-          messages: {
-            create: [
-              { role: 'USER', content: question },
-              { role: 'ASSISTANT', content: answer },
-            ],
+        select: { id: true, tenantId: true, userId: true },
+      });
+
+      if (existingConversation) {
+        if (existingConversation.tenantId !== actorTenantId || existingConversation.userId !== actorUserId) {
+          throw new ApplicationError('Kein Zugriff auf diese Konversation', 403);
+        }
+
+        await prisma.conversation.update({
+          where: { id: conversationId },
+          data: {
+            updatedAt: new Date(),
+            messages: {
+              create: [
+                { role: 'USER', content: question },
+                { role: 'ASSISTANT', content: answer },
+              ],
+            },
           },
-        },
-      }).catch(async () => {
+        });
+      } else {
         const created = await prisma.conversation.create({
           data: {
-            id: conversationId ?? undefined,
             title: input.title ?? 'Assistant Session',
-            tenantId: input.tenantId ?? 'PUBLIC',
-            userId: input.userId ?? 'SYSTEM',
+            tenantId: actorTenantId,
+            userId: actorUserId,
             messages: {
               create: [
                 { role: 'USER', content: question },
@@ -210,18 +223,13 @@ export const assistantService = {
           },
         });
         conversationId = created.id;
-        return created;
-      });
-
-      if (!updated) {
-        // conversation was recreated in catch block above
       }
     } else {
       const created = await prisma.conversation.create({
         data: {
           title: input.title ?? 'Assistant Session',
-          tenantId: input.tenantId ?? 'PUBLIC',
-          userId: input.userId ?? 'SYSTEM',
+          tenantId: actorTenantId,
+          userId: actorUserId,
           messages: {
             create: [
               { role: 'USER', content: question },
