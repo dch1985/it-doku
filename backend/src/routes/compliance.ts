@@ -175,7 +175,7 @@ router.get('/quality/findings', async (req: Request, res: Response) => {
     res.json(findings);
   } catch (error: any) {
     console.error('[Compliance] Failed to load quality findings', error);
-    res.status(500).json({
+    res.status(error.statusCode ?? 500).json({
       error: 'Failed to load quality findings',
       message: error.message ?? 'Unexpected error',
     });
