@@ -21,6 +21,10 @@ type UpdateReviewBody = {
   comments?: string | null;
 };
 
+function hasOwnProperty<T extends object>(value: T | null | undefined, key: string): boolean {
+  return Boolean(value) && Object.prototype.hasOwnProperty.call(value, key);
+}
+
 const router = Router();
 const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
 
@@ -157,13 +161,21 @@ router.post('/trace-links', async (req: Request, res: Response) => {
 
 router.get('/quality/findings', async (req: Request, res: Response) => {
   try {
+    const tenantId = req.tenant?.id;
+    if (!tenantId) {
+      throw new ApplicationError('Tenant-Kontext ist erforderlich', 403);
+    }
+
     const { documentId } = req.query;
-    const findings = await complianceService.listQualityFindings(documentId ? String(documentId) : undefined);
+    const findings = await complianceService.listQualityFindings(
+      documentId ? String(documentId) : undefined,
+      tenantId,
+    );
 
     res.json(findings);
   } catch (error: any) {
     console.error('[Compliance] Failed to load quality findings', error);
-    res.status(500).json({
+    res.status(error.statusCode ?? 500).json({
       error: 'Failed to load quality findings',
       message: error.message ?? 'Unexpected error',
     });
@@ -172,8 +184,16 @@ router.get('/quality/findings', async (req: Request, res: Response) => {
 
 router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
   try {
+    const tenantId = req.tenant?.id;
+    if (!tenantId) {
+      throw new ApplicationError('Tenant-Kontext ist erforderlich', 403);
+    }
+
     const body = req.body as UpdateFindingBody;
     const action = body?.action ? body.action.toUpperCase() : undefined;
+    const resolution = hasOwnProperty(body, 'resolution')
+      ? (typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null)
+      : undefined;
 
     if (action && action !== 'RESOLVE' && action !== 'REOPEN') {
       throw new ApplicationError(`Ungültige Aktion: ${action}`, 400);
@@ -181,8 +201,8 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
 
     const finding = await complianceService.updateQualityFinding(req.params.id, {
       action: action as 'RESOLVE' | 'REOPEN' | undefined,
-      resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
-    });
+      resolution,
+    }, tenantId);
 
     res.json(finding);
   } catch (error: any) {
@@ -196,12 +216,17 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
 
 router.post('/quality/check', async (req: Request, res: Response) => {
   try {
+    const tenantId = req.tenant?.id;
+    if (!tenantId) {
+      throw new ApplicationError('Tenant-Kontext ist erforderlich', 403);
+    }
+
     const { documentId } = req.body ?? {};
     if (!documentId) {
       throw new ApplicationError('documentId ist erforderlich', 400);
     }
 
-    const findings = await complianceService.runQualityChecks(String(documentId));
+    const findings = await complianceService.runQualityChecks(String(documentId), tenantId);
     res.json({
       documentId: String(documentId),
       findings,
@@ -266,10 +291,11 @@ router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateReviewBody;
     const status = body?.status ? String(body.status).toUpperCase() : undefined;
+    const comments = hasOwnProperty(body, 'comments') ? body?.comments ?? null : undefined;
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
       status: status as any,
-      comments: body?.comments ?? null,
+      comments,
       tenantId: req.tenant?.id ?? null,
     });
 
