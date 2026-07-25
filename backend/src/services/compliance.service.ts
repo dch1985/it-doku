@@ -168,7 +168,7 @@ export const complianceService = {
     });
 
     return findings
-      .filter((finding) => {
+      .filter((finding: any) => {
         const relatedTenantIds = [
           finding.document ? finding.document.tenantId ?? null : undefined,
           finding.generationJob ? finding.generationJob.tenantId ?? null : undefined,
@@ -182,7 +182,7 @@ export const complianceService = {
           canAccessTenantScopedResource(tenantId, relatedTenantId),
         );
       })
-      .map(({ document, generationJob, ...finding }) => finding);
+      .map(({ document, generationJob, ...finding }: any) => finding);
   },
 
   async updateQualityFinding(
