@@ -37,10 +37,14 @@ function stripHtml(content: string | null | undefined): string {
 }
 
 function canAccessTenantScopedResource(requestTenantId: string | null | undefined, resourceTenantId: string | null | undefined) {
-  if (requestTenantId) {
-    return resourceTenantId === requestTenantId || resourceTenantId == null;
+  if (resourceTenantId === undefined) {
+    return false;
   }
-  return resourceTenantId == null;
+
+  if (requestTenantId) {
+    return resourceTenantId === requestTenantId || resourceTenantId === null;
+  }
+  return resourceTenantId === null;
 }
 
 const REVIEW_STATUS = ['PENDING', 'APPROVED', 'REJECTED', 'CHANGES_REQUESTED'] as const;
@@ -165,7 +169,15 @@ export const complianceService = {
 
     return findings
       .filter((finding) => {
-        const relatedTenantIds = [finding.document?.tenantId, finding.generationJob?.tenantId];
+        const relatedTenantIds = [
+          finding.document ? finding.document.tenantId ?? null : undefined,
+          finding.generationJob ? finding.generationJob.tenantId ?? null : undefined,
+        ].filter((relatedTenantId): relatedTenantId is string | null => relatedTenantId !== undefined);
+
+        if (relatedTenantIds.length === 0) {
+          return false;
+        }
+
         return relatedTenantIds.some((relatedTenantId) =>
           canAccessTenantScopedResource(tenantId, relatedTenantId),
         );
@@ -191,7 +203,15 @@ export const complianceService = {
       throw new ApplicationError('Quality Finding wurde nicht gefunden', 404);
     }
 
-    const relatedTenantIds = [existing.document?.tenantId, existing.generationJob?.tenantId];
+    const relatedTenantIds = [
+      existing.document ? existing.document.tenantId ?? null : undefined,
+      existing.generationJob ? existing.generationJob.tenantId ?? null : undefined,
+    ].filter((relatedTenantId): relatedTenantId is string | null => relatedTenantId !== undefined);
+
+    if (relatedTenantIds.length === 0) {
+      throw new ApplicationError('Quality Finding enthält keinen gültigen Tenant-Bezug', 403);
+    }
+
     const hasAccess = relatedTenantIds.some((relatedTenantId) =>
       canAccessTenantScopedResource(tenantId, relatedTenantId),
     );
