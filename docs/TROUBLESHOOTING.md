@@ -124,3 +124,114 @@ router.get('/', async (req: Request, res: Response) => {
 - Führe Prisma Migrationen aus: `npx prisma migrate dev`
 - Generiere Prisma Client: `npx prisma generate`
 
+---
+
+## Problem: Automationsjobs bleiben auf `PENDING`
+
+### Ursache
+Queue-/Run-Flags sind nicht passend gesetzt. Typischer Fall:
+- `AUTOMATION_RUN_IMMEDIATE=false`
+- `AUTOMATION_QUEUE_AUTORUN=false`
+
+Dann wird ein Job erstellt, aber nicht automatisch verarbeitet.
+
+### Lösung
+Wähle genau einen gültigen Verarbeitungsmodus:
+
+1. **Sofortmodus (Dev):**
+   - `AUTOMATION_RUN_IMMEDIATE=true`
+   - `AUTOMATION_QUEUE_AUTORUN=false`
+2. **Queue-Modus:**
+   - `AUTOMATION_RUN_IMMEDIATE=false`
+   - `AUTOMATION_QUEUE_AUTORUN=true`
+   - optional Worker starten: `npm run automation:worker`
+3. **Manuelle Einmalverarbeitung:**
+   - `npm run automation:job -- <jobId>`
+
+---
+
+## Problem: "Service Bus Provider ausgewählt..." Fehler
+
+### Ursache
+`AUTOMATION_QUEUE_PROVIDER=servicebus` ist gesetzt, aber mindestens eine Pflichtvariable fehlt:
+- `AZURE_SERVICE_BUS_CONNECTION_STRING`
+- `AZURE_SERVICE_BUS_QUEUE_NAME`
+
+### Lösung
+1. Fehlende Variablen in `backend/.env` setzen.
+2. Backend/Worker neu starten.
+3. Mit einem neuen Job testen und Logs auf `[AutomationQueue] Service Bus Verbindung aufgebaut` prüfen.
+
+---
+
+## Problem: Connector kann nicht aktiviert/deaktiviert werden
+
+### Typische Fehlermeldungen
+- `Globale Connectoren können nicht angepasst werden`
+- `Connector gehört einem anderen Tenant`
+
+### Ursache
+`PATCH /api/automation/connectors/:id` erlaubt nur tenant-eigene Connectoren. Globale Connectoren (`tenantId = null`) sind read-only.
+
+### Lösung
+1. Connector im richtigen Tenant anlegen.
+2. Request mit korrektem `X-Tenant-ID` Header senden.
+3. Für globale Connectoren nur Anzeige verwenden, keine Statusänderung.
+
+---
+
+## Problem: Knowledge Node Update liefert 403 / Zugriff verweigert
+
+### Ursache
+Der Node oder das verknüpfte Dokument gehört zu einem anderen Tenant.
+
+### Lösung
+1. Prüfen, ob `documentId` im gleichen Tenant liegt.
+2. Sicherstellen, dass `X-Tenant-ID` korrekt gesetzt ist.
+3. Bei "orphan" Nodes (ohne Dokument) auf konsistente Tenant-Metadaten achten.
+
+---
+
+## Problem: Compliance-Quality-Check liefert unerwartete Findings
+
+### Erklärung
+`POST /api/compliance/quality/check` nutzt aktuell regelbasierte Heuristiken und meldet u.a.:
+- Platzhaltertexte wie "Lorem Ipsum"
+- potenzielle Klartext-Passwörter (`password: ...`)
+- fehlenden Review-Hinweis
+- fehlenden Owner/Verantwortlichkeits-Hinweis
+
+### Empfehlung
+1. Findings fachlich prüfen und Inhalte bereinigen.
+2. Finding mit `PATCH /api/compliance/quality/findings/:id` auf `RESOLVE` setzen.
+3. Check erneut ausführen, um offenen Bestand zu verifizieren.
+
+---
+
+## Problem: Review-Status Update wird abgelehnt
+
+### Ursache
+Ungültiger Statuswert in `PATCH /api/compliance/reviews/:id`.
+
+### Gültige Werte
+- `PENDING`
+- `APPROVED`
+- `REJECTED`
+- `CHANGES_REQUESTED`
+
+### Lösung
+1. Statuswert auf einen der erlaubten Werte normalisieren.
+2. Request erneut senden (optional mit `comments`).
+
+---
+
+## Problem: `/api/search` liefert 400 "Validation failed"
+
+### Ursache
+Der Parameter `q` fehlt oder ist leer.
+
+### Lösung
+1. Query immer mit Suchbegriff senden, z.B.:
+   - `/api/search?q=backup`
+2. Optional `type=documents|knowledge` und `limit=<n>` ergänzen.
+
