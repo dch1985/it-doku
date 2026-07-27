@@ -120,7 +120,7 @@ npm run dev
 
 The application will be available at:
 - Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:3001`
+- Backend API: `http://localhost:3002`
 
 ---
 
@@ -205,7 +205,79 @@ it-doku/
 - `GET /api/templates` - List all templates (tenant-aware)
 - `GET /api/templates/:id` - Get template by ID
 
+### Automation
+- `GET /api/automation/connectors` - List tenant + global connectors
+- `POST /api/automation/connectors` - Create connector (`name`, `type`, optional `config`)
+- `PATCH /api/automation/connectors/:id` - Toggle connector active state (`isActive`)
+- `GET /api/automation/jobs` - List generation jobs + suggestions/findings summary
+- `POST /api/automation/jobs` - Create generation job (`intent`, optional `documentId`, `connectorId`, `payload`, `title`)
+- `GET /api/automation/jobs/:id` - Get job details including suggestions and quality findings
+- `POST /api/automation/jobs/:id/retry` - Reset and restart failed/cancelled job
+- `POST /api/automation/jobs/:id/cancel` - Cancel pending/running job
+- `POST /api/automation/jobs/:id/approve` - Mark completed job as approved
+- `GET /api/automation/suggestions` - List update suggestions
+- `PATCH /api/automation/suggestions/:id` - Update suggestion status (`OPEN`, `APPLIED`, `DISMISSED`, ...)
+
+### Knowledge Nodes
+- `GET /api/knowledge` - List knowledge nodes (optional `documentId` filter)
+- `POST /api/knowledge` - Create knowledge node (`content`, `type`, optional relations/metadata)
+- `PATCH /api/knowledge/:id` - Update node content/type/document assignment
+- `DELETE /api/knowledge/:id` - Delete node
+
+### Compliance
+- `GET /api/compliance/schemas` / `POST /api/compliance/schemas` - Template schema catalog
+- `GET /api/compliance/annotations` / `POST /api/compliance/annotations` - Requirement/control annotations
+- `GET /api/compliance/trace-links` / `POST /api/compliance/trace-links` - Traceability links
+- `GET /api/compliance/quality/findings` - List open/resolved quality findings
+- `PATCH /api/compliance/quality/findings/:id` - Resolve/reopen finding (`action: RESOLVE|REOPEN`)
+- `POST /api/compliance/quality/check` - Execute rule-based quality checks for `documentId`
+- `GET /api/compliance/reviews` / `POST /api/compliance/reviews` - Review requests
+- `PATCH /api/compliance/reviews/:id` - Review status update (`PENDING`, `APPROVED`, `REJECTED`, `CHANGES_REQUESTED`)
+
+### Global Search
+- `GET /api/search?q=<query>` - Search across documents + knowledge nodes
+- Optional params: `type=documents|knowledge`, `limit=<number>`
+
 ---
+
+> **Important:** Most endpoints above are tenant-aware and require `X-Tenant-ID` or `X-Tenant-Slug`. In production, they also require a valid `Authorization: Bearer <token>` header.
+
+## ⚙️ Workflow & Runbooks (Automate -> Centralize -> Comply)
+
+### 1) Queue mode selection (backend)
+
+| Mode | Required env flags | Behavior |
+| --- | --- | --- |
+| Immediate (local/dev default) | `AUTOMATION_RUN_IMMEDIATE=true`, `AUTOMATION_QUEUE_AUTORUN=false` | Jobs are processed directly after creation/retry in the API process. |
+| In-memory queue | `AUTOMATION_QUEUE_PROVIDER=memory`, `AUTOMATION_QUEUE_AUTORUN=true`, `AUTOMATION_RUN_IMMEDIATE=false` | Jobs are published and consumed via in-process subscriber. |
+| Azure Service Bus | `AUTOMATION_QUEUE_PROVIDER=servicebus`, `AUTOMATION_QUEUE_AUTORUN=true`, `AUTOMATION_RUN_IMMEDIATE=false`, `AZURE_SERVICE_BUS_CONNECTION_STRING`, `AZURE_SERVICE_BUS_QUEUE_NAME` | Jobs are queued via Service Bus; consumption can run in API process and/or dedicated worker. |
+
+### 2) Automation operator flow
+
+1. **Automate page:** create connector -> start generation job (`CREATE`, `UPDATE`, `SUMMARY`, `QUALITY`).
+2. **Automate page:** inspect status (`PENDING`, `RUNNING`, `FAILED`, `COMPLETED`, `CANCELLED`) and retry/cancel if needed.
+3. **Automate page:** review update suggestions and mark them `APPLIED` or `DISMISSED`.
+4. **Centralize page:** curate knowledge nodes and link them to documents to improve coverage.
+5. **Comply page:** run quality checks, resolve findings, and move review requests through final status.
+
+### 3) Worker commands
+
+```bash
+# Process a specific job immediately
+cd backend
+npm run automation:job -- <jobId>
+
+# Start long-running queue listener
+npm run automation:worker
+```
+
+### 4) Known constraints from current backend behavior
+
+- Connector activation (`PATCH /api/automation/connectors/:id`) only works for tenant-owned connectors. Global connectors (`tenantId = null`) are read-only.
+- Retry is rejected while a job is already `RUNNING`.
+- Cancel is only allowed for `PENDING` or `RUNNING` jobs.
+- `POST /api/compliance/quality/check` is rule-based and currently flags placeholders (`Lorem Ipsum`), clear-text password patterns, missing review sections, and missing owner/verantwortlich hints.
+- Knowledge nodes linked to a document are tenant-validated against that document.
 
 ## 🎨 Screenshots
 
@@ -289,16 +361,3 @@ For support, email driss.chaouat@example.com or open an issue on GitHub.
 ---
 
 <p align="center">Made with ❤️ by Driss Chaouat</p>
-
-### Automation Queue & Worker
-
-```bash
-# Einzelnen Job manuell ausführen (Job-ID siehe /api/automation/jobs)
-cd backend
-npm run automation:job -- <jobId>
-
-# Länger laufender Worker (Platzhalter für zukünftigen Queue-Provider)
-npm run automation:worker
-```
-
-> Tipp: Für lokale Tests `AUTOMATION_RUN_IMMEDIATE=true` setzen. In produktiven Setups kann stattdessen eine echte Queue (z. B. Azure Service Bus mit `AUTOMATION_QUEUE_PROVIDER=servicebus`) angeschlossen werden.

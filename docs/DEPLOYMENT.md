@@ -52,6 +52,51 @@ VITE_AZURE_TENANT_ID=your-tenant-id
 
 ---
 
+## Automation Queue Runbook
+
+### Choose one execution mode
+
+| Use case | Required env values | Notes |
+| --- | --- | --- |
+| Local/dev synchronous processing | `AUTOMATION_RUN_IMMEDIATE=true` and `AUTOMATION_QUEUE_AUTORUN=false` | Easiest mode for deterministic local testing. |
+| Queue in one process (memory) | `AUTOMATION_QUEUE_PROVIDER=memory`, `AUTOMATION_QUEUE_AUTORUN=true`, `AUTOMATION_RUN_IMMEDIATE=false` | API process publishes and consumes messages in-memory. |
+| Queue with Azure Service Bus | `AUTOMATION_QUEUE_PROVIDER=servicebus`, `AUTOMATION_QUEUE_AUTORUN=true`, `AUTOMATION_RUN_IMMEDIATE=false`, `AZURE_SERVICE_BUS_CONNECTION_STRING`, `AZURE_SERVICE_BUS_QUEUE_NAME` | For production-style async processing. |
+
+### Worker commands
+
+```bash
+cd backend
+
+# Process one job by ID
+npm run automation:job -- <jobId>
+
+# Long-running queue worker
+npm run automation:worker
+```
+
+### Verification checklist after deploy
+
+1. Create a connector (`POST /api/automation/connectors`) and ensure it appears in `GET /api/automation/connectors`.
+2. Create a generation job (`POST /api/automation/jobs`) and validate status progression (`PENDING -> RUNNING -> COMPLETED` or `FAILED`).
+3. Check suggestions (`GET /api/automation/suggestions`) and findings (`GET /api/compliance/quality/findings`).
+4. Run a manual quality check (`POST /api/compliance/quality/check`) for one document and verify findings are persisted.
+
+### Production call template (authenticated + tenant-aware)
+
+```bash
+curl -X POST "https://<backend-host>/api/automation/jobs" \
+  -H "Authorization: Bearer <token>" \
+  -H "X-Tenant-ID: <tenant-id>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "intent": "UPDATE",
+    "documentId": "<document-id>",
+    "title": "Weekly sync update"
+  }'
+```
+
+---
+
 ## Azure Deployment
 
 ### Backend (Azure App Service)
@@ -90,7 +135,7 @@ npx prisma generate
 1. Test authentication flow
 2. Test tenant creation
 3. Test document CRUD operations
-4. Monitor error logs
-5. Set up Application Insights (optional)
-6. (Optional) Automationsjobs testen: `npm run automation:job -- <jobId>` oder Worker starten (`npm run automation:worker`).
+4. Test automation, knowledge and compliance endpoints with tenant headers
+5. Monitor error logs
+6. Set up Application Insights (optional)
 
