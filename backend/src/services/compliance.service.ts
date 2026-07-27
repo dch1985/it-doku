@@ -58,6 +58,23 @@ export interface QualityFindingUpdatePayload {
   action?: 'RESOLVE' | 'REOPEN' | null;
 }
 
+async function ensureTenantAccessToDocument(documentId: string, tenantId?: string | null) {
+  const document = await prisma.document.findUnique({
+    where: { id: documentId },
+    select: { id: true, tenantId: true },
+  });
+
+  if (!document) {
+    throw new ApplicationError('Dokument wurde nicht gefunden', 404);
+  }
+
+  if (tenantId && document.tenantId && tenantId !== document.tenantId) {
+    throw new ApplicationError('Zugriff auf dieses Dokument ist nicht erlaubt', 403);
+  }
+
+  return document;
+}
+
 export const complianceService = {
   listTemplateSchemas(tenantId?: string | null) {
     return prisma.templateSchema.findMany({
@@ -144,16 +161,60 @@ export const complianceService = {
     });
   },
 
-  listQualityFindings(documentId?: string) {
+  async listQualityFindings(tenantId?: string | null, documentId?: string) {
+    if (!tenantId) {
+      return prisma.qualityFinding.findMany({
+        where: {
+          ...(documentId ? { documentId } : {}),
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+
+    const accessibleDocuments = await prisma.document.findMany({
+      where: {
+        ...(documentId ? { id: documentId } : {}),
+        OR: [
+          { tenantId },
+          { tenantId: null },
+        ],
+      },
+      select: { id: true },
+    });
+
+    const documentIds = accessibleDocuments.map((doc) => doc.id);
+    if (documentIds.length === 0) {
+      return [];
+    }
+
     return prisma.qualityFinding.findMany({
       where: {
-        ...(documentId ? { documentId } : {}),
+        documentId: { in: documentIds },
       },
       orderBy: { createdAt: 'desc' },
     });
   },
 
-  async updateQualityFinding(id: string, changes: QualityFindingUpdatePayload) {
+  async updateQualityFinding(id: string, changes: QualityFindingUpdatePayload, tenantId?: string | null) {
+    const finding = await prisma.qualityFinding.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        documentId: true,
+      },
+    });
+
+    if (!finding) {
+      throw new ApplicationError('Quality Finding wurde nicht gefunden', 404);
+    }
+
+    if (tenantId) {
+      if (!finding.documentId) {
+        throw new ApplicationError('Zugriff auf dieses Quality Finding ist nicht erlaubt', 403);
+      }
+      await ensureTenantAccessToDocument(finding.documentId, tenantId);
+    }
+
     const payload = changes ?? {};
     const data: Record<string, unknown> = {};
 
@@ -180,7 +241,7 @@ export const complianceService = {
     });
   },
 
-  async runQualityChecks(documentId: string) {
+  async runQualityChecks(documentId: string, tenantId?: string | null) {
     const document = await prisma.document.findUnique({
       where: { id: documentId },
       select: {
@@ -188,11 +249,18 @@ export const complianceService = {
         content: true,
         title: true,
         category: true,
+        tenantId: true,
       },
     });
 
     if (!document) {
-      throw new Error('Dokument nicht gefunden');
+      throw new ApplicationError('Dokument wurde nicht gefunden', 404);
+    }
+
+    // Tenant-bound access check to prevent cross-tenant scans/writes.
+    // Global documents (tenantId = null) stay visible to all tenants by design.
+    if (tenantId && document.tenantId && tenantId !== document.tenantId) {
+      throw new ApplicationError('Zugriff auf dieses Dokument ist nicht erlaubt', 403);
     }
 
     const text = stripHtml(document.content);
