@@ -249,6 +249,20 @@ export const automationService = {
     });
   },
 
+  async getSuggestionWithTenant(id: string) {
+    return prisma.updateSuggestion.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        generationJob: {
+          select: {
+            tenantId: true,
+          },
+        },
+      },
+    });
+  },
+
   async approveJob(id: string) {
     return prisma.generationJob.update({
       where: { id },
