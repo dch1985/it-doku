@@ -126,12 +126,12 @@ router.get('/jobs/:id', async (req: Request, res: Response) => {
 
 router.post('/jobs/:id/approve', async (req: Request, res: Response) => {
   try {
-    const job = await automationService.approveJob(req.params.id);
+    const job = await automationService.approveJob(req.params.id, req.tenant?.id ?? null);
 
     res.json(job);
   } catch (error: any) {
     console.error('[Automation] Failed to approve job', error);
-    res.status(500).json({
+    res.status(error.statusCode ?? 500).json({
       error: 'Failed to approve job',
       message: error.message ?? 'Unexpected error',
     });
@@ -158,12 +158,12 @@ router.patch('/suggestions/:id', async (req: Request, res: Response) => {
     const suggestion = await automationService.updateSuggestion(req.params.id, {
       status: body.status,
       resolution: body.resolution,
-    });
+    }, req.tenant?.id ?? null);
 
     res.json(suggestion);
   } catch (error: any) {
     console.error('[Automation] Failed to update suggestion', error);
-    res.status(500).json({
+    res.status(error.statusCode ?? 500).json({
       error: 'Failed to update suggestion',
       message: error.message ?? 'Unexpected error',
     });
