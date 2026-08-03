@@ -79,10 +79,10 @@ az sql server firewall-rule create \
 
 ```bash
 # Test Backend API
-curl http://localhost:3001/api/health
+curl http://localhost:3002/api/health
 
 # Test Documents Endpoint
-curl http://localhost:3001/api/documents
+curl http://localhost:3002/api/documents
 ```
 
 ### Temporäre Workaround (wenn Firewall nicht geändert werden kann)
@@ -111,7 +111,8 @@ router.get('/', async (req: Request, res: Response) => {
 ## Weitere häufige Probleme
 
 ### Backend läuft nicht
-- Prüfe ob Port 3001 frei ist: `netstat -ano | findstr :3001`
+- Prüfe ob Port 3002 frei ist (Linux): `ss -ltnp | rg ":3002"`
+- Prüfe ob Port 3002 frei ist (Windows): `netstat -ano | findstr :3002`
 - Starte Backend: `cd backend && npm run dev`
 
 ### Frontend kann Backend nicht erreichen
@@ -123,4 +124,91 @@ router.get('/', async (req: Request, res: Response) => {
 - Prüfe `DATABASE_URL` in `backend/.env`
 - Führe Prisma Migrationen aus: `npx prisma migrate dev`
 - Generiere Prisma Client: `npx prisma generate`
+
+---
+
+## Automate / Centralize / Comply: Häufige Fehlerbilder
+
+### Problem: Automationsjobs bleiben auf `PENDING`
+
+**Typische Ursache:**
+- `AUTOMATION_QUEUE_AUTORUN=false` **und** `AUTOMATION_RUN_IMMEDIATE=false`
+- oder Queue-Modus aktiv, aber kein Worker/Subscriber läuft
+
+**Lösung:**
+1. Für direkte Verarbeitung:
+   - `AUTOMATION_RUN_IMMEDIATE=true`
+   - `AUTOMATION_QUEUE_AUTORUN=false`
+2. Für Queue-Betrieb:
+   - `AUTOMATION_QUEUE_AUTORUN=true`
+   - `npm run automation:worker` starten (oder eigenen Consumer betreiben)
+3. Einzeljob manuell ausführen:
+   - `npm run automation:job -- <jobId>`
+
+### Problem: Fehler `Service Bus Provider ausgewählt ... fehlt`
+
+**Typische Ursache:**
+- `AUTOMATION_QUEUE_PROVIDER=servicebus`, aber fehlende Azure-Variablen.
+
+**Lösung:**
+- `AZURE_SERVICE_BUS_CONNECTION_STRING` setzen
+- `AZURE_SERVICE_BUS_QUEUE_NAME` setzen
+- Backend/Worker neu starten
+
+### Problem: `Globale Connectoren können nicht angepasst werden`
+
+**Typische Ursache:**
+- PATCH auf einen Connector mit `tenantId=null` (globaler System-Connector).
+
+**Lösung:**
+- Nur tenant-eigene Connectoren über `/api/automation/connectors/:id` umschalten.
+- Globale Connectoren über System-Administration pflegen.
+
+### Problem: `Tenant identifier required`
+
+**Typische Ursache:**
+- Tenant-Header fehlt bei tenant-geschützten Endpunkten.
+
+**Lösung:**
+- `X-Tenant-ID` oder `X-Tenant-Slug` mitsenden.
+- In Dev-Mode (`DEV_AUTH_ENABLED=true`) ist tenantloser Zugriff für Tests möglich.
+
+### Problem: `Zugriff verweigert` bei Knowledge Nodes
+
+**Typische Ursache:**
+- Node ist einem anderen Tenant zugeordnet (Dokumentbezug oder tenantId in Metadata).
+
+**Lösung:**
+- Tenant-Kontext prüfen.
+- Bei dokumentlosen Nodes Metadata-Tenant prüfen.
+- Node nur innerhalb des korrekten Tenant-Kontexts bearbeiten/löschen.
+
+### Problem: Knowledge Node erscheint nicht in globaler Suche
+
+**Typische Ursache:**
+- `/api/search?type=knowledge` berücksichtigt im Tenant-Kontext primär Nodes mit dokumentbezogenem Tenant.
+
+**Lösung:**
+- Node einem Dokument im gleichen Tenant zuordnen.
+- Danach erneut `/api/search?q=<term>&type=knowledge` ausführen.
+
+### Problem: Review Request kann nicht erstellt/aktualisiert werden
+
+**Typische Ursache:**
+- `reviewerId` existiert nicht
+- oder ungültiger Review-Status beim PATCH
+
+**Lösung:**
+- Prüfen, ob der Reviewer als User im System vorhanden ist und zum Tenant-Kontext passt.
+- Erlaubte Status: `PENDING`, `APPROVED`, `REJECTED`, `CHANGES_REQUESTED`.
+
+### Problem: Quality Findings lassen sich nicht schließen
+
+**Typische Ursache:**
+- PATCH ohne `action` oder ohne echte Änderung.
+
+**Lösung:**
+- Zum Schließen: `action=RESOLVE` (optional `resolution`)
+- Zum Wiederöffnen: `action=REOPEN`
+- Bei reinem Kommentarupdate `resolution` explizit setzen.
 

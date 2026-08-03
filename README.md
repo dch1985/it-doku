@@ -120,7 +120,7 @@ npm run dev
 
 The application will be available at:
 - Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:3001`
+- Backend API: `http://localhost:3002` (or your configured `PORT`)
 
 ---
 
@@ -173,20 +173,20 @@ it-doku/
 - `POST /api/auth/logout` - Logout
 - `GET /api/auth/verify` - Verify token
 
-### Tenants
+### Tenants & Users
 - `GET /api/tenants` - List user's tenants
 - `GET /api/tenants/:id` - Get tenant details
 - `POST /api/tenants` - Create new tenant
 - `PATCH /api/tenants/:id` - Update tenant (OWNER/ADMIN only)
 
-### Documents
+### Documents & Templates
 - `GET /api/documents` - List all documents (filtered by tenant)
 - `GET /api/documents/:id` - Get document by ID
 - `POST /api/documents` - Create new document
 - `PUT /api/documents/:id` - Update document
 - `DELETE /api/documents/:id` - Delete document
-
-> **Note:** All document endpoints require `X-Tenant-ID` or `X-Tenant-Slug` header for tenant isolation.
+- `GET /api/templates` - List all templates (tenant-aware)
+- `GET /api/templates/:id` - Get template by ID
 
 ### File Upload
 - `POST /api/upload` - Upload file attachment
@@ -194,16 +194,86 @@ it-doku/
 - `GET /api/upload/:id` - Download attachment
 - `DELETE /api/upload/:id` - Delete attachment
 
-### AI Chat
-- `POST /api/chat` - Send message to AI assistant
-
 ### GitHub Integration
 - `GET /api/github/repos/:username` - List user repositories
 - `GET /api/github/readme/:owner/:repo` - Get repository README
 
-### Templates
-- `GET /api/templates` - List all templates (tenant-aware)
-- `GET /api/templates/:id` - Get template by ID
+### Assistant & Chat
+- `POST /api/chat` - Send message to AI assistant
+- `GET /api/assistant/conversations` - Load persisted assistant sessions
+- `POST /api/assistant/query` - Ask a question with audience context (`BEGINNER|PRACTITIONER|EXPERT`)
+- `GET /api/assistant/traces` - Retrieve answer traces including citations
+
+### Search & Analytics
+- `GET /api/search?q=<term>&type=<documents|knowledge>&limit=<n>` - Ranked global search
+- `GET /api/analytics` - Dashboard metrics for automation, centralize, and comply pages
+
+### Automation
+- `GET /api/automation/connectors` - List tenant + global source connectors
+- `POST /api/automation/connectors` - Create connector (`name`, `type`, optional `config`)
+- `PATCH /api/automation/connectors/:id` - Toggle connector (`isActive`)
+- `GET /api/automation/jobs` - List generation jobs with findings and suggestions
+- `POST /api/automation/jobs` - Create job (`intent`, optional `documentId`, `connectorId`, `payload`, `title`)
+- `GET /api/automation/jobs/:id` - Job details with suggestions/findings
+- `POST /api/automation/jobs/:id/approve` - Mark completed job as approved
+- `POST /api/automation/jobs/:id/retry` - Reset and re-run job (except when already `RUNNING`)
+- `POST /api/automation/jobs/:id/cancel` - Cancel `PENDING`/`RUNNING` jobs
+- `GET /api/automation/suggestions` - List update suggestions
+- `PATCH /api/automation/suggestions/:id` - Update suggestion status (`OPEN|APPLIED|DISMISSED`)
+
+### Knowledge Nodes
+- `GET /api/knowledge` - List knowledge nodes (optional `documentId` filter)
+- `POST /api/knowledge` - Create node (`content`, `type`, optional `documentId`, `tags`, `metadata`, `connections`)
+- `PATCH /api/knowledge/:id` - Update node content/type/linking
+- `DELETE /api/knowledge/:id` - Delete node
+
+### Compliance & Review
+- `GET /api/compliance/schemas` / `POST /api/compliance/schemas`
+- `GET /api/compliance/annotations` / `POST /api/compliance/annotations`
+- `GET /api/compliance/trace-links` / `POST /api/compliance/trace-links`
+- `GET /api/compliance/quality/findings` / `PATCH /api/compliance/quality/findings/:id`
+- `POST /api/compliance/quality/check` - Run text-based quality checks for one document
+- `GET /api/compliance/reviews` / `POST /api/compliance/reviews` / `PATCH /api/compliance/reviews/:id`
+
+> **Tenant note:** Most `/api/*` business endpoints are tenant-aware. Pass `X-Tenant-ID` or `X-Tenant-Slug` (or use dev mode with `DEV_AUTH_ENABLED=true` for local testing without tenant selection).
+
+### Workflow Statuses (Operational Reference)
+
+- **Automation job:** `PENDING → RUNNING → COMPLETED | FAILED | CANCELLED`
+- **Review request:** `PENDING | APPROVED | REJECTED | CHANGES_REQUESTED`
+- **Quality finding action:** `RESOLVE` sets `resolvedAt`; `REOPEN` clears resolution.
+
+## ⚙️ Automation Queue & Worker Runbook
+
+The automation backend currently supports two execution patterns that are controlled by env vars:
+
+1. **Immediate execution (local default)**
+   - `AUTOMATION_RUN_IMMEDIATE=true`
+   - `AUTOMATION_QUEUE_AUTORUN=false`
+   - Job is processed directly in the API process after `POST /api/automation/jobs`.
+
+2. **Queue execution**
+   - `AUTOMATION_QUEUE_AUTORUN=true`
+   - `AUTOMATION_QUEUE_PROVIDER=memory|servicebus`
+   - Job is published and processed by a subscriber/worker.
+   - If provider is `servicebus`, both `AZURE_SERVICE_BUS_CONNECTION_STRING` and `AZURE_SERVICE_BUS_QUEUE_NAME` are required.
+
+> If both `AUTOMATION_QUEUE_AUTORUN` and `AUTOMATION_RUN_IMMEDIATE` are `false`, jobs remain in `PENDING` until processed manually.
+
+Manual operations:
+
+```bash
+cd backend
+
+# Process one specific job ID
+npm run automation:job -- <jobId>
+
+# Run a long-lived worker listener
+npm run automation:worker
+```
+
+Current implementation detail:
+- `generateDocumentDraft()` currently returns a structured placeholder draft (not an LLM response), and quality findings are derived via rule-based checks in `automation.service.ts`.
 
 ---
 
@@ -289,16 +359,3 @@ For support, email driss.chaouat@example.com or open an issue on GitHub.
 ---
 
 <p align="center">Made with ❤️ by Driss Chaouat</p>
-
-### Automation Queue & Worker
-
-```bash
-# Einzelnen Job manuell ausführen (Job-ID siehe /api/automation/jobs)
-cd backend
-npm run automation:job -- <jobId>
-
-# Länger laufender Worker (Platzhalter für zukünftigen Queue-Provider)
-npm run automation:worker
-```
-
-> Tipp: Für lokale Tests `AUTOMATION_RUN_IMMEDIATE=true` setzen. In produktiven Setups kann stattdessen eine echte Queue (z. B. Azure Service Bus mit `AUTOMATION_QUEUE_PROVIDER=servicebus`) angeschlossen werden.
