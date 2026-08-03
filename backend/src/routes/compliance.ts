@@ -21,6 +21,36 @@ type UpdateReviewBody = {
   comments?: string | null;
 };
 
+function parseNullableTextField(value: unknown, fieldName: string): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value === 'string') return value;
+  throw new ApplicationError(`${fieldName} muss ein String oder null sein`, 400);
+}
+
+export function buildQualityFindingUpdatePayload(body: UpdateFindingBody) {
+  const action = body?.action ? String(body.action).toUpperCase() : undefined;
+
+  if (action && action !== 'RESOLVE' && action !== 'REOPEN') {
+    throw new ApplicationError(`Ungültige Aktion: ${action}`, 400);
+  }
+
+  return {
+    action: action as 'RESOLVE' | 'REOPEN' | undefined,
+    resolution: parseNullableTextField(body?.resolution, 'resolution'),
+  };
+}
+
+export function buildReviewRequestUpdatePayload(body: UpdateReviewBody, tenantId?: string | null) {
+  const status = body?.status ? String(body.status).toUpperCase() : undefined;
+
+  return {
+    status: status as any,
+    comments: parseNullableTextField(body?.comments, 'comments'),
+    tenantId: tenantId ?? null,
+  };
+}
+
 const router = Router();
 const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
 
@@ -173,16 +203,10 @@ router.get('/quality/findings', async (req: Request, res: Response) => {
 router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateFindingBody;
-    const action = body?.action ? body.action.toUpperCase() : undefined;
-
-    if (action && action !== 'RESOLVE' && action !== 'REOPEN') {
-      throw new ApplicationError(`Ungültige Aktion: ${action}`, 400);
-    }
-
-    const finding = await complianceService.updateQualityFinding(req.params.id, {
-      action: action as 'RESOLVE' | 'REOPEN' | undefined,
-      resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
-    });
+    const finding = await complianceService.updateQualityFinding(
+      req.params.id,
+      buildQualityFindingUpdatePayload(body),
+    );
 
     res.json(finding);
   } catch (error: any) {
@@ -265,13 +289,10 @@ router.post('/reviews', async (req: Request, res: Response) => {
 router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateReviewBody;
-    const status = body?.status ? String(body.status).toUpperCase() : undefined;
-
-    const review = await complianceService.updateReviewRequest(req.params.id, {
-      status: status as any,
-      comments: body?.comments ?? null,
-      tenantId: req.tenant?.id ?? null,
-    });
+    const review = await complianceService.updateReviewRequest(
+      req.params.id,
+      buildReviewRequestUpdatePayload(body, req.tenant?.id ?? null),
+    );
 
     res.json(review);
   } catch (error: any) {
