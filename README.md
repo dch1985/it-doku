@@ -196,7 +196,10 @@ it-doku/
 
 ### GitHub Integration
 - `GET /api/github/repos/:username` - List user repositories
-- `GET /api/github/readme/:owner/:repo` - Get repository README
+- `GET /api/github/repos/:owner/:repo/readme` - Get repository README
+- `GET /api/github/repos/:owner/:repo/structure?path=<optionalPath>` - Get repository tree
+- `GET /api/github/repos/:owner/:repo/file?path=<filePath>` - Get file content
+- `GET /api/github/search?q=<query>` - Search GitHub code
 
 ### Assistant & Chat
 - `POST /api/chat` - Send message to AI assistant
