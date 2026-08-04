@@ -51,6 +51,7 @@ export interface ReviewRequestUpdatePayload {
   status?: ReviewStatus;
   comments?: string | null;
   tenantId?: string | null;
+  actorUserId?: string | null;
 }
 
 export interface QualityFindingUpdatePayload {
@@ -316,6 +317,10 @@ export const complianceService = {
 
     if (payload.tenantId && review.document?.tenantId && payload.tenantId !== review.document.tenantId) {
       throw new ApplicationError('Zugriff auf dieses Review ist nicht erlaubt', 403);
+    }
+
+    if (payload.actorUserId && review.reviewerId !== payload.actorUserId) {
+      throw new ApplicationError('Nur der zugewiesene Reviewer darf diesen Review aktualisieren', 403);
     }
 
     const data: Record<string, unknown> = {};
