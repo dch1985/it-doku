@@ -126,9 +126,14 @@ router.get('/jobs/:id', async (req: Request, res: Response) => {
 
 router.post('/jobs/:id/approve', async (req: Request, res: Response) => {
   try {
-    const job = await automationService.approveJob(req.params.id);
+    const job = await automationService.getJobWithDetails(req.params.id);
+    if (!job || job.tenantId !== req.tenant?.id) {
+      return res.status(404).json({ error: 'Job nicht gefunden' });
+    }
 
-    res.json(job);
+    const approved = await automationService.approveJob(job.id);
+
+    res.json(approved);
   } catch (error: any) {
     console.error('[Automation] Failed to approve job', error);
     res.status(500).json({
@@ -154,8 +159,13 @@ router.get('/suggestions', async (req: Request, res: Response) => {
 
 router.patch('/suggestions/:id', async (req: Request, res: Response) => {
   try {
+    const existing = await automationService.getSuggestionWithDetails(req.params.id);
+    if (!existing || existing.generationJob?.tenantId !== req.tenant?.id) {
+      return res.status(404).json({ error: 'Suggestion nicht gefunden' });
+    }
+
     const body = req.body as UpdateSuggestionBody;
-    const suggestion = await automationService.updateSuggestion(req.params.id, {
+    const suggestion = await automationService.updateSuggestion(existing.id, {
       status: body.status,
       resolution: body.resolution,
     });
