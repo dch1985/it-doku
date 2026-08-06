@@ -33,7 +33,7 @@ test('PATCH /compliance/reviews keeps comments unless explicitly provided', asyn
   const server = app.listen(0);
   const address = server.address();
   const port = typeof address === 'object' && address ? address.port : 0;
-  const baseUrl = `http://127.0.0.1:${port}/api/compliance/reviews/review-1`;
+  const baseUrl = `http://localhost:${port}/api/compliance/reviews/review-1`;
 
   try {
     const statusOnlyResponse = await fetch(baseUrl, {
