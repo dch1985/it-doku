@@ -44,6 +44,7 @@ function subscribeViaServiceBus(handler: (message: GenerationJobMessage) => Prom
         await handler(body);
       } catch (error) {
         console.error('[AutomationQueue] Fehler beim Verarbeiten einer Service Bus Nachricht', error);
+        throw error;
       }
     },
     async processError(args) {

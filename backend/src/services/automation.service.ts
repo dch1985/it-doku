@@ -4,6 +4,7 @@ import { generateDocumentDraft } from '../lib/openai.client.js';
 
 const AUTO_RUN_ON_PUBLISH = process.env.AUTOMATION_QUEUE_AUTORUN === 'true';
 const RUN_IMMEDIATELY_ON_CREATE = process.env.AUTOMATION_RUN_IMMEDIATE === 'true';
+const SHOULD_RETHROW_FOR_QUEUE_RETRY = (process.env.AUTOMATION_QUEUE_PROVIDER ?? 'memory') === 'servicebus';
 
 interface GenerationContext {
   jobId: string;
@@ -415,6 +416,9 @@ if (AUTO_RUN_ON_PUBLISH) {
       await automationService.processJob(jobId);
     } catch (error) {
       console.error('[AutomationService] Failed to process queued job', jobId, error);
+      if (SHOULD_RETHROW_FOR_QUEUE_RETRY) {
+        throw error;
+      }
     }
   });
 }
