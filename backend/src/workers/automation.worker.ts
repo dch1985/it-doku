@@ -3,6 +3,8 @@ import 'dotenv/config';
 import { automationService } from '../services/automation.service.js';
 import { automationQueue } from '../lib/automation.queue.js';
 
+const shouldRethrowForQueueRetry = (process.env.AUTOMATION_QUEUE_PROVIDER ?? 'memory') === 'servicebus';
+
 async function processSingleJob(jobId: string) {
   console.info(`[AutomationWorker] Processing job ${jobId}`);
   try {
@@ -27,6 +29,9 @@ async function processSingleJob(jobId: string) {
         console.info('[AutomationWorker] Job finished', message.jobId);
       } catch (error: any) {
         console.error('[AutomationWorker] Job failed', message.jobId, error?.message ?? error);
+        if (shouldRethrowForQueueRetry) {
+          throw error;
+        }
       }
     });
     console.info('[AutomationWorker] Listener active (provider:', process.env.AUTOMATION_QUEUE_PROVIDER ?? 'memory', ')');
