@@ -174,6 +174,7 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateFindingBody;
     const action = body?.action ? body.action.toUpperCase() : undefined;
+    const hasResolution = typeof body === 'object' && body !== null && 'resolution' in body;
 
     if (action && action !== 'RESOLVE' && action !== 'REOPEN') {
       throw new ApplicationError(`Ungültige Aktion: ${action}`, 400);
@@ -181,7 +182,11 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
 
     const finding = await complianceService.updateQualityFinding(req.params.id, {
       action: action as 'RESOLVE' | 'REOPEN' | undefined,
-      resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
+      resolution: hasResolution
+        ? typeof body.resolution === 'string'
+          ? body.resolution
+          : body.resolution ?? null
+        : undefined,
     });
 
     res.json(finding);
@@ -266,10 +271,11 @@ router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateReviewBody;
     const status = body?.status ? String(body.status).toUpperCase() : undefined;
+    const hasComments = typeof body === 'object' && body !== null && 'comments' in body;
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
       status: status as any,
-      comments: body?.comments ?? null,
+      comments: hasComments ? body.comments ?? null : undefined,
       tenantId: req.tenant?.id ?? null,
     });
 
