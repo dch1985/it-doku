@@ -42,6 +42,12 @@ AZURE_SERVICE_BUS_CONNECTION_STRING=
 AZURE_SERVICE_BUS_QUEUE_NAME=
 ```
 
+Queue-Hinweise:
+
+- `AUTOMATION_QUEUE_PROVIDER=memory` ist nur für Single-Instance/Dev-ähnliche Setups geeignet.
+- Für verteilte Produktion `AUTOMATION_QUEUE_PROVIDER=servicebus` setzen und beide Azure-Service-Bus-Variablen befüllen.
+- `AUTOMATION_QUEUE_AUTORUN=true` aktiviert queue-basiertes Abarbeiten beim Job-Publishing.
+
 ### Frontend Production
 
 ```env
@@ -72,6 +78,40 @@ VITE_AZURE_TENANT_ID=your-tenant-id
 
 ---
 
+## Automation Queue Betriebsmodi
+
+### Modus A: Immediate Processing (einfacher Einstieg)
+
+```env
+AUTOMATION_QUEUE_AUTORUN=false
+AUTOMATION_RUN_IMMEDIATE=true
+AUTOMATION_QUEUE_PROVIDER=memory
+```
+
+Eigenschaften:
+
+- Job wird direkt im API-Prozess verarbeitet.
+- Kein separater Worker nötig.
+- Geeignet für kleine Umgebungen/PoCs.
+
+### Modus B: Queue-basiert (empfohlen für Produktion)
+
+```env
+AUTOMATION_QUEUE_AUTORUN=true
+AUTOMATION_RUN_IMMEDIATE=false
+AUTOMATION_QUEUE_PROVIDER=servicebus
+AZURE_SERVICE_BUS_CONNECTION_STRING=Endpoint=sb://...
+AZURE_SERVICE_BUS_QUEUE_NAME=automation-jobs
+```
+
+Eigenschaften:
+
+- API publiziert Jobs in Azure Service Bus.
+- Worker konsumiert asynchron.
+- Bessere Entkopplung/Skalierung bei Lastspitzen.
+
+---
+
 ## Migration Commands
 
 ```bash
@@ -88,9 +128,24 @@ npx prisma generate
 ## Post-Deployment
 
 1. Test authentication flow
-2. Test tenant creation
+2. Test tenant selection and `X-Tenant-ID` propagation
 3. Test document CRUD operations
-4. Monitor error logs
-5. Set up Application Insights (optional)
-6. (Optional) Automationsjobs testen: `npm run automation:job -- <jobId>` oder Worker starten (`npm run automation:worker`).
+4. Test automation endpoints:
+   - `GET /api/automation/connectors`
+   - `POST /api/automation/jobs`
+   - `GET /api/automation/suggestions`
+5. Test compliance endpoints:
+   - `POST /api/compliance/quality/check`
+   - `GET /api/compliance/reviews`
+6. Test centralize endpoints:
+   - `GET /api/knowledge`
+   - `POST /api/assistant/query`
+   - `GET /api/search?q=test`
+7. Test KPI endpoint: `GET /api/analytics`
+8. Monitor error logs
+9. Set up Application Insights (optional)
+10. Worker/Queue-Test:
+    - Einzeljob: `npm run automation:job -- <jobId>`
+    - Listener: `npm run automation:worker`
 
+Siehe auch: [Automation, Knowledge & Compliance Runbook](AUTOMATION_COMPLIANCE_RUNBOOK.md)
