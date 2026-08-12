@@ -37,6 +37,7 @@ function stripHtml(content: string | null | undefined): string {
 }
 
 const REVIEW_STATUS = ['PENDING', 'APPROVED', 'REJECTED', 'CHANGES_REQUESTED'] as const;
+const REVIEW_ADMIN_TENANT_ROLES = ['OWNER', 'ADMIN'] as const;
 type ReviewStatus = (typeof REVIEW_STATUS)[number];
 
 export interface ReviewRequestPayload {
@@ -51,6 +52,8 @@ export interface ReviewRequestUpdatePayload {
   status?: ReviewStatus;
   comments?: string | null;
   tenantId?: string | null;
+  actorUserId?: string | null;
+  actorTenantRole?: string | null;
 }
 
 export interface QualityFindingUpdatePayload {
@@ -316,6 +319,19 @@ export const complianceService = {
 
     if (payload.tenantId && review.document?.tenantId && payload.tenantId !== review.document.tenantId) {
       throw new ApplicationError('Zugriff auf dieses Review ist nicht erlaubt', 403);
+    }
+
+    if (!payload.actorUserId) {
+      throw new ApplicationError('Authentifizierung erforderlich', 403);
+    }
+
+    const actorTenantRole = payload.actorTenantRole?.toUpperCase();
+    const hasTenantOverridePermission = actorTenantRole
+      ? REVIEW_ADMIN_TENANT_ROLES.includes(actorTenantRole as (typeof REVIEW_ADMIN_TENANT_ROLES)[number])
+      : false;
+
+    if (!hasTenantOverridePermission && review.reviewerId !== payload.actorUserId) {
+      throw new ApplicationError('Nur der zugewiesene Reviewer darf den Review aktualisieren', 403);
     }
 
     const data: Record<string, unknown> = {};

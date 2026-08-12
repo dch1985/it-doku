@@ -23,6 +23,7 @@ type UpdateReviewBody = {
 
 const router = Router();
 const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
+const REVIEW_STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'CHANGES_REQUESTED'] as const;
 
 router.use(isDevMode ? devAuthenticate : authenticate);
 router.use(tenantMiddleware);
@@ -266,11 +267,25 @@ router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateReviewBody;
     const status = body?.status ? String(body.status).toUpperCase() : undefined;
+    const actorUserId = req.user?.id;
+    if (!actorUserId) {
+      throw new ApplicationError('Authentifizierung erforderlich', 403);
+    }
+
+    if (status && !REVIEW_STATUSES.includes(status as (typeof REVIEW_STATUSES)[number])) {
+      throw new ApplicationError(`Ungültiger Review-Status: ${status}`, 400);
+    }
+
+    const comments = Object.prototype.hasOwnProperty.call(body ?? {}, 'comments')
+      ? body?.comments ?? null
+      : undefined;
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
-      status: status as any,
-      comments: body?.comments ?? null,
+      status: status as (typeof REVIEW_STATUSES)[number] | undefined,
+      comments,
       tenantId: req.tenant?.id ?? null,
+      actorUserId,
+      actorTenantRole: req.tenantMember?.role ?? null,
     });
 
     res.json(review);
