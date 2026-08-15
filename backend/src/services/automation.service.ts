@@ -326,6 +326,16 @@ export const automationService = {
     });
   },
 
+  async getSuggestion(id: string) {
+    return prisma.updateSuggestion.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        generationJobId: true,
+      },
+    });
+  },
+
   async updateSuggestion(id: string, changes: SuggestionUpdateInput) {
     return prisma.updateSuggestion.update({
       where: { id },
