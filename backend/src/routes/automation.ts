@@ -31,6 +31,14 @@ type UpdateConnectorBody = {
 const router = Router();
 const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
 
+function requireTenantId(req: Request): string {
+  const tenantId = req.tenant?.id;
+  if (!tenantId) {
+    throw new ApplicationError('Tenant-Kontext ist für diesen Endpunkt erforderlich', 400);
+  }
+  return tenantId;
+}
+
 router.use(isDevMode ? devAuthenticate : authenticate);
 router.use(tenantMiddleware);
 
@@ -126,12 +134,13 @@ router.get('/jobs/:id', async (req: Request, res: Response) => {
 
 router.post('/jobs/:id/approve', async (req: Request, res: Response) => {
   try {
-    const job = await automationService.approveJob(req.params.id);
+    const tenantId = requireTenantId(req);
+    const job = await automationService.approveJob(req.params.id, tenantId);
 
     res.json(job);
   } catch (error: any) {
     console.error('[Automation] Failed to approve job', error);
-    res.status(500).json({
+    res.status(error.statusCode ?? 500).json({
       error: 'Failed to approve job',
       message: error.message ?? 'Unexpected error',
     });
@@ -154,16 +163,17 @@ router.get('/suggestions', async (req: Request, res: Response) => {
 
 router.patch('/suggestions/:id', async (req: Request, res: Response) => {
   try {
+    const tenantId = requireTenantId(req);
     const body = req.body as UpdateSuggestionBody;
     const suggestion = await automationService.updateSuggestion(req.params.id, {
       status: body.status,
       resolution: body.resolution,
-    });
+    }, tenantId);
 
     res.json(suggestion);
   } catch (error: any) {
     console.error('[Automation] Failed to update suggestion', error);
-    res.status(500).json({
+    res.status(error.statusCode ?? 500).json({
       error: 'Failed to update suggestion',
       message: error.message ?? 'Unexpected error',
     });

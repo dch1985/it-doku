@@ -24,6 +24,32 @@ type UpdateReviewBody = {
 const router = Router();
 const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
 
+function requireTenantId(req: Request): string {
+  const tenantId = req.tenant?.id;
+  if (!tenantId) {
+    throw new ApplicationError('Tenant-Kontext ist für diesen Endpunkt erforderlich', 400);
+  }
+  return tenantId;
+}
+
+export function extractFindingResolution(body: UpdateFindingBody | null | undefined): string | null | undefined {
+  const hasResolution = Object.prototype.hasOwnProperty.call(body ?? {}, 'resolution');
+  if (!hasResolution) {
+    return undefined;
+  }
+
+  return typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null;
+}
+
+export function extractReviewComments(body: UpdateReviewBody | null | undefined): string | null | undefined {
+  const hasComments = Object.prototype.hasOwnProperty.call(body ?? {}, 'comments');
+  if (!hasComments) {
+    return undefined;
+  }
+
+  return body?.comments ?? null;
+}
+
 router.use(isDevMode ? devAuthenticate : authenticate);
 router.use(tenantMiddleware);
 
@@ -158,7 +184,11 @@ router.post('/trace-links', async (req: Request, res: Response) => {
 router.get('/quality/findings', async (req: Request, res: Response) => {
   try {
     const { documentId } = req.query;
-    const findings = await complianceService.listQualityFindings(documentId ? String(documentId) : undefined);
+    const tenantId = requireTenantId(req);
+    const findings = await complianceService.listQualityFindings(
+      tenantId,
+      documentId ? String(documentId) : undefined,
+    );
 
     res.json(findings);
   } catch (error: any) {
@@ -172,6 +202,7 @@ router.get('/quality/findings', async (req: Request, res: Response) => {
 
 router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
   try {
+    const tenantId = requireTenantId(req);
     const body = req.body as UpdateFindingBody;
     const action = body?.action ? body.action.toUpperCase() : undefined;
 
@@ -181,7 +212,8 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
 
     const finding = await complianceService.updateQualityFinding(req.params.id, {
       action: action as 'RESOLVE' | 'REOPEN' | undefined,
-      resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
+      resolution: extractFindingResolution(body),
+      tenantId,
     });
 
     res.json(finding);
@@ -201,7 +233,8 @@ router.post('/quality/check', async (req: Request, res: Response) => {
       throw new ApplicationError('documentId ist erforderlich', 400);
     }
 
-    const findings = await complianceService.runQualityChecks(String(documentId));
+    const tenantId = requireTenantId(req);
+    const findings = await complianceService.runQualityChecks(String(documentId), tenantId);
     res.json({
       documentId: String(documentId),
       findings,
@@ -269,7 +302,7 @@ router.patch('/reviews/:id', async (req: Request, res: Response) => {
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
       status: status as any,
-      comments: body?.comments ?? null,
+      comments: extractReviewComments(body),
       tenantId: req.tenant?.id ?? null,
     });
 
