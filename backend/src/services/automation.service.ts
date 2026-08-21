@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { automationQueue } from '../lib/automation.queue.js';
 import { generateDocumentDraft } from '../lib/openai.client.js';
+import { ApplicationError } from '../middleware/errorHandler.js';
 
 const AUTO_RUN_ON_PUBLISH = process.env.AUTOMATION_QUEUE_AUTORUN === 'true';
 const RUN_IMMEDIATELY_ON_CREATE = process.env.AUTOMATION_RUN_IMMEDIATE === 'true';
@@ -104,6 +105,44 @@ async function buildGenerationContext(jobId: string): Promise<GenerationContext>
       : null,
     document: document ? { id: document.id, title: document.title } : null,
   };
+}
+
+async function assertJobTenantAccess(jobId: string, tenantId?: string | null) {
+  const job = await prisma.generationJob.findUnique({
+    where: { id: jobId },
+    select: { id: true, tenantId: true },
+  });
+
+  if (!job) {
+    throw new ApplicationError('GenerationJob nicht gefunden', 404);
+  }
+
+  if (tenantId && job.tenantId !== tenantId) {
+    throw new ApplicationError('Zugriff auf diesen Job ist nicht erlaubt', 403);
+  }
+
+  return job;
+}
+
+async function assertSuggestionTenantAccess(suggestionId: string, tenantId?: string | null) {
+  const suggestion = await prisma.updateSuggestion.findUnique({
+    where: { id: suggestionId },
+    include: {
+      generationJob: {
+        select: { tenantId: true },
+      },
+    },
+  });
+
+  if (!suggestion) {
+    throw new ApplicationError('Suggestion nicht gefunden', 404);
+  }
+
+  if (tenantId && suggestion.generationJob?.tenantId !== tenantId) {
+    throw new ApplicationError('Zugriff auf diesen Vorschlag ist nicht erlaubt', 403);
+  }
+
+  return suggestion;
 }
 
 export interface ConnectorPayload {
@@ -249,7 +288,9 @@ export const automationService = {
     });
   },
 
-  async approveJob(id: string) {
+  async approveJob(id: string, tenantId?: string | null) {
+    await assertJobTenantAccess(id, tenantId);
+
     return prisma.generationJob.update({
       where: { id },
       data: {
@@ -326,7 +367,9 @@ export const automationService = {
     });
   },
 
-  async updateSuggestion(id: string, changes: SuggestionUpdateInput) {
+  async updateSuggestion(id: string, changes: SuggestionUpdateInput, tenantId?: string | null) {
+    await assertSuggestionTenantAccess(id, tenantId);
+
     return prisma.updateSuggestion.update({
       where: { id },
       data: {
