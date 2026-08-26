@@ -3,7 +3,7 @@ import { authenticate } from '../middleware/auth.middleware.js';
 import { devAuthenticate } from '../middleware/auth.dev.middleware.js';
 import { tenantMiddleware } from '../middleware/tenant.middleware.js';
 import { ApplicationError } from '../middleware/errorHandler.js';
-import { complianceService } from '../services/compliance.service.js';
+import { complianceService, type ReviewRequestUpdatePayload } from '../services/compliance.service.js';
 
 type UpdateFindingBody = {
   resolution?: string | null;
@@ -266,12 +266,17 @@ router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateReviewBody;
     const status = body?.status ? String(body.status).toUpperCase() : undefined;
-
-    const review = await complianceService.updateReviewRequest(req.params.id, {
-      status: status as any,
-      comments: body?.comments ?? null,
+    const updates: ReviewRequestUpdatePayload = {
+      status: status as ReviewRequestUpdatePayload['status'],
       tenantId: req.tenant?.id ?? null,
-    });
+    };
+
+    // Only mutate comments when the client explicitly sends the field.
+    if (body && Object.prototype.hasOwnProperty.call(body, 'comments')) {
+      updates.comments = body.comments ?? null;
+    }
+
+    const review = await complianceService.updateReviewRequest(req.params.id, updates);
 
     res.json(review);
   } catch (error: any) {
