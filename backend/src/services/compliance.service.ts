@@ -58,6 +58,23 @@ export interface QualityFindingUpdatePayload {
   action?: 'RESOLVE' | 'REOPEN' | null;
 }
 
+function qualityFindingTenantScope(tenantId: string) {
+  return {
+    OR: [
+      {
+        document: {
+          tenantId,
+        },
+      },
+      {
+        generationJob: {
+          tenantId,
+        },
+      },
+    ],
+  };
+}
+
 export const complianceService = {
   listTemplateSchemas(tenantId?: string | null) {
     return prisma.templateSchema.findMany({
@@ -144,16 +161,29 @@ export const complianceService = {
     });
   },
 
-  listQualityFindings(documentId?: string) {
+  listQualityFindings(tenantId: string, documentId?: string) {
     return prisma.qualityFinding.findMany({
       where: {
         ...(documentId ? { documentId } : {}),
+        ...qualityFindingTenantScope(tenantId),
       },
       orderBy: { createdAt: 'desc' },
     });
   },
 
-  async updateQualityFinding(id: string, changes: QualityFindingUpdatePayload) {
+  async updateQualityFinding(id: string, tenantId: string, changes: QualityFindingUpdatePayload) {
+    const existing = await prisma.qualityFinding.findFirst({
+      where: {
+        id,
+        ...qualityFindingTenantScope(tenantId),
+      },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      throw new ApplicationError('Quality Finding wurde nicht gefunden', 404);
+    }
+
     const payload = changes ?? {};
     const data: Record<string, unknown> = {};
 
@@ -180,9 +210,12 @@ export const complianceService = {
     });
   },
 
-  async runQualityChecks(documentId: string) {
-    const document = await prisma.document.findUnique({
-      where: { id: documentId },
+  async runQualityChecks(documentId: string, tenantId: string) {
+    const document = await prisma.document.findFirst({
+      where: {
+        id: documentId,
+        tenantId,
+      },
       select: {
         id: true,
         content: true,
@@ -192,7 +225,7 @@ export const complianceService = {
     });
 
     if (!document) {
-      throw new Error('Dokument nicht gefunden');
+      throw new ApplicationError('Dokument nicht gefunden oder Zugriff verweigert', 404);
     }
 
     const text = stripHtml(document.content);
