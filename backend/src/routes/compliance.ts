@@ -157,8 +157,11 @@ router.post('/trace-links', async (req: Request, res: Response) => {
 
 router.get('/quality/findings', async (req: Request, res: Response) => {
   try {
+    if (!req.tenant?.id) {
+      throw new ApplicationError('Tenant-Kontext ist erforderlich', 400);
+    }
     const { documentId } = req.query;
-    const findings = await complianceService.listQualityFindings(documentId ? String(documentId) : undefined);
+    const findings = await complianceService.listQualityFindings(req.tenant.id, documentId ? String(documentId) : undefined);
 
     res.json(findings);
   } catch (error: any) {
@@ -172,6 +175,9 @@ router.get('/quality/findings', async (req: Request, res: Response) => {
 
 router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
   try {
+    if (!req.tenant?.id) {
+      throw new ApplicationError('Tenant-Kontext ist erforderlich', 400);
+    }
     const body = req.body as UpdateFindingBody;
     const action = body?.action ? body.action.toUpperCase() : undefined;
 
@@ -179,7 +185,7 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
       throw new ApplicationError(`Ungültige Aktion: ${action}`, 400);
     }
 
-    const finding = await complianceService.updateQualityFinding(req.params.id, {
+    const finding = await complianceService.updateQualityFinding(req.params.id, req.tenant.id, {
       action: action as 'RESOLVE' | 'REOPEN' | undefined,
       resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
     });
@@ -196,12 +202,15 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
 
 router.post('/quality/check', async (req: Request, res: Response) => {
   try {
+    if (!req.tenant?.id) {
+      throw new ApplicationError('Tenant-Kontext ist erforderlich', 400);
+    }
     const { documentId } = req.body ?? {};
     if (!documentId) {
       throw new ApplicationError('documentId ist erforderlich', 400);
     }
 
-    const findings = await complianceService.runQualityChecks(String(documentId));
+    const findings = await complianceService.runQualityChecks(String(documentId), req.tenant.id);
     res.json({
       documentId: String(documentId),
       findings,
