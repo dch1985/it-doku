@@ -120,7 +120,7 @@ npm run dev
 
 The application will be available at:
 - Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:3001`
+- Backend API: `http://localhost:3002`
 
 ---
 
@@ -136,13 +136,18 @@ it-doku/
 │   │   │   ├── documents.ts   # Document CRUD
 │   │   │   ├── templates.ts   # Templates management
 │   │   │   ├── github.ts      # GitHub integration
+│   │   │   ├── automation.ts  # Generation jobs & connectors
+│   │   │   ├── compliance.ts  # Quality findings & reviews
+│   │   │   ├── knowledge.ts   # Knowledge node management
+│   │   │   ├── analytics.ts   # Automate/Centralize/Comply KPI API
+│   │   │   ├── search.ts      # Global search across docs + knowledge
 │   │   │   └── upload.ts      # File upload handling
 │   │   ├── services/          # Business logic
 │   │   ├── lib/               # Utilities
 │   │   └── index.ts           # Server entry point
 │   └── uploads/               # File storage directory
 │
-├── frontend-new/
+├── frontend/
 │   ├── src/
 │   │   ├── components/        # Reusable components
 │   │   │   ├── ui/           # shadcn/ui components
@@ -197,13 +202,51 @@ it-doku/
 ### AI Chat
 - `POST /api/chat` - Send message to AI assistant
 
+### Assistant & Search
+- `GET /api/assistant/conversations` - List assistant conversations
+- `POST /api/assistant/query` - Ask assistant with audience-aware response
+- `GET /api/assistant/traces` - List recent assistant traces and citations
+- `GET /api/search?q=<term>&type=<documents|knowledge>&limit=<n>` - Global ranked search
+
 ### GitHub Integration
 - `GET /api/github/repos/:username` - List user repositories
-- `GET /api/github/readme/:owner/:repo` - Get repository README
+- `GET /api/github/repos/:owner/:repo/readme` - Get repository README
+- `GET /api/github/repos/:owner/:repo/structure` - Browse repository structure
+- `GET /api/github/repos/:owner/:repo/file?path=<file-path>` - Get single file content
+
+### Automation
+- `GET /api/automation/connectors` - List tenant and global connectors
+- `POST /api/automation/connectors` - Create connector
+- `PATCH /api/automation/connectors/:id` - Activate/deactivate tenant connector
+- `GET /api/automation/jobs` - List generation jobs
+- `POST /api/automation/jobs` - Create generation job (`CREATE|UPDATE|SUMMARY|QUALITY`)
+- `GET /api/automation/jobs/:id` - Get job details, suggestions, findings
+- `POST /api/automation/jobs/:id/retry` - Retry failed/cancelled job
+- `POST /api/automation/jobs/:id/cancel` - Cancel pending/running job
+- `POST /api/automation/jobs/:id/approve` - Mark completed output approved
+- `GET /api/automation/suggestions` - List update suggestions
+- `PATCH /api/automation/suggestions/:id` - Update suggestion status (`OPEN|APPLIED|DISMISSED`)
+
+### Compliance
+- `GET /api/compliance/schemas` / `POST /api/compliance/schemas` - Manage template schemas
+- `GET /api/compliance/annotations` / `POST /api/compliance/annotations` - Manage annotations
+- `GET /api/compliance/trace-links` / `POST /api/compliance/trace-links` - Manage trace links
+- `GET /api/compliance/quality/findings` - List quality findings
+- `PATCH /api/compliance/quality/findings/:id` - Resolve/reopen finding
+- `POST /api/compliance/quality/check` - Run quality checks for one document
+- `GET /api/compliance/reviews` / `POST /api/compliance/reviews` - Manage review requests
+- `PATCH /api/compliance/reviews/:id` - Update review status (`PENDING|APPROVED|CHANGES_REQUESTED|REJECTED`)
+
+### Knowledge & Analytics
+- `GET /api/knowledge` / `POST /api/knowledge` - List and create knowledge nodes
+- `PATCH /api/knowledge/:id` / `DELETE /api/knowledge/:id` - Update and delete knowledge nodes
+- `GET /api/analytics` - KPI payload for Automate/Centralize/Comply dashboards
 
 ### Templates
 - `GET /api/templates` - List all templates (tenant-aware)
 - `GET /api/templates/:id` - Get template by ID
+
+> **Note:** Most endpoints above run behind authentication and tenant middleware in production. Send `Authorization: Bearer <token>` and `X-Tenant-ID` (or `X-Tenant-Slug`). In local dev with `DEV_AUTH_ENABLED=true`, auth/tenant checks can be relaxed for faster testing.
 
 ---
 
@@ -279,6 +322,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ### Implementation Guides
 - [Phase 1 & 2: Authentication & Multi-Tenancy](docs/PHASE_1_2_IMPLEMENTATION.md)
+- [Automation, Centralize & Compliance Runbook](docs/AUTOMATION_COMPLIANCE_RUNBOOK.md)
+- [Deployment Guide](docs/DEPLOYMENT.md)
 - [Troubleshooting Guide](docs/TROUBLESHOOTING.md)
 - [Gap Analysis](docs/GAP_ANALYSIS.md)
 
