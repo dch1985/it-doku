@@ -4,20 +4,16 @@ import { devAuthenticate } from '../middleware/auth.dev.middleware.js';
 import { tenantMiddleware } from '../middleware/tenant.middleware.js';
 import { ApplicationError } from '../middleware/errorHandler.js';
 import { complianceService } from '../services/compliance.service.js';
-
-type UpdateFindingBody = {
-  resolution?: string | null;
-  action?: 'RESOLVE' | 'REOPEN';
-};
+import {
+  buildQualityFindingChanges,
+  buildReviewRequestChanges,
+  type UpdateFindingBody,
+  type UpdateReviewBody,
+} from './compliance.payloads.js';
 
 type CreateReviewBody = {
   documentId: string;
   reviewerId: string;
-  comments?: string | null;
-};
-
-type UpdateReviewBody = {
-  status?: string;
   comments?: string | null;
 };
 
@@ -173,7 +169,8 @@ router.get('/quality/findings', async (req: Request, res: Response) => {
 router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateFindingBody;
-    const action = body?.action ? body.action.toUpperCase() : undefined;
+    const changes = buildQualityFindingChanges(body);
+    const { action } = changes;
 
     if (action && action !== 'RESOLVE' && action !== 'REOPEN') {
       throw new ApplicationError(`Ungültige Aktion: ${action}`, 400);
@@ -181,7 +178,7 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
 
     const finding = await complianceService.updateQualityFinding(req.params.id, {
       action: action as 'RESOLVE' | 'REOPEN' | undefined,
-      resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
+      resolution: changes.resolution,
     });
 
     res.json(finding);
@@ -265,11 +262,11 @@ router.post('/reviews', async (req: Request, res: Response) => {
 router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateReviewBody;
-    const status = body?.status ? String(body.status).toUpperCase() : undefined;
+    const changes = buildReviewRequestChanges(body);
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
-      status: status as any,
-      comments: body?.comments ?? null,
+      status: changes.status as any,
+      comments: changes.comments,
       tenantId: req.tenant?.id ?? null,
     });
 
