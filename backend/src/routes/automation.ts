@@ -126,12 +126,17 @@ router.get('/jobs/:id', async (req: Request, res: Response) => {
 
 router.post('/jobs/:id/approve', async (req: Request, res: Response) => {
   try {
-    const job = await automationService.approveJob(req.params.id);
+    const tenantId = req.tenant?.id;
+    if (!tenantId) {
+      throw new ApplicationError('Tenant-Kontext erforderlich', 400);
+    }
+
+    const job = await automationService.approveJob(req.params.id, tenantId);
 
     res.json(job);
   } catch (error: any) {
     console.error('[Automation] Failed to approve job', error);
-    res.status(500).json({
+    res.status(error.statusCode ?? 500).json({
       error: 'Failed to approve job',
       message: error.message ?? 'Unexpected error',
     });
@@ -154,16 +159,21 @@ router.get('/suggestions', async (req: Request, res: Response) => {
 
 router.patch('/suggestions/:id', async (req: Request, res: Response) => {
   try {
+    const tenantId = req.tenant?.id;
+    if (!tenantId) {
+      throw new ApplicationError('Tenant-Kontext erforderlich', 400);
+    }
+
     const body = req.body as UpdateSuggestionBody;
     const suggestion = await automationService.updateSuggestion(req.params.id, {
       status: body.status,
       resolution: body.resolution,
-    });
+    }, tenantId);
 
     res.json(suggestion);
   } catch (error: any) {
     console.error('[Automation] Failed to update suggestion', error);
-    res.status(500).json({
+    res.status(error.statusCode ?? 500).json({
       error: 'Failed to update suggestion',
       message: error.message ?? 'Unexpected error',
     });

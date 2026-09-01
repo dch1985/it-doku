@@ -4,20 +4,16 @@ import { devAuthenticate } from '../middleware/auth.dev.middleware.js';
 import { tenantMiddleware } from '../middleware/tenant.middleware.js';
 import { ApplicationError } from '../middleware/errorHandler.js';
 import { complianceService } from '../services/compliance.service.js';
-
-type UpdateFindingBody = {
-  resolution?: string | null;
-  action?: 'RESOLVE' | 'REOPEN';
-};
+import {
+  buildFindingUpdatePayload,
+  buildReviewUpdatePayload,
+  type UpdateFindingBody,
+  type UpdateReviewBody,
+} from './compliance.payloads.js';
 
 type CreateReviewBody = {
   documentId: string;
   reviewerId: string;
-  comments?: string | null;
-};
-
-type UpdateReviewBody = {
-  status?: string;
   comments?: string | null;
 };
 
@@ -157,13 +153,21 @@ router.post('/trace-links', async (req: Request, res: Response) => {
 
 router.get('/quality/findings', async (req: Request, res: Response) => {
   try {
+    const tenantId = req.tenant?.id;
+    if (!tenantId) {
+      throw new ApplicationError('Tenant-Kontext erforderlich', 400);
+    }
+
     const { documentId } = req.query;
-    const findings = await complianceService.listQualityFindings(documentId ? String(documentId) : undefined);
+    const findings = await complianceService.listQualityFindings(
+      tenantId,
+      documentId ? String(documentId) : undefined,
+    );
 
     res.json(findings);
   } catch (error: any) {
     console.error('[Compliance] Failed to load quality findings', error);
-    res.status(500).json({
+    res.status(error.statusCode ?? 500).json({
       error: 'Failed to load quality findings',
       message: error.message ?? 'Unexpected error',
     });
@@ -172,17 +176,13 @@ router.get('/quality/findings', async (req: Request, res: Response) => {
 
 router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
   try {
-    const body = req.body as UpdateFindingBody;
-    const action = body?.action ? body.action.toUpperCase() : undefined;
-
-    if (action && action !== 'RESOLVE' && action !== 'REOPEN') {
-      throw new ApplicationError(`Ungültige Aktion: ${action}`, 400);
+    const tenantId = req.tenant?.id;
+    if (!tenantId) {
+      throw new ApplicationError('Tenant-Kontext erforderlich', 400);
     }
 
-    const finding = await complianceService.updateQualityFinding(req.params.id, {
-      action: action as 'RESOLVE' | 'REOPEN' | undefined,
-      resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
-    });
+    const payload = buildFindingUpdatePayload(req.body as UpdateFindingBody);
+    const finding = await complianceService.updateQualityFinding(req.params.id, tenantId, payload);
 
     res.json(finding);
   } catch (error: any) {
@@ -196,12 +196,17 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
 
 router.post('/quality/check', async (req: Request, res: Response) => {
   try {
+    const tenantId = req.tenant?.id;
+    if (!tenantId) {
+      throw new ApplicationError('Tenant-Kontext erforderlich', 400);
+    }
+
     const { documentId } = req.body ?? {};
     if (!documentId) {
       throw new ApplicationError('documentId ist erforderlich', 400);
     }
 
-    const findings = await complianceService.runQualityChecks(String(documentId));
+    const findings = await complianceService.runQualityChecks(String(documentId), tenantId);
     res.json({
       documentId: String(documentId),
       findings,
@@ -264,13 +269,23 @@ router.post('/reviews', async (req: Request, res: Response) => {
 
 router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
-    const body = req.body as UpdateReviewBody;
-    const status = body?.status ? String(body.status).toUpperCase() : undefined;
+    const tenantId = req.tenant?.id;
+    if (!tenantId) {
+      throw new ApplicationError('Tenant-Kontext erforderlich', 400);
+    }
+
+    const actorUserId = req.user?.id;
+    if (!actorUserId) {
+      throw new ApplicationError('Authentifizierung erforderlich', 403);
+    }
+
+    const payload = buildReviewUpdatePayload(req.body as UpdateReviewBody);
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
-      status: status as any,
-      comments: body?.comments ?? null,
-      tenantId: req.tenant?.id ?? null,
+      ...(payload.status ? { status: payload.status as any } : {}),
+      ...('comments' in payload ? { comments: payload.comments ?? null } : {}),
+      tenantId,
+      actorUserId,
     });
 
     res.json(review);
