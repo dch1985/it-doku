@@ -51,6 +51,7 @@ export interface ReviewRequestUpdatePayload {
   status?: ReviewStatus;
   comments?: string | null;
   tenantId?: string | null;
+  actorUserId?: string | null;
 }
 
 export interface QualityFindingUpdatePayload {
@@ -144,16 +145,50 @@ export const complianceService = {
     });
   },
 
-  listQualityFindings(documentId?: string) {
+  listQualityFindings(tenantId: string, documentId?: string) {
     return prisma.qualityFinding.findMany({
       where: {
         ...(documentId ? { documentId } : {}),
+        OR: [
+          {
+            document: {
+              tenantId,
+            },
+          },
+          {
+            generationJob: {
+              tenantId,
+            },
+          },
+        ],
       },
       orderBy: { createdAt: 'desc' },
     });
   },
 
-  async updateQualityFinding(id: string, changes: QualityFindingUpdatePayload) {
+  async updateQualityFinding(id: string, tenantId: string, changes: QualityFindingUpdatePayload) {
+    const existing = await prisma.qualityFinding.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        document: {
+          select: {
+            tenantId: true,
+          },
+        },
+        generationJob: {
+          select: {
+            tenantId: true,
+          },
+        },
+      },
+    });
+
+    const ownerTenantId = existing?.document?.tenantId ?? existing?.generationJob?.tenantId ?? null;
+    if (!existing || ownerTenantId !== tenantId) {
+      throw new ApplicationError('Quality Finding wurde nicht gefunden', 404);
+    }
+
     const payload = changes ?? {};
     const data: Record<string, unknown> = {};
 
@@ -180,9 +215,9 @@ export const complianceService = {
     });
   },
 
-  async runQualityChecks(documentId: string) {
-    const document = await prisma.document.findUnique({
-      where: { id: documentId },
+  async runQualityChecks(documentId: string, tenantId: string) {
+    const document = await prisma.document.findFirst({
+      where: { id: documentId, tenantId },
       select: {
         id: true,
         content: true,
@@ -192,7 +227,7 @@ export const complianceService = {
     });
 
     if (!document) {
-      throw new Error('Dokument nicht gefunden');
+      throw new ApplicationError('Dokument nicht gefunden', 404);
     }
 
     const text = stripHtml(document.content);
@@ -316,6 +351,10 @@ export const complianceService = {
 
     if (payload.tenantId && review.document?.tenantId && payload.tenantId !== review.document.tenantId) {
       throw new ApplicationError('Zugriff auf dieses Review ist nicht erlaubt', 403);
+    }
+
+    if (payload.actorUserId && review.reviewerId !== payload.actorUserId) {
+      throw new ApplicationError('Nur der zugewiesene Reviewer darf dieses Review aktualisieren', 403);
     }
 
     const data: Record<string, unknown> = {};
