@@ -27,6 +27,7 @@ async function processSingleJob(jobId: string) {
         console.info('[AutomationWorker] Job finished', message.jobId);
       } catch (error: any) {
         console.error('[AutomationWorker] Job failed', message.jobId, error?.message ?? error);
+        throw error;
       }
     });
     console.info('[AutomationWorker] Listener active (provider:', process.env.AUTOMATION_QUEUE_PROVIDER ?? 'memory', ')');
