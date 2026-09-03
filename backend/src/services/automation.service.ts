@@ -415,6 +415,7 @@ if (AUTO_RUN_ON_PUBLISH) {
       await automationService.processJob(jobId);
     } catch (error) {
       console.error('[AutomationService] Failed to process queued job', jobId, error);
+      throw error;
     }
   });
 }
