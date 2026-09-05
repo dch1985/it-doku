@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { devAuthenticate } from '../middleware/auth.dev.middleware.js';
 import { tenantMiddleware } from '../middleware/tenant.middleware.js';
@@ -26,6 +26,12 @@ const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH
 
 router.use(isDevMode ? devAuthenticate : authenticate);
 router.use(tenantMiddleware);
+router.use((req: Request, _res: Response, next: NextFunction) => {
+  if (req.tenant && !req.tenantMember) {
+    return next(new ApplicationError('Tenant-Mitgliedschaft erforderlich', 403));
+  }
+  next();
+});
 
 router.get('/schemas', async (req: Request, res: Response) => {
   try {
@@ -158,7 +164,10 @@ router.post('/trace-links', async (req: Request, res: Response) => {
 router.get('/quality/findings', async (req: Request, res: Response) => {
   try {
     const { documentId } = req.query;
-    const findings = await complianceService.listQualityFindings(documentId ? String(documentId) : undefined);
+    const findings = await complianceService.listQualityFindings(
+      req.tenant?.id ?? null,
+      documentId ? String(documentId) : undefined,
+    );
 
     res.json(findings);
   } catch (error: any) {
@@ -182,7 +191,7 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
     const finding = await complianceService.updateQualityFinding(req.params.id, {
       action: action as 'RESOLVE' | 'REOPEN' | undefined,
       resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
-    });
+    }, req.tenant?.id ?? null);
 
     res.json(finding);
   } catch (error: any) {
@@ -201,7 +210,7 @@ router.post('/quality/check', async (req: Request, res: Response) => {
       throw new ApplicationError('documentId ist erforderlich', 400);
     }
 
-    const findings = await complianceService.runQualityChecks(String(documentId));
+    const findings = await complianceService.runQualityChecks(String(documentId), req.tenant?.id ?? null);
     res.json({
       documentId: String(documentId),
       findings,
