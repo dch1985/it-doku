@@ -42,6 +42,16 @@ AZURE_SERVICE_BUS_CONNECTION_STRING=
 AZURE_SERVICE_BUS_QUEUE_NAME=
 ```
 
+### Automation Queue Modes (Backend)
+
+| Use Case | `AUTOMATION_QUEUE_PROVIDER` | `AUTOMATION_QUEUE_AUTORUN` | `AUTOMATION_RUN_IMMEDIATE` |
+| --- | --- | --- | --- |
+| Lokale Entwicklung / Single-Process | `memory` | `false` | `true` |
+| Entkoppelte Verarbeitung mit Queue-Worker | `servicebus` | `true` | `false` |
+| Hybrid / Übergang (vorsichtig einsetzen) | `servicebus` | `true` | `true` |
+
+> Bei `servicebus` müssen `AZURE_SERVICE_BUS_CONNECTION_STRING` und `AZURE_SERVICE_BUS_QUEUE_NAME` gesetzt sein.
+
 ### Frontend Production
 
 ```env
@@ -93,4 +103,42 @@ npx prisma generate
 4. Monitor error logs
 5. Set up Application Insights (optional)
 6. (Optional) Automationsjobs testen: `npm run automation:job -- <jobId>` oder Worker starten (`npm run automation:worker`).
+
+### Erweiterte Verifikation: Automate / Comply / Centralize
+
+Nutze für alle Requests einen gültigen Auth-Token und `X-Tenant-ID`.
+
+```bash
+API_URL="http://localhost:3002/api"
+TENANT_ID="<tenant-id>"
+
+# Health
+curl "$API_URL/health"
+
+# Automation API erreichbar?
+curl -H "X-Tenant-ID: $TENANT_ID" "$API_URL/automation/jobs"
+
+# Compliance API erreichbar?
+curl -H "X-Tenant-ID: $TENANT_ID" "$API_URL/compliance/schemas"
+
+# Knowledge API erreichbar?
+curl -H "X-Tenant-ID: $TENANT_ID" "$API_URL/knowledge"
+
+# Search API validiert Query-Parameter (bei fehlendem q: HTTP 400)
+curl -i -H "X-Tenant-ID: $TENANT_ID" "$API_URL/search"
+```
+
+### Worker Runbook (Queue-Betrieb)
+
+```bash
+cd backend
+
+# Einzeln (nützlich für Incident-Handling)
+npm run automation:job -- <jobId>
+
+# Dauerhaft als Consumer
+npm run automation:worker
+```
+
+Weitere Ablauf- und API-Beispiele: `docs/AUTOMATION_COMPLIANCE_RUNBOOK.md`.
 
