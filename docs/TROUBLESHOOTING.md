@@ -124,3 +124,84 @@ router.get('/', async (req: Request, res: Response) => {
 - Führe Prisma Migrationen aus: `npx prisma migrate dev`
 - Generiere Prisma Client: `npx prisma generate`
 
+---
+
+## Automate / Comply / Centralize – häufige Fehlerbilder
+
+### Problem: Queue-Provider `servicebus` aktiviert, Jobs werden aber nicht verarbeitet
+
+**Typische Fehlermeldung:**
+```
+Service Bus Provider ausgewählt, aber AZURE_SERVICE_BUS_CONNECTION_STRING oder AZURE_SERVICE_BUS_QUEUE_NAME fehlt.
+```
+
+**Ursache:**
+- `AUTOMATION_QUEUE_PROVIDER=servicebus`, aber Service-Bus-Variablen fehlen oder sind leer.
+
+**Lösung:**
+1. Setze beide Variablen im Backend-Environment:
+   - `AZURE_SERVICE_BUS_CONNECTION_STRING`
+   - `AZURE_SERVICE_BUS_QUEUE_NAME`
+2. Starte Backend/Worker neu.
+3. Verifiziere Queue-Betrieb:
+   ```bash
+   cd backend
+   npm run automation:worker
+   ```
+
+---
+
+### Problem: `PATCH /api/automation/connectors/:id` liefert 403
+
+**Mögliche Ursachen:**
+- Der Connector ist global (`tenantId == null`) und darf nicht per Tenant-API geändert werden.
+- Der Connector gehört zu einem anderen Tenant.
+
+**Lösung:**
+1. Connector über `GET /api/automation/connectors` prüfen.
+2. Sicherstellen, dass `X-Tenant-ID` zum Connector passt.
+3. Globale Connectoren nur über System-Admin-Prozess verwalten.
+
+---
+
+### Problem: Quality Check oder Finding-Update schlägt fehl
+
+**Typische Ursachen:**
+- `POST /api/compliance/quality/check` ohne `documentId`.
+- `PATCH /api/compliance/quality/findings/:id` ohne gültige Aktion.
+
+**Lösung:**
+```bash
+curl -X POST "$API_URL/compliance/quality/check" \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: $TENANT_ID" \
+  -d '{"documentId":"<doc-id>"}'
+```
+
+Bei Finding-Update nur `RESOLVE` oder `REOPEN` verwenden.
+
+---
+
+### Problem: Review-Status Update liefert Validierungsfehler
+
+**Ursache:**
+- Ungültiger `status` in `PATCH /api/compliance/reviews/:id`.
+
+**Erlaubte Werte:**
+- `PENDING`
+- `APPROVED`
+- `REJECTED`
+- `CHANGES_REQUESTED`
+
+---
+
+### Problem: Knowledge Node ist angelegt, taucht aber in Suche nicht auf
+
+**Ursachen:**
+- Request ohne Tenant-Header ausgeführt.
+- Node ist orphaned (ohne `documentId`) und wird in tenantgefilterter Suche nicht berücksichtigt.
+
+**Lösung:**
+1. Immer `X-Tenant-ID` senden.
+2. Falls Suchbarkeit pro Tenant erforderlich ist, Node mit passendem Dokument verknüpfen.
+

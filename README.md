@@ -205,6 +205,42 @@ it-doku/
 - `GET /api/templates` - List all templates (tenant-aware)
 - `GET /api/templates/:id` - Get template by ID
 
+### Search & Knowledge
+- `GET /api/search?q=<query>&type=documents|knowledge` - Global search with ranked document/knowledge results
+- `GET /api/knowledge` - List knowledge nodes (optional `documentId` query)
+- `POST /api/knowledge` - Create knowledge node
+- `PATCH /api/knowledge/:id` - Update knowledge node
+- `DELETE /api/knowledge/:id` - Delete knowledge node
+
+### Automation
+- `GET /api/automation/connectors` - List connectors
+- `POST /api/automation/connectors` - Create connector
+- `PATCH /api/automation/connectors/:id` - Toggle connector active state
+- `GET /api/automation/jobs` - List generation jobs
+- `POST /api/automation/jobs` - Create generation job
+- `GET /api/automation/jobs/:id` - Get job details
+- `POST /api/automation/jobs/:id/approve` - Mark completed job as approved
+- `POST /api/automation/jobs/:id/retry` - Retry failed/cancelled job
+- `POST /api/automation/jobs/:id/cancel` - Cancel pending/running job
+- `GET /api/automation/suggestions` - List update suggestions
+- `PATCH /api/automation/suggestions/:id` - Update suggestion status
+
+### Compliance
+- `GET /api/compliance/schemas` - List template schemas
+- `POST /api/compliance/schemas` - Create template schema
+- `GET /api/compliance/annotations` - List annotations
+- `POST /api/compliance/annotations` - Create annotation
+- `GET /api/compliance/trace-links` - List trace links
+- `POST /api/compliance/trace-links` - Create trace link
+- `GET /api/compliance/quality/findings` - List quality findings
+- `PATCH /api/compliance/quality/findings/:id` - Resolve/reopen a finding
+- `POST /api/compliance/quality/check` - Run quality check for one document
+- `GET /api/compliance/reviews` - List review requests
+- `POST /api/compliance/reviews` - Create review request
+- `PATCH /api/compliance/reviews/:id` - Update review status/comments
+
+> **Operational note:** Automate/Centralize/Comply routes require tenant context. Use `X-Tenant-ID` in API requests and see `docs/AUTOMATION_COMPLIANCE_RUNBOOK.md` for workflow examples and constraints.
+
 ---
 
 ## 🎨 Screenshots
@@ -279,7 +315,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ### Implementation Guides
 - [Phase 1 & 2: Authentication & Multi-Tenancy](docs/PHASE_1_2_IMPLEMENTATION.md)
+- [Automate, Centralize & Comply Runbook](docs/AUTOMATION_COMPLIANCE_RUNBOOK.md)
 - [Troubleshooting Guide](docs/TROUBLESHOOTING.md)
+- [Deployment Guide](docs/DEPLOYMENT.md)
 - [Gap Analysis](docs/GAP_ANALYSIS.md)
 
 ## 📧 Support
