@@ -144,16 +144,46 @@ export const complianceService = {
     });
   },
 
-  listQualityFindings(documentId?: string) {
+  listQualityFindings(tenantId?: string | null, documentId?: string) {
     return prisma.qualityFinding.findMany({
       where: {
         ...(documentId ? { documentId } : {}),
+        ...(tenantId
+          ? {
+              document: {
+                tenantId,
+              },
+            }
+          : {}),
       },
       orderBy: { createdAt: 'desc' },
     });
   },
 
-  async updateQualityFinding(id: string, changes: QualityFindingUpdatePayload) {
+  async updateQualityFinding(
+    id: string,
+    changes: QualityFindingUpdatePayload,
+    tenantId?: string | null
+  ) {
+    const finding = await prisma.qualityFinding.findUnique({
+      where: { id },
+      include: {
+        document: {
+          select: {
+            tenantId: true,
+          },
+        },
+      },
+    });
+
+    if (!finding) {
+      throw new ApplicationError('Quality Finding wurde nicht gefunden', 404);
+    }
+
+    if (tenantId && finding.document?.tenantId !== tenantId) {
+      throw new ApplicationError('Zugriff auf dieses Quality Finding ist nicht erlaubt', 403);
+    }
+
     const payload = changes ?? {};
     const data: Record<string, unknown> = {};
 
@@ -180,9 +210,12 @@ export const complianceService = {
     });
   },
 
-  async runQualityChecks(documentId: string) {
-    const document = await prisma.document.findUnique({
-      where: { id: documentId },
+  async runQualityChecks(documentId: string, tenantId?: string | null) {
+    const document = await prisma.document.findFirst({
+      where: {
+        id: documentId,
+        ...(tenantId ? { tenantId } : {}),
+      },
       select: {
         id: true,
         content: true,
@@ -192,7 +225,7 @@ export const complianceService = {
     });
 
     if (!document) {
-      throw new Error('Dokument nicht gefunden');
+      throw new ApplicationError('Dokument nicht gefunden oder Zugriff verweigert', 404);
     }
 
     const text = stripHtml(document.content);
