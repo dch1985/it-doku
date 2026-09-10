@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { automationQueue } from '../lib/automation.queue.js';
 import { generateDocumentDraft } from '../lib/openai.client.js';
+import { ApplicationError } from '../middleware/errorHandler.js';
 
 const AUTO_RUN_ON_PUBLISH = process.env.AUTOMATION_QUEUE_AUTORUN === 'true';
 const RUN_IMMEDIATELY_ON_CREATE = process.env.AUTOMATION_RUN_IMMEDIATE === 'true';
@@ -249,9 +250,21 @@ export const automationService = {
     });
   },
 
-  async approveJob(id: string) {
-    return prisma.generationJob.update({
+  async approveJob(id: string, tenantId?: string | null) {
+    const job = await prisma.generationJob.findUnique({
       where: { id },
+      select: {
+        id: true,
+        tenantId: true,
+      },
+    });
+
+    if (!job || (tenantId && job.tenantId !== tenantId)) {
+      throw new ApplicationError('GenerationJob nicht gefunden', 404);
+    }
+
+    return prisma.generationJob.update({
+      where: { id: job.id },
       data: {
         status: 'COMPLETED',
         completedAt: new Date(),
@@ -326,9 +339,25 @@ export const automationService = {
     });
   },
 
-  async updateSuggestion(id: string, changes: SuggestionUpdateInput) {
-    return prisma.updateSuggestion.update({
+  async updateSuggestion(id: string, changes: SuggestionUpdateInput, tenantId?: string | null) {
+    const suggestion = await prisma.updateSuggestion.findUnique({
       where: { id },
+      select: {
+        id: true,
+        generationJob: {
+          select: {
+            tenantId: true,
+          },
+        },
+      },
+    });
+
+    if (!suggestion || (tenantId && suggestion.generationJob?.tenantId !== tenantId)) {
+      throw new ApplicationError('Vorschlag nicht gefunden', 404);
+    }
+
+    return prisma.updateSuggestion.update({
+      where: { id: suggestion.id },
       data: {
         status: changes.status?.toUpperCase() ?? 'OPEN',
         metadata: changes.resolution ? JSON.stringify({ resolution: changes.resolution }) : undefined,
