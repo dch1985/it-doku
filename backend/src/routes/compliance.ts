@@ -265,12 +265,19 @@ router.post('/reviews', async (req: Request, res: Response) => {
 router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateReviewBody;
+    const actorUserId = req.user?.id;
+    if (!actorUserId) {
+      throw new ApplicationError('Authentifizierung erforderlich', 403);
+    }
+
     const status = body?.status ? String(body.status).toUpperCase() : undefined;
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
       status: status as any,
       comments: body?.comments ?? null,
       tenantId: req.tenant?.id ?? null,
+      actorUserId,
+      actorRole: req.tenantMember?.role ?? req.user?.role ?? null,
     });
 
     res.json(review);

@@ -51,6 +51,8 @@ export interface ReviewRequestUpdatePayload {
   status?: ReviewStatus;
   comments?: string | null;
   tenantId?: string | null;
+  actorUserId?: string | null;
+  actorRole?: string | null;
 }
 
 export interface QualityFindingUpdatePayload {
@@ -316,6 +318,24 @@ export const complianceService = {
 
     if (payload.tenantId && review.document?.tenantId && payload.tenantId !== review.document.tenantId) {
       throw new ApplicationError('Zugriff auf dieses Review ist nicht erlaubt', 403);
+    }
+
+    const actorUserId = payload.actorUserId ?? null;
+    if (!actorUserId) {
+      throw new ApplicationError('Authentifizierung erforderlich', 403);
+    }
+
+    const actorRole = payload.actorRole?.toUpperCase() ?? '';
+    const isTenantAdmin = actorRole === 'ADMIN' || actorRole === 'OWNER';
+    const isReviewer = review.reviewerId === actorUserId;
+    const isRequester = review.requestedBy === actorUserId;
+
+    if (payload.status !== undefined && !isReviewer && !isTenantAdmin) {
+      throw new ApplicationError('Nur zugewiesene Reviewer oder Tenant-Admins dürfen den Review-Status ändern', 403);
+    }
+
+    if (payload.comments !== undefined && !isReviewer && !isRequester && !isTenantAdmin) {
+      throw new ApplicationError('Nur Requester, Reviewer oder Tenant-Admins dürfen Kommentare ändern', 403);
     }
 
     const data: Record<string, unknown> = {};
