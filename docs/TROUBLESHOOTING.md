@@ -1,126 +1,148 @@
 # Troubleshooting Guide
 
-## Problem: "Failed to load documents"
+This guide targets the currently active high-change subsystems:
 
-### Ursache: Azure SQL Server Firewall blockiert Verbindung
+- **Automate** (`/api/automation`)
+- **Centralize** (`/api/knowledge`, `/api/assistant`, `/api/search`)
+- **Comply** (`/api/compliance`)
 
-**Fehlermeldung:**
-```
-Cannot open server 'itdokusql1969' requested by the login. 
-Client with IP address '87.169.155.196' is not allowed to access the server.
-```
+---
 
-### Lösungen:
+## Quick Diagnostic Checklist
 
-#### Option 1: Azure Portal - Firewall-Regel hinzufügen (Empfohlen)
+1. Backend health: `curl http://localhost:3002/api/health`
+2. Frontend API base: verify `VITE_API_URL` in `frontend/.env`
+3. Tenant header present: `X-Tenant-ID` or `X-Tenant-Slug`
+4. Automation runtime flags set intentionally:
+   - `AUTOMATION_QUEUE_AUTORUN`
+   - `AUTOMATION_RUN_IMMEDIATE`
+   - `AUTOMATION_QUEUE_PROVIDER`
 
-1. Gehe zu [Azure Portal](https://portal.azure.com)
-2. Navigiere zu deiner SQL Server Instanz (`itdokusql1969`)
-3. Gehe zu **Settings** → **Networking** oder **Firewalls and virtual networks**
-4. Klicke auf **Add client IPv4 address** oder **+ Add a firewall rule**
-5. Füge deine aktuelle IP-Adresse hinzu: `87.169.155.196`
-6. ODER aktiviere **Allow Azure services and resources to access this server** (wenn du von Azure aus zugreifst)
-7. Speichere die Änderungen (kann bis zu 5 Minuten dauern)
+---
 
-**Alternative via Azure CLI:**
-```bash
-az sql server firewall-rule create \
-  --resource-group <your-resource-group> \
-  --server itdokusql1969 \
-  --name MyIP \
-  --start-ip-address 87.169.155.196 \
-  --end-ip-address 87.169.155.196
-```
+## Problem: `Tenant identifier required...`
 
-#### Option 2: Temporäre lokale Datenbank für Entwicklung
+**Typical response**
 
-Falls du für die Entwicklung eine lokale Datenbank verwenden möchtest:
-
-1. Ändere `backend/prisma/schema.prisma`:
-```prisma
-datasource db {
-  provider = "sqlite"  // Statt "sqlserver"
-  url      = "file:./dev.db"
+```json
+{
+  "message": "Tenant identifier required. Please provide X-Tenant-ID or X-Tenant-Slug header."
 }
 ```
 
-2. Führe Migrationen aus:
-```bash
-cd backend
-npx prisma migrate dev --name init
-npx prisma generate
-```
+**Cause**
 
-3. Erstelle einen Demo-User:
-```bash
-npx prisma studio
-# Oder via SQL:
-npx prisma db execute --stdin <<< "INSERT INTO users (id, email, name, role) VALUES ('demo-user-id', 'demo@local.dev', 'Demo User', 'ADMIN');"
-```
+Tenant middleware could not resolve tenant context.
 
-#### Option 3: IP-Adresse dynamisch hinzufügen (PowerShell Script)
+**Fix**
 
-Erstelle ein Script, das deine aktuelle IP-Adresse automatisch hinzufügt:
+- Add `X-Tenant-ID` or `X-Tenant-Slug` to API requests.
+- For local-only development, enable dev auth mode (`DEV_AUTH_ENABLED=true`) and use a tenant-aware flow in the UI.
 
-```powershell
-# Get current IP
-$currentIP = (Invoke-WebRequest -Uri "https://api.ipify.org" -UseBasicParsing).Content
+---
 
-# Add to Azure SQL Firewall via Azure CLI
-az sql server firewall-rule create \
-  --resource-group <your-resource-group> \
-  --server itdokusql1969 \
-  --name "DevIP-$(Get-Date -Format 'yyyyMMdd')" \
-  --start-ip-address $currentIP \
-  --end-ip-address $currentIP
-```
+## Problem: Automation jobs stay `PENDING`
 
-### Prüfung ob Problem behoben ist:
+**Cause**
 
-```bash
-# Test Backend API
-curl http://localhost:3001/api/health
+No execution mode is active:
 
-# Test Documents Endpoint
-curl http://localhost:3001/api/documents
-```
+- `AUTOMATION_QUEUE_AUTORUN=false`
+- `AUTOMATION_RUN_IMMEDIATE=false`
 
-### Temporäre Workaround (wenn Firewall nicht geändert werden kann)
+**Fix**
 
-Falls du die Firewall-Regel nicht sofort ändern kannst, implementiere eine Fallback-Lösung:
+- Local default: set `AUTOMATION_RUN_IMMEDIATE=true`.
+- Queue mode: set `AUTOMATION_QUEUE_AUTORUN=true` and choose provider.
+- Manual fallback: run `cd backend && npm run automation:job -- <jobId>`.
 
-```typescript
-// backend/src/routes/documents.ts
-router.get('/', async (req: Request, res: Response) => {
-  try {
-    const documents = await prisma.document.findMany({
-      orderBy: { updatedAt: 'desc' }
-    })
-    res.json(documents)
-  } catch (error: any) {
-    // Fallback: Return empty array if database is unavailable
-    if (error.code === 'P1001' || error.message.includes('firewall')) {
-      console.warn('[Documents] Database firewall issue - returning empty array')
-      return res.json([])
-    }
-    throw error
-  }
-})
-```
+---
 
-## Weitere häufige Probleme
+## Problem: Service Bus provider selected but startup fails
 
-### Backend läuft nicht
-- Prüfe ob Port 3001 frei ist: `netstat -ano | findstr :3001`
-- Starte Backend: `cd backend && npm run dev`
+**Typical error**
 
-### Frontend kann Backend nicht erreichen
-- Prüfe CORS-Einstellungen im Backend
-- Prüfe ob `VITE_API_URL` in `frontend/.env` korrekt gesetzt ist
-- Prüfe Browser-Konsole für CORS-Fehler
+`Service Bus Provider ausgewählt, aber AZURE_SERVICE_BUS_CONNECTION_STRING oder AZURE_SERVICE_BUS_QUEUE_NAME fehlt.`
 
-### Datenbank-Fehler
-- Prüfe `DATABASE_URL` in `backend/.env`
-- Führe Prisma Migrationen aus: `npx prisma migrate dev`
-- Generiere Prisma Client: `npx prisma generate`
+**Cause**
 
+`AUTOMATION_QUEUE_PROVIDER=servicebus`, but required Service Bus variables are missing.
+
+**Fix**
+
+- Set both:
+  - `AZURE_SERVICE_BUS_CONNECTION_STRING`
+  - `AZURE_SERVICE_BUS_QUEUE_NAME`
+- Or switch provider back to `memory`.
+
+---
+
+## Problem: Connector toggle returns 403
+
+**Typical response**
+
+`Globale Connectoren können nicht angepasst werden`
+
+**Cause**
+
+You are trying to mutate a global connector (`tenantId == null`) from tenant-scoped UI/API.
+
+**Fix**
+
+- Create/manage tenant-scoped connectors for tenant-level toggles.
+- Keep global connectors read-only in normal tenant operations.
+
+---
+
+## Problem: Knowledge node exists, but Assistant/Search does not surface it
+
+**Cause**
+
+Assistant and search queries primarily scope knowledge through related documents in the tenant context.
+
+**Fix**
+
+- Link important knowledge nodes to the target document (`documentId`) if they must be surfaced in assistant/search workflows.
+- Re-run query/search after updating the node linkage.
+
+---
+
+## Problem: Review request creation fails
+
+**Typical causes**
+
+- Reviewer ID does not exist (`Reviewer wurde nicht gefunden`)
+- Document ID is invalid (`Dokument wurde nicht gefunden`)
+- Cross-tenant access mismatch (`Zugriff ... nicht erlaubt`)
+
+**Fix**
+
+- Ensure selected reviewer exists (`/api/users` in UI flow).
+- Verify document belongs to the same tenant as the requester.
+- Retry with a valid `documentId` + `reviewerId`.
+
+---
+
+## Problem: `/api/analytics` fails in production but works locally
+
+**Cause**
+
+Analytics route requires tenant context outside dev mode.
+
+**Fix**
+
+- Send tenant header in API calls.
+- Confirm the logged-in user has tenant membership.
+
+---
+
+## Problem: Database connectivity or firewall issues
+
+**Fix steps**
+
+1. Verify `DATABASE_URL` in `backend/.env`
+2. Validate DB connectivity from runtime environment
+3. Re-run:
+   - `cd backend && npx prisma migrate deploy`
+   - `cd backend && npx prisma generate`
+4. Re-test API health and one tenant-scoped endpoint
