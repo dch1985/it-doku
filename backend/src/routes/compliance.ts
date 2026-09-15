@@ -267,11 +267,16 @@ router.patch('/reviews/:id', async (req: Request, res: Response) => {
     const body = req.body as UpdateReviewBody;
     const status = body?.status ? String(body.status).toUpperCase() : undefined;
 
-    const review = await complianceService.updateReviewRequest(req.params.id, {
+    const updatePayload: Parameters<typeof complianceService.updateReviewRequest>[1] = {
       status: status as any,
-      comments: body?.comments ?? null,
       tenantId: req.tenant?.id ?? null,
-    });
+    };
+
+    if (body && Object.prototype.hasOwnProperty.call(body, 'comments')) {
+      updatePayload.comments = body.comments ?? null;
+    }
+
+    const review = await complianceService.updateReviewRequest(req.params.id, updatePayload);
 
     res.json(review);
   } catch (error: any) {
