@@ -30,6 +30,11 @@ type UpdateConnectorBody = {
 
 const router = Router();
 const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
+const normalizeTenantId = (tenantId: string | null | undefined) => tenantId ?? null;
+const isSameTenantScope = (
+  resourceTenantId: string | null | undefined,
+  requestTenantId: string | null | undefined,
+) => normalizeTenantId(resourceTenantId) === normalizeTenantId(requestTenantId);
 
 router.use(isDevMode ? devAuthenticate : authenticate);
 router.use(tenantMiddleware);
@@ -126,9 +131,13 @@ router.get('/jobs/:id', async (req: Request, res: Response) => {
 
 router.post('/jobs/:id/approve', async (req: Request, res: Response) => {
   try {
-    const job = await automationService.approveJob(req.params.id);
+    const job = await automationService.getJobWithDetails(req.params.id);
+    if (!job || !isSameTenantScope(job.tenantId, req.tenant?.id)) {
+      return res.status(404).json({ error: 'Job nicht gefunden' });
+    }
 
-    res.json(job);
+    const approved = await automationService.approveJob(job.id);
+    res.json(approved);
   } catch (error: any) {
     console.error('[Automation] Failed to approve job', error);
     res.status(500).json({
@@ -155,7 +164,16 @@ router.get('/suggestions', async (req: Request, res: Response) => {
 router.patch('/suggestions/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateSuggestionBody;
-    const suggestion = await automationService.updateSuggestion(req.params.id, {
+    const suggestionContext = await automationService.getSuggestionWithJob(req.params.id);
+    if (
+      !suggestionContext ||
+      !suggestionContext.generationJob ||
+      !isSameTenantScope(suggestionContext.generationJob.tenantId, req.tenant?.id)
+    ) {
+      return res.status(404).json({ error: 'Vorschlag nicht gefunden' });
+    }
+
+    const suggestion = await automationService.updateSuggestion(suggestionContext.id, {
       status: body.status,
       resolution: body.resolution,
     });
