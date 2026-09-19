@@ -58,6 +58,103 @@ export interface QualityFindingUpdatePayload {
   action?: 'RESOLVE' | 'REOPEN' | null;
 }
 
+type QualityFindingAccessRecord = {
+  id: string;
+  documentId: string | null;
+  generationJobId: string | null;
+};
+
+function isTenantScopedAccessAllowed(ownerTenantId: string | null | undefined, tenantId: string) {
+  return ownerTenantId == null || ownerTenantId === tenantId;
+}
+
+async function filterQualityFindingsForTenant<T extends QualityFindingAccessRecord>(
+  findings: T[],
+  tenantId: string,
+): Promise<T[]> {
+  if (findings.length === 0) return [];
+
+  const documentIds = Array.from(
+    new Set(findings.map((finding) => finding.documentId).filter((id): id is string => Boolean(id))),
+  );
+  const generationJobIds = Array.from(
+    new Set(
+      findings
+        .map((finding) => finding.generationJobId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+
+  const [documents, jobs] = await Promise.all([
+    documentIds.length > 0
+      ? prisma.document.findMany({
+          where: { id: { in: documentIds } },
+          select: { id: true, tenantId: true },
+        })
+      : Promise.resolve([]),
+    generationJobIds.length > 0
+      ? prisma.generationJob.findMany({
+          where: { id: { in: generationJobIds } },
+          select: { id: true, tenantId: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const documentTenantById = new Map(documents.map((document) => [document.id, document.tenantId]));
+  const jobTenantById = new Map(jobs.map((job) => [job.id, job.tenantId]));
+
+  return findings.filter((finding) => {
+    if (finding.documentId) {
+      const ownerTenantId = documentTenantById.get(finding.documentId);
+      if (ownerTenantId === undefined) return false;
+      return isTenantScopedAccessAllowed(ownerTenantId, tenantId);
+    }
+
+    if (finding.generationJobId) {
+      const ownerTenantId = jobTenantById.get(finding.generationJobId);
+      if (ownerTenantId === undefined) return false;
+      return isTenantScopedAccessAllowed(ownerTenantId, tenantId);
+    }
+
+    return false;
+  });
+}
+
+async function ensureQualityFindingTenantAccess(
+  finding: QualityFindingAccessRecord,
+  tenantId?: string | null,
+) {
+  if (!tenantId) return;
+
+  let hasAccess = false;
+
+  if (finding.documentId) {
+    const document = await prisma.document.findUnique({
+      where: { id: finding.documentId },
+      select: { tenantId: true },
+    });
+
+    if (document && isTenantScopedAccessAllowed(document.tenantId, tenantId)) {
+      hasAccess = true;
+    }
+  }
+
+  if (!hasAccess && finding.generationJobId) {
+    const job = await prisma.generationJob.findUnique({
+      where: { id: finding.generationJobId },
+      select: { tenantId: true },
+    });
+
+    if (job && isTenantScopedAccessAllowed(job.tenantId, tenantId)) {
+      hasAccess = true;
+    }
+  }
+
+  if (!hasAccess) {
+    throw new ApplicationError('Zugriff auf dieses Quality Finding ist nicht erlaubt', 403);
+  }
+}
+
 export const complianceService = {
   listTemplateSchemas(tenantId?: string | null) {
     return prisma.templateSchema.findMany({
@@ -144,16 +241,37 @@ export const complianceService = {
     });
   },
 
-  listQualityFindings(documentId?: string) {
-    return prisma.qualityFinding.findMany({
+  async listQualityFindings(tenantId?: string | null, documentId?: string) {
+    const findings = await prisma.qualityFinding.findMany({
       where: {
         ...(documentId ? { documentId } : {}),
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    if (!tenantId) {
+      return findings;
+    }
+
+    return filterQualityFindingsForTenant(findings, tenantId);
   },
 
-  async updateQualityFinding(id: string, changes: QualityFindingUpdatePayload) {
+  async updateQualityFinding(
+    id: string,
+    tenantId: string | null | undefined,
+    changes: QualityFindingUpdatePayload,
+  ) {
+    const existing = await prisma.qualityFinding.findUnique({
+      where: { id },
+      select: { id: true, documentId: true, generationJobId: true },
+    });
+
+    if (!existing) {
+      throw new ApplicationError('Quality Finding wurde nicht gefunden', 404);
+    }
+
+    await ensureQualityFindingTenantAccess(existing, tenantId);
+
     const payload = changes ?? {};
     const data: Record<string, unknown> = {};
 
@@ -180,7 +298,7 @@ export const complianceService = {
     });
   },
 
-  async runQualityChecks(documentId: string) {
+  async runQualityChecks(documentId: string, tenantId?: string | null) {
     const document = await prisma.document.findUnique({
       where: { id: documentId },
       select: {
@@ -188,11 +306,16 @@ export const complianceService = {
         content: true,
         title: true,
         category: true,
+        tenantId: true,
       },
     });
 
     if (!document) {
       throw new Error('Dokument nicht gefunden');
+    }
+
+    if (tenantId && document.tenantId && tenantId !== document.tenantId) {
+      throw new ApplicationError('Zugriff auf dieses Dokument ist nicht erlaubt', 403);
     }
 
     const text = stripHtml(document.content);
