@@ -52,6 +52,18 @@ VITE_AZURE_TENANT_ID=your-tenant-id
 
 ---
 
+## Automation Runtime Modes (Production)
+
+| Mode                      | Relevant Flags                                                      | Typical Use                                    |
+| ------------------------- | ------------------------------------------------------------------- | ---------------------------------------------- |
+| API-sync processing       | `AUTOMATION_RUN_IMMEDIATE=true`                                     | Small environments, predictable low throughput |
+| In-memory queue auto-run  | `AUTOMATION_QUEUE_AUTORUN=true`, `AUTOMATION_QUEUE_PROVIDER=memory` | Single-node setups without external queue      |
+| External queue processing | `AUTOMATION_QUEUE_PROVIDER=servicebus` + Service Bus credentials    | Multi-instance / resilient async processing    |
+
+> If both `AUTOMATION_RUN_IMMEDIATE` and `AUTOMATION_QUEUE_AUTORUN` are `false`, jobs remain pending until manually processed or consumed by worker/queue infrastructure.
+
+---
+
 ## Azure Deployment
 
 ### Backend (Azure App Service)
@@ -92,5 +104,37 @@ npx prisma generate
 3. Test document CRUD operations
 4. Monitor error logs
 5. Set up Application Insights (optional)
-6. (Optional) Automationsjobs testen: `npm run automation:job -- <jobId>` oder Worker starten (`npm run automation:worker`).
+6. Validate Automate/Centralize/Comply APIs with tenant context
 
+### Smoke checks for Automate / Centralize / Comply
+
+Use a valid bearer token and tenant id from your environment:
+
+```bash
+TOKEN="<jwt>"
+TENANT="<tenant-id>"
+BASE_URL="https://your-backend-api.com/api"
+
+# Automation
+curl -s -H "Authorization: Bearer $TOKEN" -H "X-Tenant-ID: $TENANT" "$BASE_URL/automation/jobs"
+
+# Knowledge Nodes
+curl -s -H "Authorization: Bearer $TOKEN" -H "X-Tenant-ID: $TENANT" "$BASE_URL/knowledge"
+
+# Compliance review requests
+curl -s -H "Authorization: Bearer $TOKEN" -H "X-Tenant-ID: $TENANT" "$BASE_URL/compliance/reviews"
+
+# Analytics
+curl -s -H "Authorization: Bearer $TOKEN" -H "X-Tenant-ID: $TENANT" "$BASE_URL/analytics"
+
+# Search (documents + knowledge)
+curl -s -H "Authorization: Bearer $TOKEN" -H "X-Tenant-ID: $TENANT" "$BASE_URL/search?q=runbook&type=knowledge&limit=10"
+```
+
+### Optional queue worker checks
+
+```bash
+cd backend
+npm run automation:job -- <jobId>
+npm run automation:worker
+```
