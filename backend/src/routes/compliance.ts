@@ -158,7 +158,10 @@ router.post('/trace-links', async (req: Request, res: Response) => {
 router.get('/quality/findings', async (req: Request, res: Response) => {
   try {
     const { documentId } = req.query;
-    const findings = await complianceService.listQualityFindings(documentId ? String(documentId) : undefined);
+    const findings = await complianceService.listQualityFindings(
+      req.tenant?.id ?? null,
+      documentId ? String(documentId) : undefined,
+    );
 
     res.json(findings);
   } catch (error: any) {
@@ -182,6 +185,7 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
     const finding = await complianceService.updateQualityFinding(req.params.id, {
       action: action as 'RESOLVE' | 'REOPEN' | undefined,
       resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
+      tenantId: req.tenant?.id ?? null,
     });
 
     res.json(finding);

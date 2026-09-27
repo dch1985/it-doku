@@ -56,6 +56,7 @@ export interface ReviewRequestUpdatePayload {
 export interface QualityFindingUpdatePayload {
   resolution?: string | null;
   action?: 'RESOLVE' | 'REOPEN' | null;
+  tenantId?: string | null;
 }
 
 export const complianceService = {
@@ -144,10 +145,18 @@ export const complianceService = {
     });
   },
 
-  listQualityFindings(documentId?: string) {
+  listQualityFindings(tenantId?: string | null, documentId?: string) {
     return prisma.qualityFinding.findMany({
       where: {
         ...(documentId ? { documentId } : {}),
+        ...(tenantId
+          ? {
+              OR: [
+                { document: { tenantId } },
+                { generationJob: { tenantId } },
+              ],
+            }
+          : {}),
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -155,6 +164,30 @@ export const complianceService = {
 
   async updateQualityFinding(id: string, changes: QualityFindingUpdatePayload) {
     const payload = changes ?? {};
+    const existing = await prisma.qualityFinding.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        document: {
+          select: { tenantId: true },
+        },
+        generationJob: {
+          select: { tenantId: true },
+        },
+      },
+    });
+
+    if (!existing) {
+      throw new ApplicationError('Quality Finding wurde nicht gefunden', 404);
+    }
+
+    if (payload.tenantId) {
+      const ownerTenantId = existing.document?.tenantId ?? existing.generationJob?.tenantId ?? null;
+      if (ownerTenantId && ownerTenantId !== payload.tenantId) {
+        throw new ApplicationError('Zugriff auf dieses Finding ist nicht erlaubt', 403);
+      }
+    }
+
     const data: Record<string, unknown> = {};
 
     if (payload.action === 'REOPEN') {
