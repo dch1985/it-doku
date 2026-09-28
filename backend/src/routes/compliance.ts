@@ -181,7 +181,7 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
 
     const finding = await complianceService.updateQualityFinding(req.params.id, {
       action: action as 'RESOLVE' | 'REOPEN' | undefined,
-      resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
+      resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution,
     });
 
     res.json(finding);
@@ -269,7 +269,7 @@ router.patch('/reviews/:id', async (req: Request, res: Response) => {
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
       status: status as any,
-      comments: body?.comments ?? null,
+      comments: body?.comments,
       tenantId: req.tenant?.id ?? null,
     });
 
