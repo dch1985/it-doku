@@ -120,7 +120,7 @@ npm run dev
 
 The application will be available at:
 - Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:3001`
+- Backend API: `http://localhost:3002`
 
 ---
 
@@ -136,7 +136,13 @@ it-doku/
 │   │   │   ├── documents.ts   # Document CRUD
 │   │   │   ├── templates.ts   # Templates management
 │   │   │   ├── github.ts      # GitHub integration
-│   │   │   └── upload.ts      # File upload handling
+│   │   │   ├── upload.ts      # File upload handling
+│   │   │   ├── automation.ts  # Connector + generation jobs
+│   │   │   ├── compliance.ts  # Schemas, findings, review workflow
+│   │   │   ├── knowledge.ts   # Knowledge-node management
+│   │   │   ├── assistant.ts   # Conversational assistant + traces
+│   │   │   ├── analytics.ts   # KPI endpoints for dashboard tabs
+│   │   │   └── search.ts      # Global document + knowledge search
 │   │   ├── services/          # Business logic
 │   │   ├── lib/               # Utilities
 │   │   └── index.ts           # Server entry point
@@ -168,10 +174,16 @@ it-doku/
 
 ## 🔌 API Endpoints
 
+> **Auth & Tenant Context:** Protected endpoints use bearer auth (or `DEV_AUTH_ENABLED=true` in local development) and tenant context via `X-Tenant-ID` or `X-Tenant-Slug`.
+
 ### Authentication
 - `GET /api/auth/me` - Get current authenticated user
 - `POST /api/auth/logout` - Logout
 - `GET /api/auth/verify` - Verify token
+
+### Platform
+- `GET /api/health` - Health check
+- `GET /api/docs` - Minimal API docs endpoint
 
 ### Tenants
 - `GET /api/tenants` - List user's tenants
@@ -199,11 +211,60 @@ it-doku/
 
 ### GitHub Integration
 - `GET /api/github/repos/:username` - List user repositories
-- `GET /api/github/readme/:owner/:repo` - Get repository README
+- `GET /api/github/repos/:owner/:repo/readme` - Get repository README
+- `GET /api/github/repos/:owner/:repo/structure?path=<optional>` - Browse repo structure
+- `GET /api/github/repos/:owner/:repo/file?path=<required>` - Read file contents
+- `POST /api/github/repos/:owner/:repo/import` - Import README as document
+- `GET /api/github/search?q=<query>` - Search code on GitHub
 
 ### Templates
 - `GET /api/templates` - List all templates (tenant-aware)
 - `GET /api/templates/:id` - Get template by ID
+
+### Automation (`/api/automation`)
+- `GET /connectors` - List active/global connectors
+- `POST /connectors` - Create tenant connector
+- `PATCH /connectors/:id` - Toggle connector active state
+- `GET /jobs` - List generation jobs
+- `POST /jobs` - Create generation job (`intent`, optional `documentId`, optional `connectorId`, optional `payload`)
+- `GET /jobs/:id` - Get job details (includes suggestions + findings)
+- `POST /jobs/:id/approve` - Mark completed job as approved
+- `POST /jobs/:id/retry` - Reset failed/cancelled job and rerun
+- `POST /jobs/:id/cancel` - Cancel pending/running job
+- `GET /suggestions` - List AI update suggestions
+- `PATCH /suggestions/:id` - Update suggestion status (`APPLIED`, `DISMISSED`, etc.)
+
+### Compliance (`/api/compliance`)
+- `GET /schemas` / `POST /schemas` - Manage template schemas
+- `GET /annotations` / `POST /annotations` - Requirement/control annotations (`?documentId=...` supported)
+- `GET /trace-links` / `POST /trace-links` - Traceability links between entities/documents
+- `GET /quality/findings` - List quality findings (`?documentId=...` supported)
+- `PATCH /quality/findings/:id` - Resolve or reopen finding
+- `POST /quality/check` - Run quality checks for one document
+- `GET /reviews` / `POST /reviews` / `PATCH /reviews/:id` - Review-request workflow
+
+### Knowledge, Assistant & Insights
+- `GET /api/knowledge` / `POST /api/knowledge` / `PATCH /api/knowledge/:id` / `DELETE /api/knowledge/:id`
+- `GET /api/assistant/conversations` - List assistant sessions
+- `POST /api/assistant/query` - Ask a question (`audience`, `conversationId`, `title` optional)
+- `GET /api/assistant/traces` - Retrieve auditable Q&A traces with citations
+- `GET /api/analytics` - Aggregate metrics for Automate/Centralize/Comply dashboards
+- `GET /api/search?q=<term>&type=<documents|knowledge>` - Global ranked search with snippets/highlights
+
+## 🔄 Workflow Runbook (Automate → Centralize → Comply)
+
+1. **Automate**  
+   Create a connector, then start generation jobs (`CREATE`, `UPDATE`, `SUMMARY`, `QUALITY`) from `/api/automation/jobs`.
+2. **Review Suggestions**  
+   Check `/api/automation/suggestions` and mark each suggestion as `APPLIED` or `DISMISSED`.
+3. **Centralize Knowledge**  
+   Convert stable insights into knowledge nodes via `/api/knowledge`, then attach them to documents where possible.
+4. **Assist & Trace**  
+   Use `/api/assistant/query` for guided answers; audit responses and citations through `/api/assistant/traces`.
+5. **Comply**  
+   Add annotations/trace links, run `/api/compliance/quality/check`, and resolve findings.
+6. **Close Reviews**  
+   Trigger review requests and update their status (`APPROVED`, `CHANGES_REQUESTED`, etc.) via `/api/compliance/reviews`.
 
 ---
 

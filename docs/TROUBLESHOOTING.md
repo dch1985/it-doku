@@ -79,10 +79,10 @@ az sql server firewall-rule create \
 
 ```bash
 # Test Backend API
-curl http://localhost:3001/api/health
+curl http://localhost:3002/api/health
 
 # Test Documents Endpoint
-curl http://localhost:3001/api/documents
+curl http://localhost:3002/api/documents
 ```
 
 ### Temporäre Workaround (wenn Firewall nicht geändert werden kann)
@@ -111,7 +111,9 @@ router.get('/', async (req: Request, res: Response) => {
 ## Weitere häufige Probleme
 
 ### Backend läuft nicht
-- Prüfe ob Port 3001 frei ist: `netstat -ano | findstr :3001`
+- Prüfe den konfigurierten Port in `backend/.env` (Standard im Repo: `PORT=3002`)
+- Linux/macOS: `lsof -i :3002`
+- Windows: `netstat -ano | findstr :3002`
 - Starte Backend: `cd backend && npm run dev`
 
 ### Frontend kann Backend nicht erreichen
@@ -123,4 +125,66 @@ router.get('/', async (req: Request, res: Response) => {
 - Prüfe `DATABASE_URL` in `backend/.env`
 - Führe Prisma Migrationen aus: `npx prisma migrate dev`
 - Generiere Prisma Client: `npx prisma generate`
+
+### Fehler: `Tenant identifier required. Please provide X-Tenant-ID or X-Tenant-Slug header.`
+
+**Ursache:** Tenant-kontextpflichtige Endpoints wurden ohne Tenant Header aufgerufen.
+
+**Lösung:**
+1. Hole verfügbare Tenants über `GET /api/tenants`.
+2. Sende anschließend `X-Tenant-ID` oder `X-Tenant-Slug` mit.
+
+**Beispiel (curl):**
+```bash
+curl -H "Authorization: Bearer <token>" \
+  -H "X-Tenant-ID: <tenant-id>" \
+  http://localhost:3002/api/automation/jobs
+```
+
+### Fehler: `No token provided` / `Invalid or expired token`
+
+**Ursache:** Authentifizierung aktiv, aber kein gültiges Bearer-Token gesendet.
+
+**Lösungen:**
+- **Lokal (Dev):** `DEV_AUTH_ENABLED=true` oder `NODE_ENV=development` setzen, damit Dev-Auth greift.
+- **Produktiv:** Gültiges Azure-AD-Token mitsenden (`Authorization: Bearer <token>`).
+- Nach Änderungen an `.env` den Backend-Prozess neu starten.
+
+### Problem: Automationsjobs bleiben dauerhaft `PENDING`
+
+**Typische Ursachen:**
+- `AUTOMATION_QUEUE_AUTORUN=false` **und** `AUTOMATION_RUN_IMMEDIATE=false`
+- Queue-Provider ist falsch konfiguriert
+- Kein aktiver Consumer (Backend mit aktiviertem Autorun oder optionaler Worker)
+
+**Lösungsschritte:**
+1. Für lokale Sofortausführung:
+   - `AUTOMATION_RUN_IMMEDIATE=true`
+   - `AUTOMATION_QUEUE_AUTORUN=false`
+2. Für Queue-Betrieb:
+   - `AUTOMATION_QUEUE_AUTORUN=true`
+   - `AUTOMATION_RUN_IMMEDIATE=false`
+3. Für skalierte Worker:
+   - `AUTOMATION_QUEUE_PROVIDER=servicebus`
+   - `AZURE_SERVICE_BUS_CONNECTION_STRING` und `AZURE_SERVICE_BUS_QUEUE_NAME` setzen
+   - Optional dedizierten Worker starten: `cd backend && npm run automation:worker`
+4. Einzelnen Job manuell verarbeiten:
+   - `cd backend && npm run automation:job -- <jobId>`
+
+### Fehler: `Service Bus Provider ausgewählt, aber AZURE_SERVICE_BUS_CONNECTION_STRING oder AZURE_SERVICE_BUS_QUEUE_NAME fehlt.`
+
+**Ursache:** `AUTOMATION_QUEUE_PROVIDER=servicebus`, aber notwendige Azure-Variablen fehlen.
+
+**Lösung:**
+- Entweder die beiden Variablen korrekt setzen,
+- oder auf lokalen Provider wechseln: `AUTOMATION_QUEUE_PROVIDER=memory`.
+
+### Problem: `/api/knowledge` oder `/api/search` liefert unerwartet leere Ergebnisse
+
+**Ursache:** Tenant-Kontext passt nicht zu den Daten (falscher/missing `X-Tenant-ID`) oder es wird in einem anderen Tenant gesucht.
+
+**Lösung:**
+1. Tenant-ID des aktiven Users prüfen (`GET /api/tenants`).
+2. Alle Requests in derselben Session mit identischem Tenant-Header senden.
+3. Knowledge Nodes ohne `documentId` nur im korrekten Tenant-Kontext erwarten.
 
