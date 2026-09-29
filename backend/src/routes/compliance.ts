@@ -4,22 +4,13 @@ import { devAuthenticate } from '../middleware/auth.dev.middleware.js';
 import { tenantMiddleware } from '../middleware/tenant.middleware.js';
 import { ApplicationError } from '../middleware/errorHandler.js';
 import { complianceService } from '../services/compliance.service.js';
-
-type UpdateFindingBody = {
-  resolution?: string | null;
-  action?: 'RESOLVE' | 'REOPEN';
-};
-
-type CreateReviewBody = {
-  documentId: string;
-  reviewerId: string;
-  comments?: string | null;
-};
-
-type UpdateReviewBody = {
-  status?: string;
-  comments?: string | null;
-};
+import {
+  type CreateReviewBody,
+  type UpdateFindingBody,
+  type UpdateReviewBody,
+  normalizeQualityFindingBody,
+  normalizeReviewUpdateBody,
+} from './compliance.payload.js';
 
 const router = Router();
 const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
@@ -172,16 +163,15 @@ router.get('/quality/findings', async (req: Request, res: Response) => {
 
 router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
   try {
-    const body = req.body as UpdateFindingBody;
-    const action = body?.action ? body.action.toUpperCase() : undefined;
+    const { action, resolution } = normalizeQualityFindingBody(req.body as UpdateFindingBody);
 
     if (action && action !== 'RESOLVE' && action !== 'REOPEN') {
       throw new ApplicationError(`Ungültige Aktion: ${action}`, 400);
     }
 
     const finding = await complianceService.updateQualityFinding(req.params.id, {
-      action: action as 'RESOLVE' | 'REOPEN' | undefined,
-      resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
+      action,
+      resolution,
     });
 
     res.json(finding);
@@ -264,12 +254,11 @@ router.post('/reviews', async (req: Request, res: Response) => {
 
 router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
-    const body = req.body as UpdateReviewBody;
-    const status = body?.status ? String(body.status).toUpperCase() : undefined;
+    const { status, comments } = normalizeReviewUpdateBody(req.body as UpdateReviewBody);
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
       status: status as any,
-      comments: body?.comments ?? null,
+      comments,
       tenantId: req.tenant?.id ?? null,
     });
 
