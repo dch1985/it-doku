@@ -173,6 +173,7 @@ router.get('/quality/findings', async (req: Request, res: Response) => {
 router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateFindingBody;
+    const hasResolution = Object.prototype.hasOwnProperty.call(body ?? {}, 'resolution');
     const action = body?.action ? body.action.toUpperCase() : undefined;
 
     if (action && action !== 'RESOLVE' && action !== 'REOPEN') {
@@ -181,7 +182,11 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
 
     const finding = await complianceService.updateQualityFinding(req.params.id, {
       action: action as 'RESOLVE' | 'REOPEN' | undefined,
-      resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
+      resolution: hasResolution
+        ? typeof body?.resolution === 'string'
+          ? body.resolution
+          : body?.resolution ?? null
+        : undefined,
     });
 
     res.json(finding);
@@ -265,11 +270,12 @@ router.post('/reviews', async (req: Request, res: Response) => {
 router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateReviewBody;
+    const hasComments = Object.prototype.hasOwnProperty.call(body ?? {}, 'comments');
     const status = body?.status ? String(body.status).toUpperCase() : undefined;
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
       status: status as any,
-      comments: body?.comments ?? null,
+      comments: hasComments ? body?.comments ?? null : undefined,
       tenantId: req.tenant?.id ?? null,
     });
 
