@@ -10,6 +10,9 @@
 - [ ] Configure Azure SQL Server firewall rules
 - [ ] Test database connection
 - [ ] Test authentication endpoints
+- [ ] Decide automation execution mode (inline vs queue) and set flags accordingly
+- [ ] If using Service Bus: verify queue name + connection string are present
+- [ ] Verify tenant routing headers in API clients (`X-Tenant-ID` or `X-Tenant-Slug`)
 
 ### Frontend
 
@@ -35,7 +38,8 @@ AZURE_OPENAI_ENDPOINT=your-endpoint
 AZURE_OPENAI_DEPLOYMENT=gpt-4o
 AZURE_OPENAI_API_VERSION=2024-02-01
 FRONTEND_URL=https://your-frontend-domain.com
-AUTOMATION_QUEUE_AUTORUN=false
+# Automation mode flags (see matrix below)
+AUTOMATION_QUEUE_AUTORUN=true
 AUTOMATION_RUN_IMMEDIATE=false
 AUTOMATION_QUEUE_PROVIDER=memory
 AZURE_SERVICE_BUS_CONNECTION_STRING=
@@ -48,6 +52,37 @@ AZURE_SERVICE_BUS_QUEUE_NAME=
 VITE_API_URL=https://your-backend-api.com/api
 VITE_AZURE_CLIENT_ID=your-client-id
 VITE_AZURE_TENANT_ID=your-tenant-id
+```
+
+---
+
+## Automation Execution Modes (Production Runbook)
+
+The backend job flow in `automation.service.ts` follows this precedence:
+
+1. If `AUTOMATION_QUEUE_AUTORUN=true` -> publish to queue provider
+2. Else if `AUTOMATION_RUN_IMMEDIATE=true` -> process inline in API process
+3. Else -> job stays pending until manual processing
+
+Choose one mode intentionally:
+
+| Mode                | Required Flags                                                                                | Notes                                      |
+| ------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| Inline (simple)     | `AUTOMATION_QUEUE_AUTORUN=false`, `AUTOMATION_RUN_IMMEDIATE=true`                             | Easiest setup; work happens in API process |
+| Queue (memory)      | `AUTOMATION_QUEUE_AUTORUN=true`, `AUTOMATION_QUEUE_PROVIDER=memory`                           | In-process queue subscriber                |
+| Queue (Service Bus) | `AUTOMATION_QUEUE_AUTORUN=true`, `AUTOMATION_QUEUE_PROVIDER=servicebus`, Service Bus vars set | Decoupled queue transport                  |
+| Manual only         | both flags `false`                                                                            | Use CLI to process jobs manually           |
+
+### Worker commands
+
+```bash
+cd backend
+
+# Process one specific job
+npm run automation:job -- <jobId>
+
+# Keep worker running for queue consumption
+npm run automation:worker
 ```
 
 ---
@@ -90,7 +125,26 @@ npx prisma generate
 1. Test authentication flow
 2. Test tenant creation
 3. Test document CRUD operations
-4. Monitor error logs
-5. Set up Application Insights (optional)
-6. (Optional) Automationsjobs testen: `npm run automation:job -- <jobId>` oder Worker starten (`npm run automation:worker`).
+4. Validate automation endpoints (`/api/automation/connectors`, `/api/automation/jobs`)
+5. Validate analytics + search endpoints (`/api/analytics`, `/api/search`)
+6. Monitor error logs
+7. Set up Application Insights (optional)
 
+### Recommended smoke tests
+
+```bash
+# Basic health
+curl -s http://localhost:3002/api/health
+curl -s http://localhost:3002/api/docs
+
+# Tenant-scoped checks (replace with a real tenant ID)
+curl -s -H "X-Tenant-ID: <tenant-id>" http://localhost:3002/api/automation/jobs
+curl -s -H "X-Tenant-ID: <tenant-id>" "http://localhost:3002/api/search?q=backup&type=documents"
+curl -s -H "X-Tenant-ID: <tenant-id>" http://localhost:3002/api/analytics
+```
+
+### Common pitfalls
+
+- **Jobs stay in `PENDING`:** both automation flags are disabled.
+- **Service Bus errors on startup:** `AUTOMATION_QUEUE_PROVIDER=servicebus` without required Azure Service Bus vars.
+- **400 tenant errors:** tenant header missing on tenant-scoped endpoints.
