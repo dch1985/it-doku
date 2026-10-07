@@ -51,6 +51,8 @@ export interface ReviewRequestUpdatePayload {
   status?: ReviewStatus;
   comments?: string | null;
   tenantId?: string | null;
+  actorId?: string | null;
+  actorRole?: string | null;
 }
 
 export interface QualityFindingUpdatePayload {
@@ -305,6 +307,10 @@ export const complianceService = {
   },
 
   async updateReviewRequest(id: string, payload: ReviewRequestUpdatePayload) {
+    if (!payload.actorId) {
+      throw new ApplicationError('Authentifizierung erforderlich', 403);
+    }
+
     const review = await prisma.reviewRequest.findUnique({
       where: { id },
       include: { document: { select: { tenantId: true } } },
@@ -316,6 +322,13 @@ export const complianceService = {
 
     if (payload.tenantId && review.document?.tenantId && payload.tenantId !== review.document.tenantId) {
       throw new ApplicationError('Zugriff auf dieses Review ist nicht erlaubt', 403);
+    }
+
+    const isReviewer = review.reviewerId === payload.actorId;
+    const isElevatedRole = ['OWNER', 'ADMIN'].includes((payload.actorRole ?? '').toUpperCase());
+
+    if (!isReviewer && !isElevatedRole) {
+      throw new ApplicationError('Nur zugewiesene Reviewer dürfen dieses Review aktualisieren', 403);
     }
 
     const data: Record<string, unknown> = {};
