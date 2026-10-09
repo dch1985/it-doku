@@ -24,6 +24,12 @@ type UpdateReviewBody = {
 const router = Router();
 const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
 
+function ensureTenantMember(req: Request) {
+  if (req.tenant && !req.tenantMember) {
+    throw new ApplicationError('Tenant membership required', 403);
+  }
+}
+
 router.use(isDevMode ? devAuthenticate : authenticate);
 router.use(tenantMiddleware);
 
@@ -217,6 +223,7 @@ router.post('/quality/check', async (req: Request, res: Response) => {
 
 router.get('/reviews', async (req: Request, res: Response) => {
   try {
+    ensureTenantMember(req);
     const { documentId } = req.query;
     const reviews = await complianceService.listReviewRequests(
       req.tenant?.id,
@@ -225,7 +232,7 @@ router.get('/reviews', async (req: Request, res: Response) => {
     res.json(reviews);
   } catch (error: any) {
     console.error('[Compliance] Failed to load review requests', error);
-    res.status(500).json({
+    res.status(error.statusCode ?? 500).json({
       error: 'Failed to load review requests',
       message: error.message ?? 'Unexpected error',
     });
@@ -234,6 +241,7 @@ router.get('/reviews', async (req: Request, res: Response) => {
 
 router.post('/reviews', async (req: Request, res: Response) => {
   try {
+    ensureTenantMember(req);
     const body = req.body as CreateReviewBody;
     if (!body?.documentId || !body?.reviewerId) {
       throw new ApplicationError('documentId und reviewerId sind erforderlich', 400);
@@ -264,14 +272,25 @@ router.post('/reviews', async (req: Request, res: Response) => {
 
 router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
+    ensureTenantMember(req);
     const body = req.body as UpdateReviewBody;
     const status = body?.status ? String(body.status).toUpperCase() : undefined;
+    const actorId = req.user?.id;
+    if (!actorId) {
+      throw new ApplicationError('Authentifizierung erforderlich', 403);
+    }
 
-    const review = await complianceService.updateReviewRequest(req.params.id, {
+    const updatePayload: Parameters<typeof complianceService.updateReviewRequest>[1] = {
       status: status as any,
-      comments: body?.comments ?? null,
       tenantId: req.tenant?.id ?? null,
-    });
+      actorId,
+    };
+
+    if (body && Object.prototype.hasOwnProperty.call(body, 'comments')) {
+      updatePayload.comments = body.comments ?? null;
+    }
+
+    const review = await complianceService.updateReviewRequest(req.params.id, updatePayload);
 
     res.json(review);
   } catch (error: any) {
