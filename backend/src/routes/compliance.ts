@@ -21,6 +21,10 @@ type UpdateReviewBody = {
   comments?: string | null;
 };
 
+function hasOwnProperty<T extends object>(value: T | null | undefined, key: PropertyKey): boolean {
+  return value != null && Object.prototype.hasOwnProperty.call(value, key);
+}
+
 const router = Router();
 const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
 
@@ -174,6 +178,7 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateFindingBody;
     const action = body?.action ? body.action.toUpperCase() : undefined;
+    const hasResolution = hasOwnProperty(body, 'resolution');
 
     if (action && action !== 'RESOLVE' && action !== 'REOPEN') {
       throw new ApplicationError(`Ungültige Aktion: ${action}`, 400);
@@ -181,7 +186,11 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
 
     const finding = await complianceService.updateQualityFinding(req.params.id, {
       action: action as 'RESOLVE' | 'REOPEN' | undefined,
-      resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
+      resolution: hasResolution
+        ? typeof body?.resolution === 'string'
+          ? body.resolution
+          : body?.resolution ?? null
+        : undefined,
     });
 
     res.json(finding);
@@ -266,10 +275,11 @@ router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateReviewBody;
     const status = body?.status ? String(body.status).toUpperCase() : undefined;
+    const hasComments = hasOwnProperty(body, 'comments');
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
       status: status as any,
-      comments: body?.comments ?? null,
+      comments: hasComments ? body?.comments ?? null : undefined,
       tenantId: req.tenant?.id ?? null,
     });
 
