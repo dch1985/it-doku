@@ -1,5 +1,18 @@
 # AI Transformation Roadmap
 
+## Verifizierter Ist-Stand (Codebasis)
+
+- **Automate (`/api/automation`)**
+  - Connector-, Job- und Suggestion-Endpunkte sind implementiert und tenant-aware.
+  - Job-Steuerung erfolgt über `AUTOMATION_QUEUE_AUTORUN`, `AUTOMATION_RUN_IMMEDIATE` und `AUTOMATION_QUEUE_PROVIDER`.
+  - Job-Lifecycle in der Praxis: `PENDING` → `RUNNING` → `COMPLETED` / `FAILED` / `CANCELLED`.
+- **Centralize (`/api/knowledge`, `/api/search`, `/api/assistant`)**
+  - Knowledge Nodes unterstützen CRUD inkl. optionaler Dokument-Verknüpfung.
+  - Global Search und Assistant-Citations priorisieren derzeit tenant-passende Dokumente; orphan nodes ohne Dokument sind eingeschränkt auffindbar.
+- **Comply (`/api/compliance`)**
+  - Schemata, Annotationen, Trace Links, Quality Findings und Review Requests sind implementiert.
+  - Rule-basierte Quality Checks prüfen aktuell u. a. Placeholder-Text, Passwort-Leaks und fehlende Review-/Owner-Hinweise.
+
 ## Automatisierung & Queue-Integration
 - **Kurzfristig:**
   - Setze `AUTOMATION_RUN_IMMEDIATE=true`, um Jobs im lokalen Speicher synchron zu verarbeiten.

@@ -111,7 +111,7 @@ router.get('/', async (req: Request, res: Response) => {
 ## Weitere häufige Probleme
 
 ### Backend läuft nicht
-- Prüfe ob Port 3001 frei ist: `netstat -ano | findstr :3001`
+- Prüfe ob Port 3002 frei ist: `netstat -ano | findstr :3002`
 - Starte Backend: `cd backend && npm run dev`
 
 ### Frontend kann Backend nicht erreichen
@@ -123,4 +123,71 @@ router.get('/', async (req: Request, res: Response) => {
 - Prüfe `DATABASE_URL` in `backend/.env`
 - Führe Prisma Migrationen aus: `npx prisma migrate dev`
 - Generiere Prisma Client: `npx prisma generate`
+
+## Automate/Centralize/Comply – häufige Fehlerbilder
+
+### Problem: `Tenant identifier required` (400)
+
+**Symptom:** Requests gegen `/api/automation`, `/api/knowledge`, `/api/compliance`, `/api/search` oder `/api/assistant` schlagen mit 400 fehl.
+
+**Ursache:** Kein Tenant-Kontext wurde mitgegeben.
+
+**Lösung:**
+- Header `X-Tenant-ID` oder `X-Tenant-Slug` senden.
+- In lokaler Entwicklung kann `DEV_AUTH_ENABLED=true` helfen, Azure-Login zu umgehen; der Tenant-Header bleibt trotzdem empfohlen.
+
+```bash
+curl -H "Authorization: Bearer <token>" \
+  -H "X-Tenant-ID: <tenant-id>" \
+  http://localhost:3002/api/automation/jobs
+```
+
+### Problem: Automations-Job bleibt auf `PENDING`
+
+**Typische Ursachen:**
+- `AUTOMATION_QUEUE_AUTORUN=false` und `AUTOMATION_RUN_IMMEDIATE=false`
+- Worker läuft, aber Queue-Provider ist `memory` in einem anderen Prozess
+
+**Lösung:**
+1. Für lokale Inline-Ausführung: `AUTOMATION_RUN_IMMEDIATE=true`
+2. Oder Queue-Betrieb aktivieren: `AUTOMATION_QUEUE_AUTORUN=true`
+3. Für echte Multi-Prozess-Verarbeitung `AUTOMATION_QUEUE_PROVIDER=servicebus` + `AZURE_SERVICE_BUS_*` setzen
+4. Einzelnen Job manuell starten:
+
+```bash
+cd backend
+npm run automation:job -- <jobId>
+```
+
+### Problem: Connector kann nicht aktiviert/deaktiviert werden (`403`)
+
+**Symptom:** `PATCH /api/automation/connectors/:id` liefert z. B. „Globale Connectoren können nicht angepasst werden“.
+
+**Ursache:** Der Connector ist global (`tenantId = null`) oder gehört einem anderen Tenant.
+
+**Lösung:**
+- Nur tenant-eigene Connectoren per Tenant-UI/API ändern.
+- Globale Connectoren nur über administrative Systempfade pflegen.
+
+### Problem: Knowledge Node erscheint nicht in Search/Assistant
+
+**Symptom:** Node ist in `/api/knowledge` sichtbar, aber nicht in `/api/search` oder Assistant-Citations.
+
+**Ursache:** Tenant-gefilterte Suche fokussiert aktuell Nodes mit Dokumentbezug (`documentId` + passender Dokument-Tenant).
+
+**Lösung:**
+- Node mit einem Dokument des Ziel-Tenants verknüpfen.
+- Danach Suche/Assistant erneut ausführen.
+
+### Problem: Review-Status Update schlägt fehl (`400`)
+
+**Symptom:** `PATCH /api/compliance/reviews/:id` wird abgelehnt.
+
+**Ursache:** Ungültiger Statuswert.
+
+**Erlaubte Status:**
+- `PENDING`
+- `APPROVED`
+- `CHANGES_REQUESTED`
+- `REJECTED`
 

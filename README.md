@@ -120,7 +120,7 @@ npm run dev
 
 The application will be available at:
 - Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:3001`
+- Backend API: `http://localhost:3002` (default from `backend/env.sample`)
 
 ---
 
@@ -199,11 +199,44 @@ it-doku/
 
 ### GitHub Integration
 - `GET /api/github/repos/:username` - List user repositories
-- `GET /api/github/readme/:owner/:repo` - Get repository README
+- `GET /api/github/repos/:owner/:repo/readme` - Get repository README
+- `GET /api/github/repos/:owner/:repo/structure` - Get repository structure
+- `GET /api/github/repos/:owner/:repo/file?path=...` - Get file content
 
 ### Templates
 - `GET /api/templates` - List all templates (tenant-aware)
 - `GET /api/templates/:id` - Get template by ID
+
+### Search & Assistant (Centralize)
+- `GET /api/search?q=...&type=documents|knowledge` - Tenant-aware global search
+- `GET /api/assistant/conversations` - List assistant sessions
+- `POST /api/assistant/query` - Ask question with audience level (`BEGINNER`, `PRACTITIONER`, `EXPERT`)
+- `GET /api/assistant/traces` - Load recent Q/A traces with citations
+
+### Automation (Automate)
+- `GET /api/automation/connectors` - List global + tenant connectors
+- `POST /api/automation/connectors` - Create connector (`name`, `type`, optional `config`)
+- `PATCH /api/automation/connectors/:id` - Toggle connector active/inactive
+- `GET /api/automation/jobs` / `POST /api/automation/jobs` - List or create generation jobs
+- `POST /api/automation/jobs/:id/retry|cancel|approve` - Control job lifecycle
+- `GET /api/automation/suggestions` / `PATCH /api/automation/suggestions/:id` - Manage update suggestions
+
+### Knowledge Graph (Centralize)
+- `GET /api/knowledge` - List knowledge nodes (optional `documentId` filter)
+- `POST /api/knowledge` - Create node (`content`, `type`, optional `documentId`, `tags`, `metadata`)
+- `PATCH /api/knowledge/:id` - Update node
+- `DELETE /api/knowledge/:id` - Delete node
+
+### Compliance (Comply)
+- `GET|POST /api/compliance/schemas` - Manage template schemas
+- `GET|POST /api/compliance/annotations` - Manage document annotations
+- `GET|POST /api/compliance/trace-links` - Manage traceability links
+- `GET /api/compliance/quality/findings` - List findings
+- `PATCH /api/compliance/quality/findings/:id` - Resolve or reopen findings
+- `POST /api/compliance/quality/check` - Run rule-based quality checks for a document
+- `GET|POST|PATCH /api/compliance/reviews` - Run review workflow
+
+> **Tenant/Auth note:** Automate/Centralize/Comply endpoints run behind auth + tenant middleware. Send `X-Tenant-ID` or `X-Tenant-Slug`. In local dev, `DEV_AUTH_ENABLED=true` can bypass Azure login.
 
 ---
 
@@ -279,8 +312,31 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ### Implementation Guides
 - [Phase 1 & 2: Authentication & Multi-Tenancy](docs/PHASE_1_2_IMPLEMENTATION.md)
+- [Deployment Guide](docs/DEPLOYMENT.md)
 - [Troubleshooting Guide](docs/TROUBLESHOOTING.md)
 - [Gap Analysis](docs/GAP_ANALYSIS.md)
+- [AI Transformation Roadmap](docs/AI_TRANSFORMATION_ROADMAP.md)
+
+### Automation Queue & Worker
+
+```bash
+# Einzelnen Job manuell ausführen (Job-ID aus /api/automation/jobs)
+cd backend
+npm run automation:job -- <jobId>
+
+# Worker-Listener starten (nützlich für Service Bus Setups)
+npm run automation:worker
+```
+
+| `AUTOMATION_QUEUE_AUTORUN` | `AUTOMATION_RUN_IMMEDIATE` | Verhalten |
+| --- | --- | --- |
+| `false` | `true` (Default lokal) | Job wird im API-Prozess direkt ausgeführt |
+| `true` | `true` oder `false` | Job wird in die Queue publiziert und über Subscriber verarbeitet |
+| `false` | `false` | Job bleibt `PENDING`, bis er manuell ausgeführt wird |
+
+> **Wichtige Constraints:**  
+> - Der `memory` Queue-Provider ist pro Prozess lokal; ein separater Worker empfängt keine In-Memory-Events aus dem API-Prozess.  
+> - Tenant-gefilterte Search-/Assistant-Queries berücksichtigen primär Knowledge Nodes mit verknüpftem Dokument. Verwaiste Nodes (`documentId=null`) können dabei unsichtbar sein.
 
 ## 📧 Support
 
@@ -289,16 +345,3 @@ For support, email driss.chaouat@example.com or open an issue on GitHub.
 ---
 
 <p align="center">Made with ❤️ by Driss Chaouat</p>
-
-### Automation Queue & Worker
-
-```bash
-# Einzelnen Job manuell ausführen (Job-ID siehe /api/automation/jobs)
-cd backend
-npm run automation:job -- <jobId>
-
-# Länger laufender Worker (Platzhalter für zukünftigen Queue-Provider)
-npm run automation:worker
-```
-
-> Tipp: Für lokale Tests `AUTOMATION_RUN_IMMEDIATE=true` setzen. In produktiven Setups kann stattdessen eine echte Queue (z. B. Azure Service Bus mit `AUTOMATION_QUEUE_PROVIDER=servicebus`) angeschlossen werden.
