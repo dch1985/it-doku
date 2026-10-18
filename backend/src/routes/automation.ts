@@ -34,6 +34,16 @@ const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH
 router.use(isDevMode ? devAuthenticate : authenticate);
 router.use(tenantMiddleware);
 
+function ensureTenantMembership(req: Request) {
+  if (!req.tenant?.id) {
+    throw new ApplicationError('Tenant-Kontext ist erforderlich', 400);
+  }
+
+  if (!req.tenantMember) {
+    throw new ApplicationError('Tenant-Mitgliedschaft erforderlich', 403);
+  }
+}
+
 router.get('/connectors', async (req: Request, res: Response) => {
   try {
     const connectors = await automationService.listConnectors(req.tenant?.id);
@@ -126,12 +136,19 @@ router.get('/jobs/:id', async (req: Request, res: Response) => {
 
 router.post('/jobs/:id/approve', async (req: Request, res: Response) => {
   try {
-    const job = await automationService.approveJob(req.params.id);
+    ensureTenantMembership(req);
 
-    res.json(job);
+    const job = await automationService.getJobWithDetails(req.params.id);
+    if (!job || job.tenantId !== req.tenant?.id) {
+      return res.status(404).json({ error: 'Job nicht gefunden' });
+    }
+
+    const approvedJob = await automationService.approveJob(job.id);
+
+    res.json(approvedJob);
   } catch (error: any) {
     console.error('[Automation] Failed to approve job', error);
-    res.status(500).json({
+    res.status(error.statusCode ?? 500).json({
       error: 'Failed to approve job',
       message: error.message ?? 'Unexpected error',
     });
@@ -154,8 +171,19 @@ router.get('/suggestions', async (req: Request, res: Response) => {
 
 router.patch('/suggestions/:id', async (req: Request, res: Response) => {
   try {
+    ensureTenantMembership(req);
+
     const body = req.body as UpdateSuggestionBody;
-    const suggestion = await automationService.updateSuggestion(req.params.id, {
+    if (!body?.status) {
+      throw new ApplicationError('status ist erforderlich', 400);
+    }
+
+    const existing = await automationService.getSuggestionWithJob(req.params.id);
+    if (!existing || existing.generationJob?.tenantId !== req.tenant?.id) {
+      return res.status(404).json({ error: 'Suggestion nicht gefunden' });
+    }
+
+    const suggestion = await automationService.updateSuggestion(existing.id, {
       status: body.status,
       resolution: body.resolution,
     });
@@ -163,7 +191,7 @@ router.patch('/suggestions/:id', async (req: Request, res: Response) => {
     res.json(suggestion);
   } catch (error: any) {
     console.error('[Automation] Failed to update suggestion', error);
-    res.status(500).json({
+    res.status(error.statusCode ?? 500).json({
       error: 'Failed to update suggestion',
       message: error.message ?? 'Unexpected error',
     });
