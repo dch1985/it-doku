@@ -120,7 +120,7 @@ npm run dev
 
 The application will be available at:
 - Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:3001`
+- Backend API: `http://localhost:3002`
 
 ---
 
@@ -136,13 +136,17 @@ it-doku/
 │   │   │   ├── documents.ts   # Document CRUD
 │   │   │   ├── templates.ts   # Templates management
 │   │   │   ├── github.ts      # GitHub integration
-│   │   │   └── upload.ts      # File upload handling
+│   │   │   ├── upload.ts      # File upload handling
+│   │   │   ├── automation.ts  # Automate workflows
+│   │   │   ├── compliance.ts  # Comply workflows
+│   │   │   ├── assistant.ts   # Centralize assistant
+│   │   │   └── knowledge.ts   # Knowledge node CRUD
 │   │   ├── services/          # Business logic
 │   │   ├── lib/               # Utilities
 │   │   └── index.ts           # Server entry point
 │   └── uploads/               # File storage directory
 │
-├── frontend-new/
+├── frontend/
 │   ├── src/
 │   │   ├── components/        # Reusable components
 │   │   │   ├── ui/           # shadcn/ui components
@@ -152,9 +156,10 @@ it-doku/
 │   │   ├── pages/            # Page components
 │   │   │   ├── Dashboard.tsx
 │   │   │   ├── Documents.tsx
-│   │   │   ├── DocumentDetail.tsx
-│   │   │   ├── Analytics.tsx
-│   │   │   └── Settings.tsx
+│   │   │   ├── Automate.tsx
+│   │   │   ├── Centralize.tsx
+│   │   │   ├── Comply.tsx
+│   │   │   └── ...
 │   │   ├── hooks/            # Custom React hooks
 │   │   ├── stores/           # State management
 │   │   ├── lib/              # Utilities
@@ -199,11 +204,55 @@ it-doku/
 
 ### GitHub Integration
 - `GET /api/github/repos/:username` - List user repositories
-- `GET /api/github/readme/:owner/:repo` - Get repository README
+- `GET /api/github/repos/:owner/:repo/readme` - Get repository README
+- `GET /api/github/repos/:owner/:repo/structure?path=src` - Browse repository tree
+- `GET /api/github/repos/:owner/:repo/file?path=README.md` - Read a single file
+- `POST /api/github/repos/:owner/:repo/import` - Import README as document
 
 ### Templates
 - `GET /api/templates` - List all templates (tenant-aware)
 - `GET /api/templates/:id` - Get template by ID
+
+### Global Search
+- `GET /api/search?q=backup&type=documents` - Search ranked document hits
+- `GET /api/search?q=firewall&type=knowledge` - Search knowledge nodes
+
+### Assistant Workflows (Centralize)
+- `GET /api/assistant/conversations` - Load conversation history for current tenant/user
+- `POST /api/assistant/query` - Ask assistant, store trace + citations
+- `GET /api/assistant/traces` - Read persisted audit traces (question/answer/citations)
+
+### Automation Workflows (Automate)
+- `GET /api/automation/connectors` - List tenant + global connectors
+- `POST /api/automation/connectors` - Create connector (`name`, `type`, optional `config`)
+- `PATCH /api/automation/connectors/:id` - Activate/deactivate tenant connector (`isActive`)
+- `GET /api/automation/jobs` - List generation jobs with findings + suggestions
+- `POST /api/automation/jobs` - Start CREATE/UPDATE/SUMMARY/QUALITY job
+- `POST /api/automation/jobs/:id/retry` - Retry failed/cancelled job
+- `POST /api/automation/jobs/:id/cancel` - Cancel pending/running job
+- `POST /api/automation/jobs/:id/approve` - Mark completed job as approved
+- `GET /api/automation/suggestions` - List update suggestions
+- `PATCH /api/automation/suggestions/:id` - Update suggestion state (`APPLIED`, `DISMISSED`, ...)
+
+### Compliance Workflows (Comply)
+- `GET/POST /api/compliance/schemas` - Manage template schema definitions
+- `GET/POST /api/compliance/annotations` - Manage document annotations
+- `GET/POST /api/compliance/trace-links` - Manage traceability links
+- `GET /api/compliance/quality/findings` - List quality findings
+- `PATCH /api/compliance/quality/findings/:id` - Resolve/reopen finding
+- `POST /api/compliance/quality/check` - Run quality checks for a document
+- `GET/POST /api/compliance/reviews` - List/create review requests
+- `PATCH /api/compliance/reviews/:id` - Update review status/comments
+
+### Knowledge Nodes (Centralize)
+- `GET /api/knowledge?documentId=<id>` - List knowledge nodes
+- `POST /api/knowledge` - Create node (`content`, `type`, optional document link)
+- `PATCH /api/knowledge/:id` - Update node content/type/link
+- `DELETE /api/knowledge/:id` - Delete node
+
+> **Tenant context required:** `/api/automation`, `/api/assistant`, `/api/compliance`, `/api/knowledge`, and `/api/search` are tenant-scoped routes. Use `X-Tenant-ID` in requests outside the UI.
+>
+> **Current search constraint:** tenant-filtered `/api/search?type=knowledge` primarily returns nodes linked to tenant documents. Orphan nodes (without `documentId`) are managed reliably via `/api/knowledge`.
 
 ---
 
@@ -290,15 +339,35 @@ For support, email driss.chaouat@example.com or open an issue on GitHub.
 
 <p align="center">Made with ❤️ by Driss Chaouat</p>
 
-### Automation Queue & Worker
+### Automate / Centralize / Comply Quickstart
 
 ```bash
-# Einzelnen Job manuell ausführen (Job-ID siehe /api/automation/jobs)
+# 1) Automate: Job manuell ausführen (Job-ID aus /api/automation/jobs)
 cd backend
 npm run automation:job -- <jobId>
 
-# Länger laufender Worker (Platzhalter für zukünftigen Queue-Provider)
+# 2) Optional: Queue-Worker dauerhaft starten
 npm run automation:worker
 ```
 
-> Tipp: Für lokale Tests `AUTOMATION_RUN_IMMEDIATE=true` setzen. In produktiven Setups kann stattdessen eine echte Queue (z. B. Azure Service Bus mit `AUTOMATION_QUEUE_PROVIDER=servicebus`) angeschlossen werden.
+```bash
+# 3) Centralize: Assistant-Abfrage (mit Tenant-Kontext)
+curl -X POST http://localhost:3002/api/assistant/query \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: <tenant-id>" \
+  -d '{"question":"Welche Dokumente haben offene Findings?","audience":"PRACTITIONER"}'
+
+# 4) Comply: Qualitätsprüfung auslösen
+curl -X POST http://localhost:3002/api/compliance/quality/check \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: <tenant-id>" \
+  -d '{"documentId":"<document-id>"}'
+```
+
+| Scenario | Flags / Setup | Ergebnis |
+| --- | --- | --- |
+| Local sync processing | `AUTOMATION_RUN_IMMEDIATE=true`, `AUTOMATION_QUEUE_AUTORUN=false`, `AUTOMATION_QUEUE_PROVIDER=memory` | Job wird direkt im API-Prozess abgearbeitet |
+| Local queued processing | `AUTOMATION_RUN_IMMEDIATE=false`, `AUTOMATION_QUEUE_AUTORUN=false`, `AUTOMATION_QUEUE_PROVIDER=memory`, plus `npm run automation:worker` | Job bleibt `PENDING`, bis Worker ihn konsumiert |
+| Service Bus processing | `AUTOMATION_QUEUE_PROVIDER=servicebus`, Service-Bus-Variablen setzen, Worker starten | Job wird über Azure Service Bus verteilt |
+
+> Hinweis: Globale Connectoren (`tenantId = null`) sind nur lesbar; Aktivierung/Deaktivierung ist für Tenant-User gesperrt.
