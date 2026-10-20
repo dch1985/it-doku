@@ -21,6 +21,19 @@ type UpdateReviewBody = {
   comments?: string | null;
 };
 
+export function mapReviewUpdateBody(body?: UpdateReviewBody): {
+  status?: string;
+  comments?: string | null;
+} {
+  const status = body?.status ? String(body.status).toUpperCase() : undefined;
+  const hasCommentsField = body != null && Object.prototype.hasOwnProperty.call(body, 'comments');
+
+  return {
+    status,
+    comments: hasCommentsField ? body?.comments ?? null : undefined,
+  };
+}
+
 const router = Router();
 const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
 
@@ -265,11 +278,11 @@ router.post('/reviews', async (req: Request, res: Response) => {
 router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateReviewBody;
-    const status = body?.status ? String(body.status).toUpperCase() : undefined;
+    const updatePayload = mapReviewUpdateBody(body);
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
-      status: status as any,
-      comments: body?.comments ?? null,
+      status: updatePayload.status as any,
+      comments: updatePayload.comments,
       tenantId: req.tenant?.id ?? null,
     });
 
