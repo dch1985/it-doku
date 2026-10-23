@@ -39,11 +39,13 @@ async function sendViaServiceBus(message: GenerationJobMessage) {
 function subscribeViaServiceBus(handler: (message: GenerationJobMessage) => Promise<void> | void) {
   serviceBusReceiver!.subscribe({
     async processMessage(message) {
+      const body = message.body as GenerationJobMessage;
       try {
-        const body = message.body as GenerationJobMessage;
         await handler(body);
       } catch (error) {
-        console.error('[AutomationQueue] Fehler beim Verarbeiten einer Service Bus Nachricht', error);
+        console.error('[AutomationQueue] Fehler beim Verarbeiten einer Service Bus Nachricht', body, error);
+        // Re-throw so Service Bus does not auto-complete failed messages.
+        throw error;
       }
     },
     async processError(args) {
