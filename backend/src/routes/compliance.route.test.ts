@@ -24,7 +24,12 @@ function getPatchReviewHandler(): PatchReviewHandler {
 }
 
 function createMockResponse(): MockResponse {
-  const response = {
+  const response: {
+    statusCode: number;
+    payload: unknown;
+    status(code: number): unknown;
+    json(payload: unknown): unknown;
+  } = {
     statusCode: 200,
     payload: undefined,
     status(code: number) {
