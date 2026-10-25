@@ -21,6 +21,28 @@ type UpdateReviewBody = {
   comments?: string | null;
 };
 
+function parseOptionalNullableStringField(
+  payload: Record<string, unknown> | null | undefined,
+  fieldName: string
+): string | null | undefined {
+  if (!payload || !Object.prototype.hasOwnProperty.call(payload, fieldName)) {
+    return undefined;
+  }
+
+  const value = payload[fieldName];
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === null) {
+    return null;
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  throw new ApplicationError(`${fieldName} muss ein String oder null sein`, 400);
+}
+
 const router = Router();
 const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
 
@@ -264,12 +286,13 @@ router.post('/reviews', async (req: Request, res: Response) => {
 
 router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
-    const body = req.body as UpdateReviewBody;
+    const body = req.body as UpdateReviewBody & Record<string, unknown>;
     const status = body?.status ? String(body.status).toUpperCase() : undefined;
+    const comments = parseOptionalNullableStringField(body, 'comments');
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
       status: status as any,
-      comments: body?.comments ?? null,
+      comments,
       tenantId: req.tenant?.id ?? null,
     });
 
