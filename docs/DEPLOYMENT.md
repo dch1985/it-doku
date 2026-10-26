@@ -10,6 +10,8 @@
 - [ ] Configure Azure SQL Server firewall rules
 - [ ] Test database connection
 - [ ] Test authentication endpoints
+- [ ] Verify automation mode (`AUTOMATION_QUEUE_AUTORUN` vs `AUTOMATION_RUN_IMMEDIATE`)
+- [ ] If `AUTOMATION_QUEUE_PROVIDER=servicebus`: validate queue access and worker rollout
 
 ### Frontend
 
@@ -49,6 +51,18 @@ VITE_API_URL=https://your-backend-api.com/api
 VITE_AZURE_CLIENT_ID=your-client-id
 VITE_AZURE_TENANT_ID=your-tenant-id
 ```
+
+### Automation Queue Mode Matrix
+
+Choose exactly one processing strategy and validate it before go-live:
+
+| Mode                  | Env setup                                                            | Runtime behavior                                             | Operational note                                                  |
+| --------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------- |
+| Immediate processing  | `AUTOMATION_RUN_IMMEDIATE=true` and `AUTOMATION_QUEUE_AUTORUN=false` | Jobs are processed inline during `POST /api/automation/jobs` | Easiest setup, but API request may run longer                     |
+| In-process queue      | `AUTOMATION_QUEUE_AUTORUN=true`                                      | API publishes and consumes queue events itself               | Works with `memory` provider only inside the same backend process |
+| External queue worker | `AUTOMATION_QUEUE_PROVIDER=servicebus` (+ Azure Service Bus vars)    | API publishes to Service Bus, worker consumes messages       | Use `npm run automation:worker` in a dedicated worker process     |
+
+> Important: `memory` queue is process-local. A separate worker process cannot consume jobs created by the API process when `memory` is used.
 
 ---
 
@@ -94,3 +108,10 @@ npx prisma generate
 5. Set up Application Insights (optional)
 6. (Optional) Automationsjobs testen: `npm run automation:job -- <jobId>` oder Worker starten (`npm run automation:worker`).
 
+### Recommended smoke test for Automate / Centralize / Comply
+
+1. Create a job: `POST /api/automation/jobs`
+2. Verify status transition in `GET /api/automation/jobs` (`PENDING` -> `RUNNING` -> `COMPLETED` or `FAILED`)
+3. Run compliance check once: `POST /api/compliance/quality/check` with a real `documentId`
+4. Verify KPIs load: `GET /api/analytics` with tenant header
+5. Test one global search query: `GET /api/search?q=<term>`

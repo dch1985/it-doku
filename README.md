@@ -13,6 +13,7 @@
 ## ✨ Features
 
 ### 🎯 Core Features
+
 - **📝 Rich Text Editor** - Full-featured document editor with TipTap
 - **🤖 AI Chat Assistant** - Powered by Azure OpenAI GPT-4
 - **📁 File Management** - Upload, manage, and download attachments (PDF, Word, Excel, Images)
@@ -22,6 +23,7 @@
 - **📱 Responsive Design** - Works seamlessly on all devices
 
 ### 🚀 Advanced Features
+
 - **GitHub Integration** - Import repositories and README files
 - **Version History** - Track all document changes
 - **Export Options** - Export to PDF, Markdown, or JSON
@@ -36,6 +38,7 @@
 ## 🛠️ Tech Stack
 
 ### Frontend
+
 - **React 19** with TypeScript
 - **Vite** for blazing-fast development
 - **shadcn/ui** + Tailwind CSS for beautiful UI
@@ -44,6 +47,7 @@
 - **Sonner** for toast notifications
 
 ### Backend
+
 - **Express.js** with TypeScript
 - **Prisma ORM** for database management
 - **SQL Server** for data persistence (Azure SQL)
@@ -58,7 +62,8 @@
 ## 📦 Installation
 
 ### Prerequisites
-- Node.js 18+ 
+
+- Node.js 18+
 - npm or yarn
 - Azure SQL Server (or compatible SQL Server database)
 - Azure AD B2C App Registration (for authentication)
@@ -66,6 +71,7 @@
 - GitHub Personal Access Token (optional, for GitHub integration)
 
 ### Backend Setup
+
 ```bash
 # Clone the repository
 git clone https://github.com/dch1985/it-doku.git
@@ -100,6 +106,7 @@ npm run dev
 ```
 
 ### Frontend Setup
+
 ```bash
 # Install frontend dependencies
 cd ../frontend
@@ -119,12 +126,14 @@ npm run dev
 ```
 
 The application will be available at:
+
 - Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:3001`
+- Backend API: `http://localhost:3002` (Standard aus `backend/env.sample`, über `PORT` überschreibbar)
 
 ---
 
 ## 📚 Project Structure
+
 ```
 it-doku/
 ├── backend/
@@ -142,7 +151,7 @@ it-doku/
 │   │   └── index.ts           # Server entry point
 │   └── uploads/               # File storage directory
 │
-├── frontend-new/
+├── frontend/
 │   ├── src/
 │   │   ├── components/        # Reusable components
 │   │   │   ├── ui/           # shadcn/ui components
@@ -169,17 +178,20 @@ it-doku/
 ## 🔌 API Endpoints
 
 ### Authentication
+
 - `GET /api/auth/me` - Get current authenticated user
 - `POST /api/auth/logout` - Logout
 - `GET /api/auth/verify` - Verify token
 
 ### Tenants
+
 - `GET /api/tenants` - List user's tenants
 - `GET /api/tenants/:id` - Get tenant details
 - `POST /api/tenants` - Create new tenant
 - `PATCH /api/tenants/:id` - Update tenant (OWNER/ADMIN only)
 
 ### Documents
+
 - `GET /api/documents` - List all documents (filtered by tenant)
 - `GET /api/documents/:id` - Get document by ID
 - `POST /api/documents` - Create new document
@@ -189,36 +201,80 @@ it-doku/
 > **Note:** All document endpoints require `X-Tenant-ID` or `X-Tenant-Slug` header for tenant isolation.
 
 ### File Upload
+
 - `POST /api/upload` - Upload file attachment
 - `GET /api/upload/document/:documentId` - Get document attachments
 - `GET /api/upload/:id` - Download attachment
 - `DELETE /api/upload/:id` - Delete attachment
 
 ### AI Chat
+
 - `POST /api/chat` - Send message to AI assistant
 
 ### GitHub Integration
+
 - `GET /api/github/repos/:username` - List user repositories
 - `GET /api/github/readme/:owner/:repo` - Get repository README
 
 ### Templates
+
 - `GET /api/templates` - List all templates (tenant-aware)
 - `GET /api/templates/:id` - Get template by ID
+
+### Automation (tenant-aware)
+
+- `GET /api/automation/connectors` - List connectors (tenant + global)
+- `POST /api/automation/connectors` - Create tenant connector
+- `PATCH /api/automation/connectors/:id` - Activate/deactivate tenant connector
+- `GET /api/automation/jobs` - List generation jobs
+- `POST /api/automation/jobs` - Create generation job
+- `GET /api/automation/jobs/:id` - Get job details with findings/suggestions
+- `POST /api/automation/jobs/:id/retry` - Retry failed/cancelled job
+- `POST /api/automation/jobs/:id/cancel` - Cancel pending/running job
+- `POST /api/automation/jobs/:id/approve` - Mark job as approved/completed
+- `GET /api/automation/suggestions` - List update suggestions
+- `PATCH /api/automation/suggestions/:id` - Update suggestion status
+
+### Compliance (tenant-aware)
+
+- `GET /api/compliance/schemas` / `POST /api/compliance/schemas`
+- `GET /api/compliance/annotations` / `POST /api/compliance/annotations`
+- `GET /api/compliance/trace-links` / `POST /api/compliance/trace-links`
+- `GET /api/compliance/quality/findings`
+- `PATCH /api/compliance/quality/findings/:id` - Resolve/reopen finding
+- `POST /api/compliance/quality/check` - Run static quality checks for one document
+- `GET /api/compliance/reviews` / `POST /api/compliance/reviews`
+- `PATCH /api/compliance/reviews/:id` - Update review status/comments
+
+### Knowledge, Assistant, Search, Analytics
+
+- `GET /api/knowledge` / `POST /api/knowledge` / `PATCH /api/knowledge/:id` / `DELETE /api/knowledge/:id`
+- `GET /api/assistant/conversations` - Conversation timeline for current user/tenant
+- `POST /api/assistant/query` - Ask question with audience + citations
+- `GET /api/assistant/traces` - Last assistant traces (audit/debug)
+- `GET /api/search?q=<term>&type=<documents|knowledge>` - Global ranked search
+- `GET /api/analytics` - KPI payload for Automate/Centralize/Comply dashboards
+
+> **Auth/Tenant scope:** Automation, Compliance, Knowledge, Analytics, Search and Assistant routes run behind auth + tenant middleware. In local development this can be simplified with `DEV_AUTH_ENABLED=true`.
 
 ---
 
 ## 🎨 Screenshots
 
 ### Dashboard
+
 ![Dashboard](docs/screenshots/dashboard.png)
 
 ### Document Editor
+
 ![Editor](docs/screenshots/editor.png)
 
 ### AI Chat
+
 ![Chat](docs/screenshots/chat.png)
 
 ### File Upload
+
 ![Upload](docs/screenshots/upload.png)
 
 ---
@@ -226,12 +282,14 @@ it-doku/
 ## 🚀 Deployment
 
 ### Backend (Railway/Heroku)
+
 1. Push code to GitHub
 2. Connect repository to Railway/Heroku
 3. Set environment variables
 4. Deploy!
 
 ### Frontend (Vercel/Netlify)
+
 1. Push code to GitHub
 2. Connect repository to Vercel/Netlify
 3. Build command: `npm run build`
@@ -261,6 +319,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 👨‍💻 Author
 
 **Driss Chaouat**
+
 - GitHub: [@dch1985](https://github.com/dch1985)
 - Role: IT Consultant - Microsoft 365 Cloud Services
 
@@ -278,6 +337,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📚 Documentation
 
 ### Implementation Guides
+
 - [Phase 1 & 2: Authentication & Multi-Tenancy](docs/PHASE_1_2_IMPLEMENTATION.md)
 - [Troubleshooting Guide](docs/TROUBLESHOOTING.md)
 - [Gap Analysis](docs/GAP_ANALYSIS.md)
@@ -290,15 +350,30 @@ For support, email driss.chaouat@example.com or open an issue on GitHub.
 
 <p align="center">Made with ❤️ by Driss Chaouat</p>
 
-### Automation Queue & Worker
+### Automation Queue & Worker Runbook
 
 ```bash
 # Einzelnen Job manuell ausführen (Job-ID siehe /api/automation/jobs)
 cd backend
 npm run automation:job -- <jobId>
 
-# Länger laufender Worker (Platzhalter für zukünftigen Queue-Provider)
+# Länger laufender Worker (Queue-Subscriber)
 npm run automation:worker
 ```
 
-> Tipp: Für lokale Tests `AUTOMATION_RUN_IMMEDIATE=true` setzen. In produktiven Setups kann stattdessen eine echte Queue (z. B. Azure Service Bus mit `AUTOMATION_QUEUE_PROVIDER=servicebus`) angeschlossen werden.
+**Verarbeitungsmodi (entscheidend für Betrieb):**
+
+1. **Sofortmodus (`AUTOMATION_RUN_IMMEDIATE=true`, `AUTOMATION_QUEUE_AUTORUN=false`)**
+   - Job wird direkt beim `POST /api/automation/jobs` verarbeitet.
+   - Kein Worker nötig.
+
+2. **In-Process Queue (`AUTOMATION_QUEUE_AUTORUN=true`)**
+   - API published Queue-Message und subscribed auch selbst.
+   - Für `memory` Provider funktioniert dies nur innerhalb desselben Backend-Prozesses.
+
+3. **Externer Queue-Worker (`AUTOMATION_QUEUE_PROVIDER=servicebus`)**
+   - API publiziert nach Azure Service Bus.
+   - Worker-Prozess (`npm run automation:worker`) konsumiert robust prozessübergreifend.
+   - Erfordert `AZURE_SERVICE_BUS_CONNECTION_STRING` und `AZURE_SERVICE_BUS_QUEUE_NAME`.
+
+> Wichtig: `memory` ist prozesslokal. Ein separater Worker-Prozess kann damit keine Jobs aus dem API-Prozess konsumieren.
