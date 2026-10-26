@@ -144,13 +144,63 @@ export const complianceService = {
     });
   },
 
-  listQualityFindings(documentId?: string) {
+  listQualityFindings(tenantId?: string | null, documentId?: string) {
+    const where: any = {
+      ...(documentId ? { documentId } : {}),
+    };
+
+    if (tenantId) {
+      where.OR = [
+        { document: { tenantId } },
+        { generationJob: { tenantId } },
+      ];
+    }
+
     return prisma.qualityFinding.findMany({
-      where: {
-        ...(documentId ? { documentId } : {}),
-      },
+      where,
       orderBy: { createdAt: 'desc' },
     });
+  },
+
+  async getQualityFindingForTenant(id: string, tenantId?: string | null) {
+    const finding = await prisma.qualityFinding.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        documentId: true,
+        generationJobId: true,
+      },
+    });
+
+    if (!finding) {
+      return null;
+    }
+
+    if (!tenantId) {
+      return finding;
+    }
+
+    if (finding.documentId) {
+      const document = await prisma.document.findUnique({
+        where: { id: finding.documentId },
+        select: { tenantId: true },
+      });
+      if (document?.tenantId === tenantId) {
+        return finding;
+      }
+    }
+
+    if (finding.generationJobId) {
+      const job = await prisma.generationJob.findUnique({
+        where: { id: finding.generationJobId },
+        select: { tenantId: true },
+      });
+      if (job?.tenantId === tenantId) {
+        return finding;
+      }
+    }
+
+    return null;
   },
 
   async updateQualityFinding(id: string, changes: QualityFindingUpdatePayload) {
@@ -180,7 +230,7 @@ export const complianceService = {
     });
   },
 
-  async runQualityChecks(documentId: string) {
+  async runQualityChecks(documentId: string, tenantId?: string | null) {
     const document = await prisma.document.findUnique({
       where: { id: documentId },
       select: {
@@ -188,11 +238,16 @@ export const complianceService = {
         content: true,
         title: true,
         category: true,
+        tenantId: true,
       },
     });
 
     if (!document) {
       throw new Error('Dokument nicht gefunden');
+    }
+
+    if (tenantId && document.tenantId !== tenantId) {
+      throw new ApplicationError('Zugriff auf dieses Dokument ist nicht erlaubt', 403);
     }
 
     const text = stripHtml(document.content);

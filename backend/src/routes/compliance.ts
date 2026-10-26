@@ -158,7 +158,10 @@ router.post('/trace-links', async (req: Request, res: Response) => {
 router.get('/quality/findings', async (req: Request, res: Response) => {
   try {
     const { documentId } = req.query;
-    const findings = await complianceService.listQualityFindings(documentId ? String(documentId) : undefined);
+    const findings = await complianceService.listQualityFindings(
+      req.tenant?.id,
+      documentId ? String(documentId) : undefined,
+    );
 
     res.json(findings);
   } catch (error: any) {
@@ -172,6 +175,11 @@ router.get('/quality/findings', async (req: Request, res: Response) => {
 
 router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
   try {
+    const qualityFinding = await complianceService.getQualityFindingForTenant(req.params.id, req.tenant?.id);
+    if (!qualityFinding) {
+      return res.status(404).json({ error: 'Quality Finding nicht gefunden' });
+    }
+
     const body = req.body as UpdateFindingBody;
     const action = body?.action ? body.action.toUpperCase() : undefined;
 
@@ -179,7 +187,7 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
       throw new ApplicationError(`Ungültige Aktion: ${action}`, 400);
     }
 
-    const finding = await complianceService.updateQualityFinding(req.params.id, {
+    const finding = await complianceService.updateQualityFinding(qualityFinding.id, {
       action: action as 'RESOLVE' | 'REOPEN' | undefined,
       resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
     });
@@ -201,7 +209,7 @@ router.post('/quality/check', async (req: Request, res: Response) => {
       throw new ApplicationError('documentId ist erforderlich', 400);
     }
 
-    const findings = await complianceService.runQualityChecks(String(documentId));
+    const findings = await complianceService.runQualityChecks(String(documentId), req.tenant?.id);
     res.json({
       documentId: String(documentId),
       findings,
