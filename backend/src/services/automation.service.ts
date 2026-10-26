@@ -331,7 +331,11 @@ export const automationService = {
       where: { id },
       select: {
         id: true,
-        generationJobId: true,
+        generationJob: {
+          select: {
+            tenantId: true,
+          },
+        },
       },
     });
   },
