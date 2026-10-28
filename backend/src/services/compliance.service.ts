@@ -144,16 +144,50 @@ export const complianceService = {
     });
   },
 
-  listQualityFindings(documentId?: string) {
+  listQualityFindings(tenantId?: string | null, documentId?: string) {
     return prisma.qualityFinding.findMany({
       where: {
         ...(documentId ? { documentId } : {}),
+        ...(tenantId
+          ? {
+              document: {
+                tenantId,
+              },
+            }
+          : {}),
       },
       orderBy: { createdAt: 'desc' },
     });
   },
 
-  async updateQualityFinding(id: string, changes: QualityFindingUpdatePayload) {
+  async updateQualityFinding(id: string, tenantId: string | null | undefined, changes: QualityFindingUpdatePayload) {
+    const finding = await prisma.qualityFinding.findUnique({
+      where: { id },
+      include: {
+        document: {
+          select: {
+            tenantId: true,
+          },
+        },
+        generationJob: {
+          select: {
+            tenantId: true,
+          },
+        },
+      },
+    });
+
+    if (!finding) {
+      throw new ApplicationError('Quality Finding wurde nicht gefunden', 404);
+    }
+
+    if (tenantId) {
+      const ownerTenantId = finding.document?.tenantId ?? finding.generationJob?.tenantId ?? null;
+      if (ownerTenantId && ownerTenantId !== tenantId) {
+        throw new ApplicationError('Zugriff auf dieses Quality Finding ist nicht erlaubt', 403);
+      }
+    }
+
     const payload = changes ?? {};
     const data: Record<string, unknown> = {};
 
@@ -175,12 +209,12 @@ export const complianceService = {
     }
 
     return prisma.qualityFinding.update({
-      where: { id },
+      where: { id: finding.id },
       data,
     });
   },
 
-  async runQualityChecks(documentId: string) {
+  async runQualityChecks(documentId: string, tenantId?: string | null) {
     const document = await prisma.document.findUnique({
       where: { id: documentId },
       select: {
@@ -188,11 +222,16 @@ export const complianceService = {
         content: true,
         title: true,
         category: true,
+        tenantId: true,
       },
     });
 
     if (!document) {
       throw new Error('Dokument nicht gefunden');
+    }
+
+    if (tenantId && document.tenantId && document.tenantId !== tenantId) {
+      throw new ApplicationError('Zugriff auf dieses Dokument ist nicht erlaubt', 403);
     }
 
     const text = stripHtml(document.content);
