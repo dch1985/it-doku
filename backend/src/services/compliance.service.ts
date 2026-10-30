@@ -56,6 +56,7 @@ export interface ReviewRequestUpdatePayload {
 export interface QualityFindingUpdatePayload {
   resolution?: string | null;
   action?: 'RESOLVE' | 'REOPEN' | null;
+  tenantId?: string | null;
 }
 
 export const complianceService = {
@@ -144,10 +145,18 @@ export const complianceService = {
     });
   },
 
-  listQualityFindings(documentId?: string) {
+  listQualityFindings(tenantId?: string | null, documentId?: string) {
     return prisma.qualityFinding.findMany({
       where: {
         ...(documentId ? { documentId } : {}),
+        ...(tenantId
+          ? {
+              OR: [
+                { document: { tenantId } },
+                { generationJob: { tenantId } },
+              ],
+            }
+          : {}),
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -156,6 +165,23 @@ export const complianceService = {
   async updateQualityFinding(id: string, changes: QualityFindingUpdatePayload) {
     const payload = changes ?? {};
     const data: Record<string, unknown> = {};
+
+    if (payload.tenantId) {
+      const ownedFinding = await prisma.qualityFinding.findFirst({
+        where: {
+          id,
+          OR: [
+            { document: { tenantId: payload.tenantId } },
+            { generationJob: { tenantId: payload.tenantId } },
+          ],
+        },
+        select: { id: true },
+      });
+
+      if (!ownedFinding) {
+        throw new ApplicationError('Quality Finding wurde nicht gefunden', 404);
+      }
+    }
 
     if (payload.action === 'REOPEN') {
       data.resolution = null;
@@ -180,7 +206,7 @@ export const complianceService = {
     });
   },
 
-  async runQualityChecks(documentId: string) {
+  async runQualityChecks(documentId: string, tenantId?: string | null) {
     const document = await prisma.document.findUnique({
       where: { id: documentId },
       select: {
@@ -188,11 +214,16 @@ export const complianceService = {
         content: true,
         title: true,
         category: true,
+        tenantId: true,
       },
     });
 
     if (!document) {
-      throw new Error('Dokument nicht gefunden');
+      throw new ApplicationError('Dokument nicht gefunden', 404);
+    }
+
+    if (tenantId && document.tenantId && tenantId !== document.tenantId) {
+      throw new ApplicationError('Zugriff auf dieses Dokument ist nicht erlaubt', 403);
     }
 
     const text = stripHtml(document.content);
