@@ -51,11 +51,22 @@ export interface ReviewRequestUpdatePayload {
   status?: ReviewStatus;
   comments?: string | null;
   tenantId?: string | null;
+  actorId?: string | null;
 }
 
 export interface QualityFindingUpdatePayload {
   resolution?: string | null;
   action?: 'RESOLVE' | 'REOPEN' | null;
+}
+
+export function assertReviewUpdatePermission(actorId: string | null | undefined, reviewerId: string) {
+  if (!actorId) {
+    throw new ApplicationError('Authentifizierung erforderlich', 403);
+  }
+
+  if (actorId !== reviewerId) {
+    throw new ApplicationError('Nur der zugewiesene Reviewer darf diesen Review aktualisieren', 403);
+  }
 }
 
 export const complianceService = {
@@ -317,6 +328,8 @@ export const complianceService = {
     if (payload.tenantId && review.document?.tenantId && payload.tenantId !== review.document.tenantId) {
       throw new ApplicationError('Zugriff auf dieses Review ist nicht erlaubt', 403);
     }
+
+    assertReviewUpdatePermission(payload.actorId, review.reviewerId);
 
     const data: Record<string, unknown> = {};
 
