@@ -1,126 +1,199 @@
 # Troubleshooting Guide
 
-## Problem: "Failed to load documents"
+This guide covers high-frequency failures in the current Automate/Centralize/Comply implementation.
 
-### Ursache: Azure SQL Server Firewall blockiert Verbindung
+## Quick triage commands
 
-**Fehlermeldung:**
-```
-Cannot open server 'itdokusql1969' requested by the login. 
-Client with IP address '87.169.155.196' is not allowed to access the server.
-```
-
-### Lösungen:
-
-#### Option 1: Azure Portal - Firewall-Regel hinzufügen (Empfohlen)
-
-1. Gehe zu [Azure Portal](https://portal.azure.com)
-2. Navigiere zu deiner SQL Server Instanz (`itdokusql1969`)
-3. Gehe zu **Settings** → **Networking** oder **Firewalls and virtual networks**
-4. Klicke auf **Add client IPv4 address** oder **+ Add a firewall rule**
-5. Füge deine aktuelle IP-Adresse hinzu: `87.169.155.196`
-6. ODER aktiviere **Allow Azure services and resources to access this server** (wenn du von Azure aus zugreifst)
-7. Speichere die Änderungen (kann bis zu 5 Minuten dauern)
-
-**Alternative via Azure CLI:**
 ```bash
-az sql server firewall-rule create \
-  --resource-group <your-resource-group> \
-  --server itdokusql1969 \
-  --name MyIP \
-  --start-ip-address 87.169.155.196 \
-  --end-ip-address 87.169.155.196
+# Backend health (local default)
+curl -sS http://localhost:3002/api/health
+
+# Tenant-aware analytics (requires tenant header in most setups)
+curl -sS -H "X-Tenant-ID: <tenant-id>" http://localhost:3002/api/analytics
+
+# Inspect latest automation jobs
+curl -sS -H "X-Tenant-ID: <tenant-id>" http://localhost:3002/api/automation/jobs
 ```
 
-#### Option 2: Temporäre lokale Datenbank für Entwicklung
+---
 
-Falls du für die Entwicklung eine lokale Datenbank verwenden möchtest:
+## 1) `Tenant identifier required` (HTTP 400)
 
-1. Ändere `backend/prisma/schema.prisma`:
-```prisma
-datasource db {
-  provider = "sqlite"  // Statt "sqlserver"
-  url      = "file:./dev.db"
-}
+### Symptom
+
+Routes using `tenantMiddleware` fail with:
+
+- `Tenant identifier required. Please provide X-Tenant-ID or X-Tenant-Slug header.`
+
+### Why it happens
+
+Tenant-aware routes require `X-Tenant-ID` or `X-Tenant-Slug` unless dev-auth mode bypass applies.
+
+### Fix
+
+- Send one of these headers:
+  - `X-Tenant-ID: <tenant-uuid>`
+  - `X-Tenant-Slug: <tenant-slug>`
+- Ensure the current user is a member of that tenant.
+
+---
+
+## 2) Automation jobs stay `PENDING`
+
+### Symptom
+
+`POST /api/automation/jobs` succeeds, but status does not move to `RUNNING`/`COMPLETED`.
+
+### Why it happens
+
+Execution flags are misaligned:
+
+- `AUTOMATION_QUEUE_AUTORUN=false`
+- `AUTOMATION_RUN_IMMEDIATE=false`
+
+In this combination, jobs are created but not executed automatically.
+
+### Fix options
+
+1. Enable immediate execution:
+   ```env
+   AUTOMATION_RUN_IMMEDIATE=true
+   ```
+2. Enable queue autorun:
+   ```env
+   AUTOMATION_QUEUE_AUTORUN=true
+   ```
+3. Run manually:
+   ```bash
+   cd backend
+   npm run automation:job -- <jobId>
+   ```
+
+---
+
+## 3) Service Bus mode errors on publish/subscribe
+
+### Symptom
+
+Queue operations fail with messages similar to:
+
+- `Service Bus Provider ausgewählt, aber AZURE_SERVICE_BUS_CONNECTION_STRING oder AZURE_SERVICE_BUS_QUEUE_NAME fehlt.`
+
+### Why it happens
+
+`AUTOMATION_QUEUE_PROVIDER=servicebus` is set, but required Service Bus env vars are missing.
+
+### Fix
+
+Set all required values:
+
+```env
+AUTOMATION_QUEUE_PROVIDER=servicebus
+AZURE_SERVICE_BUS_CONNECTION_STRING=...
+AZURE_SERVICE_BUS_QUEUE_NAME=...
 ```
 
-2. Führe Migrationen aus:
+Then start a worker:
+
 ```bash
 cd backend
-npx prisma migrate dev --name init
-npx prisma generate
+npm run automation:worker
 ```
 
-3. Erstelle einen Demo-User:
-```bash
-npx prisma studio
-# Oder via SQL:
-npx prisma db execute --stdin <<< "INSERT INTO users (id, email, name, role) VALUES ('demo-user-id', 'demo@local.dev', 'Demo User', 'ADMIN');"
+---
+
+## 4) Knowledge nodes do not appear in global search
+
+### Symptom
+
+A node exists in `/api/knowledge`, but `/api/search?q=...&type=knowledge` does not return it.
+
+### Why it happens
+
+Tenant-filtered search only includes knowledge nodes linked through a document tenant relation.
+Nodes without `documentId` are not reliably discoverable in tenant-filtered `/api/search`.
+
+### Fix
+
+- Link the node to a document in the same tenant, or
+- Query `/api/knowledge` directly when managing orphan nodes.
+
+---
+
+## 5) Review workflow errors (`/api/compliance/reviews`)
+
+### Common cases
+
+- `Reviewer wurde nicht gefunden` (404)
+- `Zugriff auf dieses Dokument ist nicht erlaubt` (403)
+- `Ungültiger Review-Status` (400)
+
+### Fix checklist
+
+- Validate `reviewerId` against `/api/users` in the same tenant.
+- Ensure `documentId` belongs to the active tenant.
+- Use only valid statuses: `PENDING`, `APPROVED`, `REJECTED`, `CHANGES_REQUESTED`.
+
+---
+
+## 6) Assistant answers without citations
+
+### Symptom
+
+Assistant responds, but with no source references.
+
+### Why it happens
+
+No relevant documents or knowledge nodes matched the question for the active tenant.
+
+### Fix
+
+- Add or update tenant documents (`/api/documents`)
+- Add linked knowledge nodes (`/api/knowledge`)
+- Retry query with more specific terms matching titles/content/tags
+
+---
+
+## 7) Frontend talks to wrong backend port in development
+
+### Symptom
+
+Some UI features fail while backend is running on `3002`.
+
+### Why it happens
+
+`VITE_API_URL` is missing; some frontend modules fall back to `3001` while others default to `3002`.
+
+### Fix
+
+Set an explicit value in `frontend/.env`:
+
+```env
+VITE_API_URL=http://localhost:3002/api
 ```
 
-#### Option 3: IP-Adresse dynamisch hinzufügen (PowerShell Script)
+Restart frontend dev server after changing env variables.
 
-Erstelle ein Script, das deine aktuelle IP-Adresse automatisch hinzufügt:
+---
 
-```powershell
-# Get current IP
-$currentIP = (Invoke-WebRequest -Uri "https://api.ipify.org" -UseBasicParsing).Content
+## 8) Azure SQL firewall blocks backend queries
 
-# Add to Azure SQL Firewall via Azure CLI
-az sql server firewall-rule create \
-  --resource-group <your-resource-group> \
-  --server itdokusql1969 \
-  --name "DevIP-$(Get-Date -Format 'yyyyMMdd')" \
-  --start-ip-address $currentIP \
-  --end-ip-address $currentIP
-```
+### Symptom
 
-### Prüfung ob Problem behoben ist:
+Errors like:
 
-```bash
-# Test Backend API
-curl http://localhost:3001/api/health
+- `Client with IP address ... is not allowed to access the server.`
+- Prisma `P1001`
 
-# Test Documents Endpoint
-curl http://localhost:3001/api/documents
-```
+### Fix
 
-### Temporäre Workaround (wenn Firewall nicht geändert werden kann)
+1. Add your current IP in Azure SQL firewall.
+2. Confirm `DATABASE_URL` is correct.
+3. Re-run:
+   ```bash
+   cd backend
+   npx prisma migrate dev --name init
+   npx prisma generate
+   ```
 
-Falls du die Firewall-Regel nicht sofort ändern kannst, implementiere eine Fallback-Lösung:
-
-```typescript
-// backend/src/routes/documents.ts
-router.get('/', async (req: Request, res: Response) => {
-  try {
-    const documents = await prisma.document.findMany({
-      orderBy: { updatedAt: 'desc' }
-    })
-    res.json(documents)
-  } catch (error: any) {
-    // Fallback: Return empty array if database is unavailable
-    if (error.code === 'P1001' || error.message.includes('firewall')) {
-      console.warn('[Documents] Database firewall issue - returning empty array')
-      return res.json([])
-    }
-    throw error
-  }
-})
-```
-
-## Weitere häufige Probleme
-
-### Backend läuft nicht
-- Prüfe ob Port 3001 frei ist: `netstat -ano | findstr :3001`
-- Starte Backend: `cd backend && npm run dev`
-
-### Frontend kann Backend nicht erreichen
-- Prüfe CORS-Einstellungen im Backend
-- Prüfe ob `VITE_API_URL` in `frontend/.env` korrekt gesetzt ist
-- Prüfe Browser-Konsole für CORS-Fehler
-
-### Datenbank-Fehler
-- Prüfe `DATABASE_URL` in `backend/.env`
-- Führe Prisma Migrationen aus: `npx prisma migrate dev`
-- Generiere Prisma Client: `npx prisma generate`
-
+For repeated local changes, consider automating firewall updates with Azure CLI scripts.
