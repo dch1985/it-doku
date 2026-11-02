@@ -4,6 +4,7 @@ import { devAuthenticate } from '../middleware/auth.dev.middleware.js';
 import { tenantMiddleware } from '../middleware/tenant.middleware.js';
 import { ApplicationError } from '../middleware/errorHandler.js';
 import { complianceService } from '../services/compliance.service.js';
+import { normalizeOptionalComment } from './compliance.request-utils.js';
 
 type UpdateFindingBody = {
   resolution?: string | null;
@@ -269,8 +270,10 @@ router.patch('/reviews/:id', async (req: Request, res: Response) => {
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
       status: status as any,
-      comments: body?.comments ?? null,
+      comments: normalizeOptionalComment(body),
       tenantId: req.tenant?.id ?? null,
+      actorId: req.user?.id ?? null,
+      actorRole: req.user?.role ?? null,
     });
 
     res.json(review);
