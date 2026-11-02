@@ -1,96 +1,150 @@
 # Deployment Guide
 
-## Pre-Deployment Checklist
+This runbook focuses on the currently active Automate/Centralize/Comply stack and its queue-dependent backend behavior.
+
+## 1) Pre-deployment checklist
 
 ### Backend
 
-- [ ] Run Prisma migrations: `npx prisma migrate deploy`
-- [ ] Generate Prisma Client: `npx prisma generate`
-- [ ] Set all required environment variables
-- [ ] Configure Azure SQL Server firewall rules
-- [ ] Test database connection
-- [ ] Test authentication endpoints
+- [ ] `npx prisma migrate deploy`
+- [ ] `npx prisma generate`
+- [ ] Production `DATABASE_URL` reachable from runtime network
+- [ ] `FRONTEND_URL` set to your deployed frontend origin
+- [ ] Queue mode selected intentionally (see section 3)
+- [ ] If using `servicebus`, set both `AZURE_SERVICE_BUS_CONNECTION_STRING` and `AZURE_SERVICE_BUS_QUEUE_NAME`
 
 ### Frontend
 
-- [ ] Set all required environment variables
-- [ ] Configure Azure AD B2C redirect URIs
-- [ ] Build frontend: `npm run build`
-- [ ] Test build output
+- [ ] `VITE_API_URL` points to backend `/api`
+- [ ] `VITE_AZURE_CLIENT_ID` / `VITE_AZURE_TENANT_ID` set for non-dev auth flows
+- [ ] `npm run build` succeeds in `frontend/`
 
 ---
 
-## Environment Variables
-
-### Backend Production
+## 2) Environment variable matrix (backend)
 
 ```env
 NODE_ENV=production
 PORT=8080
 DATABASE_URL=sqlserver://...
-AZURE_TENANT_ID=your-tenant-id
-AZURE_CLIENT_ID=your-client-id
-AZURE_OPENAI_KEY=your-key
-AZURE_OPENAI_ENDPOINT=your-endpoint
-AZURE_OPENAI_DEPLOYMENT=gpt-4o
-AZURE_OPENAI_API_VERSION=2024-02-01
 FRONTEND_URL=https://your-frontend-domain.com
+
+# Auth / AI integrations
+AZURE_TENANT_ID=
+AZURE_CLIENT_ID=
+AZURE_OPENAI_KEY=
+AZURE_OPENAI_ENDPOINT=
+AZURE_OPENAI_DEPLOYMENT=gpt-4o-mini
+AZURE_OPENAI_API_VERSION=2024-02-01
+GITHUB_TOKEN=
+
+# Automation execution
+AUTOMATION_QUEUE_PROVIDER=memory
 AUTOMATION_QUEUE_AUTORUN=false
 AUTOMATION_RUN_IMMEDIATE=false
-AUTOMATION_QUEUE_PROVIDER=memory
 AZURE_SERVICE_BUS_CONNECTION_STRING=
 AZURE_SERVICE_BUS_QUEUE_NAME=
 ```
 
-### Frontend Production
+Frontend:
 
 ```env
-VITE_API_URL=https://your-backend-api.com/api
-VITE_AZURE_CLIENT_ID=your-client-id
-VITE_AZURE_TENANT_ID=your-tenant-id
+VITE_API_URL=https://your-backend-domain/api
+VITE_AZURE_CLIENT_ID=
+VITE_AZURE_TENANT_ID=
+VITE_DEV_AUTH_ENABLED=false
 ```
 
 ---
 
-## Azure Deployment
+## 3) Queue execution modes
 
-### Backend (Azure App Service)
+### Mode A: immediate execution (single-instance / local-like)
 
-1. Create Azure App Service
-2. Configure environment variables
-3. Set up deployment from GitHub
-4. Configure Azure SQL Server firewall
-5. Run migrations on deployment
+Use when you want jobs to run directly in the API process.
 
-### Frontend (Azure Static Web Apps)
+```env
+AUTOMATION_QUEUE_PROVIDER=memory
+AUTOMATION_RUN_IMMEDIATE=true
+AUTOMATION_QUEUE_AUTORUN=false
+```
 
-1. Create Azure Static Web App
-2. Configure environment variables
-3. Set build command: `npm run build`
-4. Set output directory: `dist`
-5. Configure Azure AD B2C redirect URIs
+### Mode B: in-memory queue with subscriber in API process
 
----
+Use when jobs should be published and consumed by the same process asynchronously.
 
-## Migration Commands
+```env
+AUTOMATION_QUEUE_PROVIDER=memory
+AUTOMATION_QUEUE_AUTORUN=true
+AUTOMATION_RUN_IMMEDIATE=false
+```
+
+### Mode C: Azure Service Bus queue
+
+Use for multi-instance production queueing.
+
+```env
+AUTOMATION_QUEUE_PROVIDER=servicebus
+AUTOMATION_QUEUE_AUTORUN=true
+AUTOMATION_RUN_IMMEDIATE=false
+AZURE_SERVICE_BUS_CONNECTION_STRING=...
+AZURE_SERVICE_BUS_QUEUE_NAME=...
+```
+
+Start a worker listener:
 
 ```bash
-# Production migration (no prompts)
 cd backend
-npx prisma migrate deploy
+npm run automation:worker
+```
 
-# Generate client
-npx prisma generate
+You can also process a single job directly:
+
+```bash
+cd backend
+npm run automation:job -- <jobId>
 ```
 
 ---
 
-## Post-Deployment
+## 4) Post-deploy smoke tests
 
-1. Test authentication flow
-2. Test tenant creation
-3. Test document CRUD operations
-4. Monitor error logs
-5. Set up Application Insights (optional)
-6. (Optional) Automationsjobs testen: `npm run automation:job -- <jobId>` oder Worker starten (`npm run automation:worker`).
+Run from a trusted terminal with appropriate auth/tenant headers:
 
+```bash
+# 1) health
+curl -sS https://<backend>/api/health
+
+# 2) analytics (tenant-aware route)
+curl -sS -H "X-Tenant-ID: <tenant-id>" https://<backend>/api/analytics
+
+# 3) automation job creation
+curl -sS -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: <tenant-id>" \
+  -d '{"intent":"QUALITY","title":"Deployment smoke job"}' \
+  https://<backend>/api/automation/jobs
+
+# 4) compliance quality check
+curl -sS -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: <tenant-id>" \
+  -d '{"documentId":"<document-id>"}' \
+  https://<backend>/api/compliance/quality/check
+```
+
+Expected signals:
+
+- `/api/health` returns `status: "OK"`
+- analytics returns `system`, `automation`, `centralize`, `comply`
+- created jobs move from `PENDING/RUNNING` to `COMPLETED` (or explicit `FAILED` with error)
+
+---
+
+## 5) High-signal operational checks
+
+- If jobs stay `PENDING`, queue mode and worker wiring are misaligned.
+- If analytics/search/compliance endpoints return tenant errors, verify `X-Tenant-ID` and tenant membership.
+- If using Service Bus, missing queue credentials will fail publish/subscribe at runtime.
+
+For incident playbooks and failure-specific fixes, see [TROUBLESHOOTING.md](./TROUBLESHOOTING.md).
