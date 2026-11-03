@@ -51,11 +51,38 @@ export interface ReviewRequestUpdatePayload {
   status?: ReviewStatus;
   comments?: string | null;
   tenantId?: string | null;
+  actorId?: string | null;
+  actorRole?: string | null;
+  actorTenantRole?: string | null;
 }
 
 export interface QualityFindingUpdatePayload {
   resolution?: string | null;
   action?: 'RESOLVE' | 'REOPEN' | null;
+}
+
+export function assertReviewUpdatePermission(
+  actorId: string | null | undefined,
+  actorRole: string | null | undefined,
+  actorTenantRole: string | null | undefined,
+  reviewerId: string,
+) {
+  if (!actorId) {
+    throw new ApplicationError('Authentifizierung erforderlich', 403);
+  }
+
+  if (actorId === reviewerId) {
+    return;
+  }
+
+  const normalizedActorRole = (actorRole ?? '').toUpperCase();
+  const normalizedTenantRole = (actorTenantRole ?? '').toUpperCase();
+
+  if (normalizedActorRole === 'ADMIN' || normalizedTenantRole === 'ADMIN' || normalizedTenantRole === 'OWNER') {
+    return;
+  }
+
+  throw new ApplicationError('Nur zugewiesene Reviewer oder Admins dürfen Reviews aktualisieren', 403);
 }
 
 export const complianceService = {
@@ -317,6 +344,8 @@ export const complianceService = {
     if (payload.tenantId && review.document?.tenantId && payload.tenantId !== review.document.tenantId) {
       throw new ApplicationError('Zugriff auf dieses Review ist nicht erlaubt', 403);
     }
+
+    assertReviewUpdatePermission(payload.actorId, payload.actorRole, payload.actorTenantRole, review.reviewerId);
 
     const data: Record<string, unknown> = {};
 
