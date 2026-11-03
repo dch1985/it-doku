@@ -3,7 +3,7 @@ import { authenticate } from '../middleware/auth.middleware.js';
 import { devAuthenticate } from '../middleware/auth.dev.middleware.js';
 import { tenantMiddleware } from '../middleware/tenant.middleware.js';
 import { ApplicationError } from '../middleware/errorHandler.js';
-import { complianceService } from '../services/compliance.service.js';
+import { complianceService, type ReviewRequestUpdatePayload } from '../services/compliance.service.js';
 
 type UpdateFindingBody = {
   resolution?: string | null;
@@ -20,6 +20,48 @@ type UpdateReviewBody = {
   status?: string;
   comments?: string | null;
 };
+
+type ReviewUpdateContext = {
+  tenantId?: string | null;
+  actorId?: string | null;
+  actorRole?: string | null;
+  actorTenantRole?: string | null;
+};
+
+function hasOwn<T extends object, K extends PropertyKey>(value: T | null | undefined, key: K): value is T & Record<K, unknown> {
+  return Boolean(value) && Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function normalizeOptionalString(value: unknown, fieldName: string): string | null {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (value === null || typeof value === 'undefined') {
+    return null;
+  }
+  throw new ApplicationError(`${fieldName} muss ein String oder null sein`, 400);
+}
+
+export function buildReviewUpdatePayload(
+  body: UpdateReviewBody | undefined,
+  context: ReviewUpdateContext,
+): ReviewRequestUpdatePayload {
+  const status = body?.status ? String(body.status).toUpperCase() : undefined;
+  const payload: ReviewRequestUpdatePayload = {
+    status: status as ReviewRequestUpdatePayload['status'],
+    tenantId: context.tenantId ?? null,
+    actorId: context.actorId ?? null,
+    actorRole: context.actorRole ?? null,
+    actorTenantRole: context.actorTenantRole ?? null,
+  };
+
+  // Preserve existing stored comments when the field is omitted from PATCH requests.
+  if (hasOwn(body, 'comments')) {
+    payload.comments = normalizeOptionalString(body.comments, 'comments');
+  }
+
+  return payload;
+}
 
 const router = Router();
 const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
@@ -179,10 +221,15 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
       throw new ApplicationError(`Ungültige Aktion: ${action}`, 400);
     }
 
-    const finding = await complianceService.updateQualityFinding(req.params.id, {
+    const payload: UpdateFindingBody = {
       action: action as 'RESOLVE' | 'REOPEN' | undefined,
-      resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
-    });
+    };
+
+    if (hasOwn(body, 'resolution')) {
+      payload.resolution = normalizeOptionalString(body.resolution, 'resolution');
+    }
+
+    const finding = await complianceService.updateQualityFinding(req.params.id, payload);
 
     res.json(finding);
   } catch (error: any) {
@@ -265,13 +312,15 @@ router.post('/reviews', async (req: Request, res: Response) => {
 router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateReviewBody;
-    const status = body?.status ? String(body.status).toUpperCase() : undefined;
-
-    const review = await complianceService.updateReviewRequest(req.params.id, {
-      status: status as any,
-      comments: body?.comments ?? null,
-      tenantId: req.tenant?.id ?? null,
-    });
+    const review = await complianceService.updateReviewRequest(
+      req.params.id,
+      buildReviewUpdatePayload(body, {
+        tenantId: req.tenant?.id ?? null,
+        actorId: req.user?.id ?? null,
+        actorRole: req.user?.role ?? null,
+        actorTenantRole: req.tenantMember?.role ?? null,
+      }),
+    );
 
     res.json(review);
   } catch (error: any) {
