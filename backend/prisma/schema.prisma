@@ -84,15 +84,17 @@ model User {
   azureOID String? @unique // Azure Object ID (oid) - alternative field name
 
   // Relations
-  tenants           TenantMember[]
-  documents         Document[]
-  conversations     Conversation[]
-  apiKeys           ApiKey[]
-  passwords         Password[]
-  assets            Asset[]
-  processRecordings ProcessRecording[]
-  comments          Comment[]
-  notifications     Notification[]
+  tenants                 TenantMember[]
+  documents               Document[]
+  conversations           Conversation[]
+  apiKeys                 ApiKey[]
+  passwords               Password[]
+  assets                  Asset[]
+  processRecordings       ProcessRecording[]
+  comments                Comment[]
+  notifications           Notification[]
+  requestedReviewRequests ReviewRequest[]    @relation("ReviewRequestedBy")
+  assignedReviewRequests  ReviewRequest[]    @relation("ReviewReviewer")
 
   // Metadata
   createdAt   DateTime  @default(now())
@@ -137,6 +139,9 @@ model Document {
   user           User            @relation(fields: [userId], references: [id])
   knowledgeNodes KnowledgeNode[]
   comments       Comment[]
+  annotations    Annotation[]
+  generationJobs GenerationJob[]
+  reviewRequests ReviewRequest[]
 
   // Timestamps
   createdAt   DateTime  @default(now())
@@ -192,10 +197,11 @@ model Conversation {
 
   // Relations
   tenantId String
-  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant   Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userId   String
-  user     User      @relation(fields: [userId], references: [id])
+  user     User                @relation(fields: [userId], references: [id])
   messages Message[]
+  traces   ConversationTrace[]
 
   // Context & Memory (as JSON strings)
   context  String? @db.NVarChar(Max)
@@ -605,4 +611,227 @@ model ProcessRecording {
   @@index([userId])
   @@index([status])
   @@map("process_recordings")
+}
+
+// ==========================================
+// AUTOMATION & COMPLIANCE
+// ==========================================
+model SourceConnector {
+  id       String  @id @default(uuid())
+  name     String
+  type     String
+  config   String? @db.NVarChar(Max)
+  isActive Boolean @default(true)
+
+  // Scope
+  tenantId String?
+
+  // Relations
+  generationJobs GenerationJob[] @relation("JobConnector")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([isActive])
+  @@map("source_connectors")
+}
+
+model GenerationJob {
+  id          String  @id @default(uuid())
+  status      String  @default("PENDING") // PENDING, RUNNING, COMPLETED, FAILED, CANCELLED
+  intent      String  @default("CREATE")
+  payload     String? @db.NVarChar(Max)
+  resultDraft String? @db.NVarChar(Max)
+  error       String? @db.NVarChar(Max)
+
+  // Scope
+  tenantId String?
+
+  // Foreign keys
+  documentId        String?
+  sourceConnectorId String?
+
+  // Relations
+  document        Document?          @relation(fields: [documentId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  sourceConnector SourceConnector?   @relation("JobConnector", fields: [sourceConnectorId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  suggestions     UpdateSuggestion[]
+  qualityFindings QualityFinding[]
+
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([documentId])
+  @@index([sourceConnectorId])
+  @@index([createdAt])
+  @@map("generation_jobs")
+}
+
+model UpdateSuggestion {
+  id          String  @id @default(uuid())
+  title       String
+  summary     String? @db.NVarChar(Max)
+  diffPreview String? @db.NVarChar(Max)
+  status      String  @default("OPEN") // OPEN, APPLIED, DISMISSED
+  metadata    String? @db.NVarChar(Max)
+
+  // Foreign keys
+  generationJobId String
+  documentId      String?
+
+  // Relations
+  generationJob GenerationJob @relation(fields: [generationJobId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([generationJobId])
+  @@index([documentId])
+  @@index([status])
+  @@map("update_suggestions")
+}
+
+model QualityFinding {
+  id         String  @id @default(uuid())
+  category   String
+  severity   String
+  message    String  @db.NVarChar(Max)
+  location   String?
+  resolution String? @db.NVarChar(Max)
+
+  // Foreign keys
+  generationJobId String?
+  documentId      String?
+
+  // Relations
+  generationJob GenerationJob? @relation(fields: [generationJobId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([generationJobId])
+  @@index([documentId])
+  @@index([severity])
+  @@index([resolvedAt])
+  @@map("quality_findings")
+}
+
+model TemplateSchema {
+  id          String  @id @default(uuid())
+  name        String
+  description String? @db.NVarChar(Max)
+  format      String  @default("MARKDOWN")
+  schema      String  @db.NVarChar(Max)
+  isGlobal    Boolean @default(false)
+
+  // Scope
+  tenantId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([isGlobal])
+  @@map("template_schemas")
+}
+
+model Annotation {
+  id       String  @id @default(uuid())
+  key      String
+  value    String  @db.NVarChar(Max)
+  location String?
+
+  // Scope
+  tenantId String?
+
+  // Foreign keys
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([documentId])
+  @@index([key])
+  @@map("annotations")
+}
+
+model TraceLink {
+  id           String  @id @default(uuid())
+  sourceType   String
+  sourceId     String
+  targetType   String
+  targetId     String
+  relationship String  @default("RELATES_TO")
+  metadata     String? @db.NVarChar(Max)
+
+  // Scope
+  tenantId String?
+
+  // Optional document linkage
+  sourceDocumentId String?
+  targetDocumentId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([sourceDocumentId])
+  @@index([targetDocumentId])
+  @@map("trace_links")
+}
+
+model ReviewRequest {
+  id       String  @id @default(uuid())
+  status   String  @default("PENDING") // PENDING, APPROVED, REJECTED, CHANGES_REQUESTED
+  comments String? @db.NVarChar(Max)
+
+  // Foreign keys
+  documentId  String
+  requestedBy String
+  reviewerId  String
+
+  // Relations
+  document  Document @relation(fields: [documentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  requester User     @relation("ReviewRequestedBy", fields: [requestedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reviewer  User     @relation("ReviewReviewer", fields: [reviewerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  reviewedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([documentId])
+  @@index([requestedBy])
+  @@index([reviewerId])
+  @@index([status])
+  @@map("review_requests")
+}
+
+model ConversationTrace {
+  id        String  @id @default(uuid())
+  question  String  @db.NVarChar(Max)
+  answer    String  @db.NVarChar(Max)
+  audience  String  @default("PRACTITIONER") // BEGINNER, PRACTITIONER, EXPERT
+  citations String? @db.NVarChar(Max)
+
+  // Scope
+  tenantId String?
+
+  // Optional relation
+  conversationId String?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([conversationId])
+  @@index([audience])
+  @@index([createdAt])
+  @@map("conversation_traces")
 }
