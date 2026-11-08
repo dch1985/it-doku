@@ -3,7 +3,7 @@ import { authenticate } from '../middleware/auth.middleware.js';
 import { devAuthenticate } from '../middleware/auth.dev.middleware.js';
 import { tenantMiddleware } from '../middleware/tenant.middleware.js';
 import { ApplicationError } from '../middleware/errorHandler.js';
-import { complianceService } from '../services/compliance.service.js';
+import { complianceService, type ReviewRequestUpdatePayload } from '../services/compliance.service.js';
 
 type UpdateFindingBody = {
   resolution?: string | null;
@@ -20,6 +20,26 @@ type UpdateReviewBody = {
   status?: string;
   comments?: string | null;
 };
+
+export function buildReviewUpdatePayload(
+  body: UpdateReviewBody | undefined,
+  tenantId?: string | null,
+): ReviewRequestUpdatePayload {
+  const payload: ReviewRequestUpdatePayload = {
+    tenantId: tenantId ?? null,
+  };
+
+  if (body?.status) {
+    payload.status = String(body.status).toUpperCase() as ReviewRequestUpdatePayload['status'];
+  }
+
+  // Only touch comments when the caller explicitly sends the field.
+  if (body && Object.prototype.hasOwnProperty.call(body, 'comments')) {
+    payload.comments = body.comments ?? null;
+  }
+
+  return payload;
+}
 
 const router = Router();
 const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
@@ -265,13 +285,10 @@ router.post('/reviews', async (req: Request, res: Response) => {
 router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateReviewBody;
-    const status = body?.status ? String(body.status).toUpperCase() : undefined;
-
-    const review = await complianceService.updateReviewRequest(req.params.id, {
-      status: status as any,
-      comments: body?.comments ?? null,
-      tenantId: req.tenant?.id ?? null,
-    });
+    const review = await complianceService.updateReviewRequest(
+      req.params.id,
+      buildReviewUpdatePayload(body, req.tenant?.id ?? null),
+    );
 
     res.json(review);
   } catch (error: any) {
