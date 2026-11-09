@@ -13,6 +13,7 @@
 ## ✨ Features
 
 ### 🎯 Core Features
+
 - **📝 Rich Text Editor** - Full-featured document editor with TipTap
 - **🤖 AI Chat Assistant** - Powered by Azure OpenAI GPT-4
 - **📁 File Management** - Upload, manage, and download attachments (PDF, Word, Excel, Images)
@@ -22,6 +23,7 @@
 - **📱 Responsive Design** - Works seamlessly on all devices
 
 ### 🚀 Advanced Features
+
 - **GitHub Integration** - Import repositories and README files
 - **Version History** - Track all document changes
 - **Export Options** - Export to PDF, Markdown, or JSON
@@ -36,6 +38,7 @@
 ## 🛠️ Tech Stack
 
 ### Frontend
+
 - **React 19** with TypeScript
 - **Vite** for blazing-fast development
 - **shadcn/ui** + Tailwind CSS for beautiful UI
@@ -44,6 +47,7 @@
 - **Sonner** for toast notifications
 
 ### Backend
+
 - **Express.js** with TypeScript
 - **Prisma ORM** for database management
 - **SQL Server** for data persistence (Azure SQL)
@@ -58,7 +62,8 @@
 ## 📦 Installation
 
 ### Prerequisites
-- Node.js 18+ 
+
+- Node.js 18+
 - npm or yarn
 - Azure SQL Server (or compatible SQL Server database)
 - Azure AD B2C App Registration (for authentication)
@@ -66,6 +71,7 @@
 - GitHub Personal Access Token (optional, for GitHub integration)
 
 ### Backend Setup
+
 ```bash
 # Clone the repository
 git clone https://github.com/dch1985/it-doku.git
@@ -100,6 +106,7 @@ npm run dev
 ```
 
 ### Frontend Setup
+
 ```bash
 # Install frontend dependencies
 cd ../frontend
@@ -119,12 +126,14 @@ npm run dev
 ```
 
 The application will be available at:
+
 - Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:3001`
+- Backend API: `http://localhost:3002`
 
 ---
 
 ## 📚 Project Structure
+
 ```
 it-doku/
 ├── backend/
@@ -132,7 +141,12 @@ it-doku/
 │   │   └── schema.prisma      # Database schema
 │   ├── src/
 │   │   ├── routes/            # API routes
-│   │   │   ├── chat.ts        # AI chat endpoints
+│   │   │   ├── automation.ts  # Connectors, generation jobs, suggestions
+│   │   │   ├── assistant.ts   # Conversations + citations
+│   │   │   ├── compliance.ts  # Schemas, quality checks, reviews
+│   │   │   ├── knowledge.ts   # Knowledge node CRUD
+│   │   │   ├── analytics.ts   # Automate/Centralize/Comply KPIs
+│   │   │   ├── search.ts      # Global search (documents + knowledge)
 │   │   │   ├── documents.ts   # Document CRUD
 │   │   │   ├── templates.ts   # Templates management
 │   │   │   ├── github.ts      # GitHub integration
@@ -142,20 +156,20 @@ it-doku/
 │   │   └── index.ts           # Server entry point
 │   └── uploads/               # File storage directory
 │
-├── frontend-new/
+├── frontend/
 │   ├── src/
-│   │   ├── components/        # Reusable components
-│   │   │   ├── ui/           # shadcn/ui components
-│   │   │   ├── DocumentEditor.tsx
-│   │   │   ├── FileUpload.tsx
-│   │   │   └── ChatSidebar.tsx
-│   │   ├── pages/            # Page components
-│   │   │   ├── Dashboard.tsx
-│   │   │   ├── Documents.tsx
-│   │   │   ├── DocumentDetail.tsx
-│   │   │   ├── Analytics.tsx
-│   │   │   └── Settings.tsx
-│   │   ├── hooks/            # Custom React hooks
+│   │   ├── pages/
+│   │   │   ├── Automate.tsx  # Automation operations dashboard
+│   │   │   ├── Centralize.tsx# Knowledge + assistant workflows
+│   │   │   ├── Comply.tsx    # Compliance and review workflow
+│   │   │   └── Analytics.tsx # KPI overview
+│   │   ├── hooks/
+│   │   │   ├── useAutomation.ts
+│   │   │   ├── useKnowledgeNodes.ts
+│   │   │   ├── useCompliance.ts
+│   │   │   ├── useAssistant.ts
+│   │   │   ├── useGlobalSearch.ts
+│   │   │   └── useAnalytics.ts
 │   │   ├── stores/           # State management
 │   │   ├── lib/              # Utilities
 │   │   └── App.tsx           # Main app component
@@ -169,17 +183,20 @@ it-doku/
 ## 🔌 API Endpoints
 
 ### Authentication
+
 - `GET /api/auth/me` - Get current authenticated user
 - `POST /api/auth/logout` - Logout
 - `GET /api/auth/verify` - Verify token
 
 ### Tenants
+
 - `GET /api/tenants` - List user's tenants
 - `GET /api/tenants/:id` - Get tenant details
 - `POST /api/tenants` - Create new tenant
 - `PATCH /api/tenants/:id` - Update tenant (OWNER/ADMIN only)
 
 ### Documents
+
 - `GET /api/documents` - List all documents (filtered by tenant)
 - `GET /api/documents/:id` - Get document by ID
 - `POST /api/documents` - Create new document
@@ -189,36 +206,94 @@ it-doku/
 > **Note:** All document endpoints require `X-Tenant-ID` or `X-Tenant-Slug` header for tenant isolation.
 
 ### File Upload
+
 - `POST /api/upload` - Upload file attachment
 - `GET /api/upload/document/:documentId` - Get document attachments
 - `GET /api/upload/:id` - Download attachment
 - `DELETE /api/upload/:id` - Delete attachment
 
 ### AI Chat
+
 - `POST /api/chat` - Send message to AI assistant
 
 ### GitHub Integration
+
 - `GET /api/github/repos/:username` - List user repositories
-- `GET /api/github/readme/:owner/:repo` - Get repository README
+- `GET /api/github/repos/:owner/:repo/readme` - Get repository README
+- `GET /api/github/repos/:owner/:repo/structure` - Get repository tree
+- `GET /api/github/repos/:owner/:repo/file?path=...` - Read repository file
+- `POST /api/github/repos/:owner/:repo/import` - Import README as document
 
 ### Templates
+
 - `GET /api/templates` - List all templates (tenant-aware)
 - `GET /api/templates/:id` - Get template by ID
+
+### Assistant / Centralize (`/api/assistant`)
+
+- `GET /api/assistant/conversations` - List recent tenant/user conversations
+- `POST /api/assistant/query` - Ask question with audience level (`BEGINNER|PRACTITIONER|EXPERT`)
+- `GET /api/assistant/traces` - List latest Q&A traces with citations
+
+### Automation / Automate (`/api/automation`)
+
+- `GET /api/automation/connectors` / `POST /api/automation/connectors`
+- `PATCH /api/automation/connectors/:id` - Toggle tenant connector (`isActive`)
+- `GET /api/automation/jobs` / `POST /api/automation/jobs`
+- `GET /api/automation/jobs/:id`
+- `POST /api/automation/jobs/:id/retry|cancel|approve`
+- `GET /api/automation/suggestions`
+- `PATCH /api/automation/suggestions/:id`
+
+### Knowledge (`/api/knowledge`)
+
+- `GET /api/knowledge?documentId=...` - List knowledge nodes
+- `POST /api/knowledge` - Create knowledge node
+- `PATCH /api/knowledge/:id` - Update knowledge node
+- `DELETE /api/knowledge/:id` - Delete knowledge node
+
+### Compliance / Comply (`/api/compliance`)
+
+- `GET|POST /api/compliance/schemas`
+- `GET|POST /api/compliance/annotations`
+- `GET|POST /api/compliance/trace-links`
+- `GET /api/compliance/quality/findings`
+- `PATCH /api/compliance/quality/findings/:id` (`RESOLVE|REOPEN`)
+- `POST /api/compliance/quality/check`
+- `GET|POST /api/compliance/reviews`
+- `PATCH /api/compliance/reviews/:id`
+
+### Search + Analytics
+
+- `GET /api/search?q=...&type=documents|knowledge&limit=...`
+- `GET /api/analytics`
+
+> **Tenant scope note:** `/api/assistant`, `/api/automation`, `/api/compliance`, `/api/knowledge`, `/api/search`, and `/api/analytics` run behind auth + tenant middleware. Send `X-Tenant-ID` in frontend and API clients when targeting tenant data.
+
+## ⚙️ Workflow Snapshot (Automate → Centralize → Comply)
+
+1. **Automate:** create connector → create generation job → inspect findings/suggestions → retry/cancel/approve as needed.
+2. **Centralize:** capture knowledge nodes (linked or orphan) and query assistant responses with citations.
+3. **Comply:** add annotations/trace links → run quality checks → assign review requests and track status changes.
 
 ---
 
 ## 🎨 Screenshots
 
 ### Dashboard
+
 ![Dashboard](docs/screenshots/dashboard.png)
 
 ### Document Editor
+
 ![Editor](docs/screenshots/editor.png)
 
 ### AI Chat
+
 ![Chat](docs/screenshots/chat.png)
 
 ### File Upload
+
 ![Upload](docs/screenshots/upload.png)
 
 ---
@@ -226,12 +301,14 @@ it-doku/
 ## 🚀 Deployment
 
 ### Backend (Railway/Heroku)
+
 1. Push code to GitHub
 2. Connect repository to Railway/Heroku
 3. Set environment variables
 4. Deploy!
 
 ### Frontend (Vercel/Netlify)
+
 1. Push code to GitHub
 2. Connect repository to Vercel/Netlify
 3. Build command: `npm run build`
@@ -261,6 +338,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 👨‍💻 Author
 
 **Driss Chaouat**
+
 - GitHub: [@dch1985](https://github.com/dch1985)
 - Role: IT Consultant - Microsoft 365 Cloud Services
 
@@ -277,9 +355,36 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📚 Documentation
 
-### Implementation Guides
-- [Phase 1 & 2: Authentication & Multi-Tenancy](docs/PHASE_1_2_IMPLEMENTATION.md)
+### Automation Queue & Worker
+
+```bash
+# Process a single job manually (jobId from /api/automation/jobs)
+cd backend
+npm run automation:job -- <jobId>
+
+# Long-running worker process
+npm run automation:worker
+```
+
+Queue execution modes:
+
+| Mode                         | Required env flags                                                 | Behavior                                                           |
+| ---------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| Synchronous local processing | `AUTOMATION_RUN_IMMEDIATE=true`                                    | Job is processed directly in API process after creation/retry.     |
+| Queue autorun                | `AUTOMATION_QUEUE_AUTORUN=true`                                    | Job is published and processed via queue abstraction.              |
+| Manual/worker driven         | `AUTOMATION_RUN_IMMEDIATE=false`, `AUTOMATION_QUEUE_AUTORUN=false` | Jobs remain `PENDING` until processed by worker or manual command. |
+
+> ⚠️ With `AUTOMATION_QUEUE_PROVIDER=memory`, queue messages are process-local. For cross-process queueing, use `servicebus` and configure `AZURE_SERVICE_BUS_CONNECTION_STRING` + `AZURE_SERVICE_BUS_QUEUE_NAME`.
+
+### Operations & Runbooks
+
+- [Deployment Guide](docs/DEPLOYMENT.md)
 - [Troubleshooting Guide](docs/TROUBLESHOOTING.md)
+- [AI Transformation Roadmap](docs/AI_TRANSFORMATION_ROADMAP.md)
+
+### Feature/Implementation Guides
+
+- [Phase 1 & 2: Authentication & Multi-Tenancy](docs/PHASE_1_2_IMPLEMENTATION.md)
 - [Gap Analysis](docs/GAP_ANALYSIS.md)
 
 ## 📧 Support
@@ -289,16 +394,3 @@ For support, email driss.chaouat@example.com or open an issue on GitHub.
 ---
 
 <p align="center">Made with ❤️ by Driss Chaouat</p>
-
-### Automation Queue & Worker
-
-```bash
-# Einzelnen Job manuell ausführen (Job-ID siehe /api/automation/jobs)
-cd backend
-npm run automation:job -- <jobId>
-
-# Länger laufender Worker (Platzhalter für zukünftigen Queue-Provider)
-npm run automation:worker
-```
-
-> Tipp: Für lokale Tests `AUTOMATION_RUN_IMMEDIATE=true` setzen. In produktiven Setups kann stattdessen eine echte Queue (z. B. Azure Service Bus mit `AUTOMATION_QUEUE_PROVIDER=servicebus`) angeschlossen werden.
