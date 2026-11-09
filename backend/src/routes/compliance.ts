@@ -21,6 +21,37 @@ type UpdateReviewBody = {
   comments?: string | null;
 };
 
+function hasOwnField(value: object | null | undefined, key: string): boolean {
+  return value != null && Object.prototype.hasOwnProperty.call(value, key);
+}
+
+export function mapFindingUpdateBody(body: UpdateFindingBody | null | undefined) {
+  const action = typeof body?.action === 'string' ? body.action.toUpperCase() : undefined;
+  const hasResolution = hasOwnField(body ?? null, 'resolution');
+
+  return {
+    action: action as 'RESOLVE' | 'REOPEN' | undefined,
+    resolution: hasResolution
+      ? typeof body?.resolution === 'string'
+        ? body.resolution
+        : body?.resolution ?? null
+      : undefined,
+  };
+}
+
+export function mapReviewUpdateBody(body: UpdateReviewBody | null | undefined) {
+  const status =
+    typeof body?.status === 'string' && body.status.trim().length > 0
+      ? body.status.toUpperCase()
+      : undefined;
+  const hasComments = hasOwnField(body ?? null, 'comments');
+
+  return {
+    status,
+    comments: hasComments ? body?.comments ?? null : undefined,
+  };
+}
+
 const router = Router();
 const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
 
@@ -172,16 +203,15 @@ router.get('/quality/findings', async (req: Request, res: Response) => {
 
 router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
   try {
-    const body = req.body as UpdateFindingBody;
-    const action = body?.action ? body.action.toUpperCase() : undefined;
+    const { action, resolution } = mapFindingUpdateBody(req.body as UpdateFindingBody);
 
     if (action && action !== 'RESOLVE' && action !== 'REOPEN') {
       throw new ApplicationError(`Ungültige Aktion: ${action}`, 400);
     }
 
     const finding = await complianceService.updateQualityFinding(req.params.id, {
-      action: action as 'RESOLVE' | 'REOPEN' | undefined,
-      resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
+      action,
+      resolution,
     });
 
     res.json(finding);
@@ -264,12 +294,11 @@ router.post('/reviews', async (req: Request, res: Response) => {
 
 router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
-    const body = req.body as UpdateReviewBody;
-    const status = body?.status ? String(body.status).toUpperCase() : undefined;
+    const { status, comments } = mapReviewUpdateBody(req.body as UpdateReviewBody);
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
       status: status as any,
-      comments: body?.comments ?? null,
+      comments,
       tenantId: req.tenant?.id ?? null,
     });
 
