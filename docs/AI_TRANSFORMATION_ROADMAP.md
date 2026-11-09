@@ -1,35 +1,62 @@
 # AI Transformation Roadmap
 
+## Current implementation snapshot (Nov 2026)
+
+### Implemented
+
+- **Automate**
+  - Connector CRUD/listing and tenant-safe connector activation toggles.
+  - Generation job lifecycle controls (`retry`, `cancel`, `approve`) and suggestion updates.
+  - Queue abstraction with `memory` and `servicebus` provider support in `automation.queue.ts`.
+- **Centralize**
+  - Knowledge node CRUD (`/api/knowledge`) including document linkage and tenant metadata handling.
+  - Assistant answers with source citations from documents + knowledge nodes.
+  - Global search for documents and knowledge entities (`/api/search`).
+- **Comply**
+  - Template schema management, annotations, trace links, quality checks, and review workflow APIs.
+  - Review status transitions (`PENDING`, `APPROVED`, `REJECTED`, `CHANGES_REQUESTED`).
+- **Analytics**
+  - Unified `/api/analytics` metrics for Automate/Centralize/Comply with connector health signals.
+
+### Known constraints
+
+- `AUTOMATION_QUEUE_PROVIDER=memory` is process-local and non-durable.
+- Tenant-filtered global search does not reliably return orphan knowledge nodes.
+- Quality checks are heuristic text checks (not yet standards-engine validation).
+
+---
+
 ## Automatisierung & Queue-Integration
-- **Kurzfristig:**
-  - Setze `AUTOMATION_RUN_IMMEDIATE=true`, um Jobs im lokalen Speicher synchron zu verarbeiten.
-  - Alternativ `AUTOMATION_QUEUE_AUTORUN=true` aktivieren, damit die In-Memory-Queue automatisch `processJob` aufruft.
-  - Einzelne Jobs per CLI ausführen: `npm run automation:job -- <jobId>` (oder Worker mit `npm run automation:worker`).
-- **Mittelfristig:**
-  - Hinterlege `AUTOMATION_QUEUE_PROVIDER=servicebus` (Platzhalter) und ergänze `AZURE_SERVICE_BUS_CONNECTION_STRING` + `AZURE_SERVICE_BUS_QUEUE_NAME`.
-  - Ersetze `automation.lib.queue.ts` durch einen Azure Service Bus Client und publiziere `GenerationJobMessage`s in die Queue.
-  - Implementiere einen Worker (z. B. `automation.worker.ts`), der Nachrichten konsumiert und `automationService.processJob` ausführt.
-- **Langfristig:**
-  - Asynchrones Status-Update via WebSocket/SignalR ergänzen.
-  - SLA-Monitoring und Retry-Policies (Dead Letter Queue) einführen.
-  - MPC-/Agenten-Orchestrierung prüfen, um End-to-End-Automationen ohne manuelle Trigger auszulösen.
+
+- **Kurzfristig**
+  - Für lokale Entwicklung `AUTOMATION_RUN_IMMEDIATE=true` nutzen.
+  - Für produktive Queue-Pfade `AUTOMATION_QUEUE_PROVIDER=servicebus` mit
+    `AZURE_SERVICE_BUS_CONNECTION_STRING` + `AZURE_SERVICE_BUS_QUEUE_NAME`.
+  - Worker-Betrieb regelmäßig prüfen (`npm run automation:worker`).
+- **Mittelfristig**
+  - Retry-/Backoff-Strategien und DLQ-Monitoring ergänzen.
+  - Job-Status-Events für UI (Polling reduzieren).
+- **Langfristig**
+  - End-to-end orchestration (event-driven pipelines, policy-gated approvals).
 
 ## Assistant / RAG
-- **Kurzfristig:**
-  - Hinterlege `AZURE_OPENAI_*` Variablen und tausche `generateDocumentDraft` / `assistantService.buildAssistantResponse` gegen echte Azure OpenAI Aufrufe.
-  - Verfeinere die Suche nach relevanten Dokumenten mit Vektoren (`KnowledgeNode.embedding`).
-- **Mittelfristig:**
-  - Implementiere Chunking & Embedding-Pipeline; speichere Embeddings in `KnowledgeNode`.
-  - Ergänze `citations` um genaue Abschnitts-IDs / Pfade für Traceability.
-- **Langfristig:**
-  - Feedback-Loop etablieren (QualityFindings ↔ Assistant Ranking).
-  - Differential Privacy & Zugriffskontrollen für RAG-Kontext sicherstellen.
+
+- **Kurzfristig**
+  - Retrieval-Relevanz (Ranking/weighting) über einfache `contains`-Suche hinaus verbessern.
+  - Citation-Qualität erhöhen (z. B. Abschnittsreferenzen).
+- **Mittelfristig**
+  - Embedding-Pipeline für `KnowledgeNode.embedding` operationalisieren.
+  - Feedback-Loop zwischen Quality Findings und Assistant-Antwortqualität etablieren.
+- **Langfristig**
+  - Mandantenübergreifende Datenschutz-Grenzen und Zugriffskontrollen weiter härten.
 
 ## Compliance Quality Layer
-- **Kurzfristig:**
-  - `POST /api/compliance/quality/check` in CI/CD integrieren, um Dokumente vor Releases zu prüfen.
-- **Mittelfristig:**
-  - Regelwerk aus `TemplateSchema` ableiten und dynamisch anwenden.
-  - Findings automatisch in Review-Workflow überführen.
-- **Langfristig:**
-  - Metriken in Analytics Dashboard anzeigen (z. B. Findings pro Kategorie, MTTR für Resolves).
+
+- **Kurzfristig**
+  - `POST /api/compliance/quality/check` in CI/CD-Gates integrieren.
+  - Review-Workflows als verbindliche Release-Prüfung nutzen.
+- **Mittelfristig**
+  - Regelwerk aus `TemplateSchema` direkt auf Dokument-Inhalte anwenden.
+  - Findings automatisch in strukturierte Maßnahmenpläne überführen.
+- **Langfristig**
+  - Audit-ready metrics (MTTR, Review SLA, Trace coverage) mit Zielwerten steuern.

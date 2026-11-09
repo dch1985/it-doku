@@ -1,126 +1,214 @@
 # Troubleshooting Guide
 
-## Problem: "Failed to load documents"
+This guide focuses on issues in the current Automate / Centralize / Comply
+workflows and their backend integrations.
 
-### Ursache: Azure SQL Server Firewall blockiert Verbindung
+## 1) Frontend cannot reach backend
 
-**Fehlermeldung:**
+### Symptoms
+
+- `Failed to fetch` in multiple pages
+- Tenant selector loads, but Automate/Centralize/Comply fail
+
+### Root cause
+
+Mixed local defaults exist in frontend code (`3001` and `3002`) when
+`VITE_API_URL` is missing.
+
+### Fix
+
+Set an explicit API URL in `frontend/.env`:
+
+```env
+VITE_API_URL=http://localhost:3002/api
 ```
-Cannot open server 'itdokusql1969' requested by the login. 
-Client with IP address '87.169.155.196' is not allowed to access the server.
+
+Then restart frontend dev server.
+
+---
+
+## 2) "Tenant identifier required" / empty tenant-scoped results
+
+### Symptoms
+
+- `/api/automation`, `/api/knowledge`, `/api/compliance`, `/api/search`,
+  `/api/analytics`, or `/api/assistant` return auth/tenant errors.
+
+### Root cause
+
+These routes run behind auth + tenant middleware and require tenant context.
+
+### Fix
+
+- In frontend, select a tenant.
+- In API clients, send header:
+
+```http
+X-Tenant-ID: <tenantId>
+Authorization: Bearer <token>
 ```
 
-### Lösungen:
+---
 
-#### Option 1: Azure Portal - Firewall-Regel hinzufügen (Empfohlen)
+## 3) Automation jobs stay `PENDING`
 
-1. Gehe zu [Azure Portal](https://portal.azure.com)
-2. Navigiere zu deiner SQL Server Instanz (`itdokusql1969`)
-3. Gehe zu **Settings** → **Networking** oder **Firewalls and virtual networks**
-4. Klicke auf **Add client IPv4 address** oder **+ Add a firewall rule**
-5. Füge deine aktuelle IP-Adresse hinzu: `87.169.155.196`
-6. ODER aktiviere **Allow Azure services and resources to access this server** (wenn du von Azure aus zugreifst)
-7. Speichere die Änderungen (kann bis zu 5 Minuten dauern)
+### Symptoms
 
-**Alternative via Azure CLI:**
+- Jobs are created but never move to `RUNNING`/`COMPLETED`.
+
+### Root cause
+
+Execution mode flags are not aligned with deployment setup.
+
+### Fix
+
+Pick one mode:
+
+1. **Immediate mode (local/dev):**
+   - `AUTOMATION_RUN_IMMEDIATE=true`
+2. **Queue autorun:**
+   - `AUTOMATION_QUEUE_AUTORUN=true`
+3. **Manual/worker mode:**
+   - both flags `false`, then process jobs manually:
+     `npm run automation:job -- <jobId>` or run `npm run automation:worker`
+
+If using queue mode in production, prefer:
+
+```env
+AUTOMATION_QUEUE_PROVIDER=servicebus
+AZURE_SERVICE_BUS_CONNECTION_STRING=...
+AZURE_SERVICE_BUS_QUEUE_NAME=...
+```
+
+---
+
+## 4) Worker runs but no jobs are processed
+
+### Symptoms
+
+- Worker is running, but new jobs remain pending.
+
+### Root cause
+
+`AUTOMATION_QUEUE_PROVIDER=memory` is process-local and non-durable.
+Messages are not shared across different processes/instances.
+
+### Fix
+
+- Use `AUTOMATION_RUN_IMMEDIATE=true` for local single-process setups, or
+- Switch to `AUTOMATION_QUEUE_PROVIDER=servicebus` for cross-process processing.
+
+---
+
+## 5) "Connector konnte nicht aktualisiert werden"
+
+### Symptoms
+
+- Toggling connector active/inactive fails on Automate page.
+
+### Root cause
+
+Global connectors (`tenantId = null`) cannot be modified via tenant UI.
+
+### Fix
+
+- Only toggle tenant-owned connectors.
+- For global connectors, update through system-level administration.
+
+---
+
+## 6) Knowledge node appears in Centralize but not in global search
+
+### Symptoms
+
+- Node is visible in `/api/knowledge` but not in `/api/search?type=knowledge`.
+
+### Root cause
+
+Tenant-filtered search currently scopes knowledge via
+`knowledgeNode.document.tenantId`. Orphan nodes (without `documentId`) are not
+reliably discoverable in tenant-filtered search.
+
+### Workaround
+
+- Link important nodes to a tenant document, or
+- Search in Centralize knowledge management directly.
+
+---
+
+## 7) Review request creation fails
+
+### Symptoms
+
+- `POST /api/compliance/reviews` returns 400/403/404.
+
+### Common causes
+
+- `documentId` missing
+- `reviewerId` missing or invalid
+- Request user not authenticated
+- Document belongs to a different tenant
+
+### Fix
+
+- Ensure selected document + reviewer exist in same tenant scope.
+- Verify auth token and `X-Tenant-ID`.
+
+---
+
+## 8) Quality check does not return expected findings
+
+### Important behavior
+
+`POST /api/compliance/quality/check` evaluates plain text generated from
+document HTML and checks heuristics such as:
+
+- placeholder text (`lorem ipsum`, `dummy text`)
+- plaintext password patterns
+- missing review/freigabe wording
+- missing owner/verantwortlich wording
+
+If findings are missing, verify the stored document content (not just editor
+preview) and rerun the check.
+
+---
+
+## 9) Azure SQL firewall blocks backend
+
+### Symptoms
+
+Errors similar to:
+
+```txt
+Cannot open server '<server>' requested by the login.
+Client with IP address '<ip>' is not allowed to access the server.
+```
+
+### Fix
+
+1. Open Azure SQL Server networking settings.
+2. Add current client IP (or allow trusted Azure services where appropriate).
+3. Wait a few minutes for rule propagation.
+
+Quick health checks:
+
 ```bash
-az sql server firewall-rule create \
-  --resource-group <your-resource-group> \
-  --server itdokusql1969 \
-  --name MyIP \
-  --start-ip-address 87.169.155.196 \
-  --end-ip-address 87.169.155.196
+curl http://localhost:3002/api/health
 ```
 
-#### Option 2: Temporäre lokale Datenbank für Entwicklung
+---
 
-Falls du für die Entwicklung eine lokale Datenbank verwenden möchtest:
-
-1. Ändere `backend/prisma/schema.prisma`:
-```prisma
-datasource db {
-  provider = "sqlite"  // Statt "sqlserver"
-  url      = "file:./dev.db"
-}
-```
-
-2. Führe Migrationen aus:
-```bash
-cd backend
-npx prisma migrate dev --name init
-npx prisma generate
-```
-
-3. Erstelle einen Demo-User:
-```bash
-npx prisma studio
-# Oder via SQL:
-npx prisma db execute --stdin <<< "INSERT INTO users (id, email, name, role) VALUES ('demo-user-id', 'demo@local.dev', 'Demo User', 'ADMIN');"
-```
-
-#### Option 3: IP-Adresse dynamisch hinzufügen (PowerShell Script)
-
-Erstelle ein Script, das deine aktuelle IP-Adresse automatisch hinzufügt:
-
-```powershell
-# Get current IP
-$currentIP = (Invoke-WebRequest -Uri "https://api.ipify.org" -UseBasicParsing).Content
-
-# Add to Azure SQL Firewall via Azure CLI
-az sql server firewall-rule create \
-  --resource-group <your-resource-group> \
-  --server itdokusql1969 \
-  --name "DevIP-$(Get-Date -Format 'yyyyMMdd')" \
-  --start-ip-address $currentIP \
-  --end-ip-address $currentIP
-```
-
-### Prüfung ob Problem behoben ist:
+## 10) Quick diagnostic checklist
 
 ```bash
-# Test Backend API
-curl http://localhost:3001/api/health
+# Backend health
+curl -s http://localhost:3002/api/health
 
-# Test Documents Endpoint
-curl http://localhost:3001/api/documents
+# Tenant-aware analytics
+curl -s -H "Authorization: Bearer <token>" -H "X-Tenant-ID: <tenantId>" \
+  http://localhost:3002/api/analytics
+
+# Automation jobs
+curl -s -H "Authorization: Bearer <token>" -H "X-Tenant-ID: <tenantId>" \
+  http://localhost:3002/api/automation/jobs
 ```
-
-### Temporäre Workaround (wenn Firewall nicht geändert werden kann)
-
-Falls du die Firewall-Regel nicht sofort ändern kannst, implementiere eine Fallback-Lösung:
-
-```typescript
-// backend/src/routes/documents.ts
-router.get('/', async (req: Request, res: Response) => {
-  try {
-    const documents = await prisma.document.findMany({
-      orderBy: { updatedAt: 'desc' }
-    })
-    res.json(documents)
-  } catch (error: any) {
-    // Fallback: Return empty array if database is unavailable
-    if (error.code === 'P1001' || error.message.includes('firewall')) {
-      console.warn('[Documents] Database firewall issue - returning empty array')
-      return res.json([])
-    }
-    throw error
-  }
-})
-```
-
-## Weitere häufige Probleme
-
-### Backend läuft nicht
-- Prüfe ob Port 3001 frei ist: `netstat -ano | findstr :3001`
-- Starte Backend: `cd backend && npm run dev`
-
-### Frontend kann Backend nicht erreichen
-- Prüfe CORS-Einstellungen im Backend
-- Prüfe ob `VITE_API_URL` in `frontend/.env` korrekt gesetzt ist
-- Prüfe Browser-Konsole für CORS-Fehler
-
-### Datenbank-Fehler
-- Prüfe `DATABASE_URL` in `backend/.env`
-- Führe Prisma Migrationen aus: `npx prisma migrate dev`
-- Generiere Prisma Client: `npx prisma generate`
-
