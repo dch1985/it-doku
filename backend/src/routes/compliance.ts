@@ -4,6 +4,7 @@ import { devAuthenticate } from '../middleware/auth.dev.middleware.js';
 import { tenantMiddleware } from '../middleware/tenant.middleware.js';
 import { ApplicationError } from '../middleware/errorHandler.js';
 import { complianceService } from '../services/compliance.service.js';
+import { mapReviewUpdateBody } from './compliance.route-mappers.js';
 
 type UpdateFindingBody = {
   resolution?: string | null;
@@ -265,13 +266,10 @@ router.post('/reviews', async (req: Request, res: Response) => {
 router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateReviewBody;
-    const status = body?.status ? String(body.status).toUpperCase() : undefined;
-
-    const review = await complianceService.updateReviewRequest(req.params.id, {
-      status: status as any,
-      comments: body?.comments ?? null,
-      tenantId: req.tenant?.id ?? null,
-    });
+    const review = await complianceService.updateReviewRequest(
+      req.params.id,
+      mapReviewUpdateBody(body, req.tenant?.id ?? null),
+    );
 
     res.json(review);
   } catch (error: any) {
