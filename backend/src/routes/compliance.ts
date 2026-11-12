@@ -174,14 +174,27 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateFindingBody;
     const action = body?.action ? body.action.toUpperCase() : undefined;
+    const hasResolution = body ? Object.prototype.hasOwnProperty.call(body, 'resolution') : false;
 
     if (action && action !== 'RESOLVE' && action !== 'REOPEN') {
       throw new ApplicationError(`Ungültige Aktion: ${action}`, 400);
     }
 
+    if (hasResolution && body.resolution !== null && typeof body.resolution !== 'string') {
+      throw new ApplicationError('resolution muss ein String oder null sein', 400);
+    }
+
+    const findingChanges: UpdateFindingBody = {};
+    if (action) {
+      findingChanges.action = action as 'RESOLVE' | 'REOPEN';
+    }
+    if (hasResolution) {
+      findingChanges.resolution = body.resolution ?? null;
+    }
+
     const finding = await complianceService.updateQualityFinding(req.params.id, {
-      action: action as 'RESOLVE' | 'REOPEN' | undefined,
-      resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
+      action: findingChanges.action,
+      resolution: findingChanges.resolution,
     });
 
     res.json(finding);
@@ -266,10 +279,23 @@ router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateReviewBody;
     const status = body?.status ? String(body.status).toUpperCase() : undefined;
+    const hasComments = body ? Object.prototype.hasOwnProperty.call(body, 'comments') : false;
+
+    if (hasComments && body.comments !== null && typeof body.comments !== 'string') {
+      throw new ApplicationError('comments muss ein String oder null sein', 400);
+    }
+
+    const reviewChanges: UpdateReviewBody = {};
+    if (status) {
+      reviewChanges.status = status;
+    }
+    if (hasComments) {
+      reviewChanges.comments = body.comments ?? null;
+    }
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
-      status: status as any,
-      comments: body?.comments ?? null,
+      status: reviewChanges.status as any,
+      comments: reviewChanges.comments,
       tenantId: req.tenant?.id ?? null,
     });
 
