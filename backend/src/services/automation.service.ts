@@ -415,6 +415,8 @@ if (AUTO_RUN_ON_PUBLISH) {
       await automationService.processJob(jobId);
     } catch (error) {
       console.error('[AutomationService] Failed to process queued job', jobId, error);
+      // Keep the failure visible to the queue transport so failed messages can be retried/dead-lettered.
+      throw error;
     }
   });
 }

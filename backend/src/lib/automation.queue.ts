@@ -39,12 +39,9 @@ async function sendViaServiceBus(message: GenerationJobMessage) {
 function subscribeViaServiceBus(handler: (message: GenerationJobMessage) => Promise<void> | void) {
   serviceBusReceiver!.subscribe({
     async processMessage(message) {
-      try {
-        const body = message.body as GenerationJobMessage;
-        await handler(body);
-      } catch (error) {
-        console.error('[AutomationQueue] Fehler beim Verarbeiten einer Service Bus Nachricht', error);
-      }
+      const body = message.body as GenerationJobMessage;
+      // Do not swallow handler errors: Service Bus retries/dead-letters only when processing fails.
+      await handler(body);
     },
     async processError(args) {
       console.error('[AutomationQueue] Service Bus Fehler', args.error);
