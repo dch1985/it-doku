@@ -27,6 +27,8 @@ async function processSingleJob(jobId: string) {
         console.info('[AutomationWorker] Job finished', message.jobId);
       } catch (error: any) {
         console.error('[AutomationWorker] Job failed', message.jobId, error?.message ?? error);
+        // Re-throw so Service Bus can abandon/retry instead of auto-completing a failed message.
+        throw error;
       }
     });
     console.info('[AutomationWorker] Listener active (provider:', process.env.AUTOMATION_QUEUE_PROVIDER ?? 'memory', ')');
