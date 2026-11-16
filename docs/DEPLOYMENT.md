@@ -52,6 +52,55 @@ VITE_AZURE_TENANT_ID=your-tenant-id
 
 ---
 
+## Automation Processing Modes
+
+Automation behavior is controlled by these backend variables:
+
+- `AUTOMATION_RUN_IMMEDIATE`
+- `AUTOMATION_QUEUE_AUTORUN`
+- `AUTOMATION_QUEUE_PROVIDER`
+
+### Mode A: Immediate (synchronous)
+
+```env
+AUTOMATION_RUN_IMMEDIATE=true
+AUTOMATION_QUEUE_AUTORUN=false
+AUTOMATION_QUEUE_PROVIDER=memory
+```
+
+- Jobs are processed directly during API calls (`POST /api/automation/jobs`, retry).
+- No dedicated worker required.
+
+### Mode B: In-process queue consumer
+
+```env
+AUTOMATION_RUN_IMMEDIATE=false
+AUTOMATION_QUEUE_AUTORUN=true
+AUTOMATION_QUEUE_PROVIDER=memory
+```
+
+- API publishes queue messages.
+- Backend process consumes queue messages internally.
+
+### Mode C: External queue + worker
+
+```env
+AUTOMATION_RUN_IMMEDIATE=false
+AUTOMATION_QUEUE_AUTORUN=false
+AUTOMATION_QUEUE_PROVIDER=servicebus
+AZURE_SERVICE_BUS_CONNECTION_STRING=<connection-string>
+AZURE_SERVICE_BUS_QUEUE_NAME=<queue-name>
+```
+
+Use dedicated worker runtime:
+
+```bash
+cd backend
+npm run automation:worker
+```
+
+---
+
 ## Azure Deployment
 
 ### Backend (Azure App Service)
@@ -93,4 +142,9 @@ npx prisma generate
 4. Monitor error logs
 5. Set up Application Insights (optional)
 6. (Optional) Automationsjobs testen: `npm run automation:job -- <jobId>` oder Worker starten (`npm run automation:worker`).
+7. Verify tenant-scoped endpoints with headers (`X-Tenant-ID` or `X-Tenant-Slug`) for:
+   - `/api/automation/*`
+   - `/api/compliance/*`
+   - `/api/knowledge/*`
+   - `/api/assistant/*`
 
