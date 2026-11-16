@@ -124,3 +124,65 @@ router.get('/', async (req: Request, res: Response) => {
 - Führe Prisma Migrationen aus: `npx prisma migrate dev`
 - Generiere Prisma Client: `npx prisma generate`
 
+---
+
+## Automate / Comply / Centralize: Häufige Probleme
+
+### Problem: Automations-Jobs bleiben dauerhaft auf `PENDING`
+
+**Typische Ursache:** Kein aktiver Verarbeitungsmodus.
+
+Prüfe in `backend/.env`:
+
+```env
+AUTOMATION_RUN_IMMEDIATE=true
+AUTOMATION_QUEUE_AUTORUN=false
+AUTOMATION_QUEUE_PROVIDER=memory
+```
+
+Alternativ Queue-basiert:
+
+- `AUTOMATION_QUEUE_AUTORUN=true` für In-Process-Verarbeitung, oder
+- Worker starten: `cd backend && npm run automation:worker`
+
+Wenn die Konfiguration korrigiert ist, Job neu anstoßen:
+
+```bash
+curl -X POST http://localhost:3001/api/automation/jobs/<jobId>/retry \
+  -H "Authorization: Bearer <token>" \
+  -H "X-Tenant-ID: <tenant-id>"
+```
+
+### Problem: `403` beim Connector-Toggle
+
+**Typische Ursache:** Der Connector ist global (`tenantId = null`) oder gehört zu einem anderen Tenant.
+
+- Endpoint: `PATCH /api/automation/connectors/:id`
+- Nur tenant-eigene Connectoren lassen sich per API aktivieren/deaktivieren.
+
+### Problem: Compliance-Quality-Check liefert „unerwartet neue“ Findings
+
+`POST /api/compliance/quality/check` ersetzt bestehende manuelle Findings (`generationJobId = null`) für das Dokument.  
+Das Verhalten ist im Service absichtlich so implementiert.
+
+### Problem: Knowledge Nodes sind nicht sichtbar
+
+Für Nodes ohne `documentId` wird die Tenant-Zuordnung über `metadata.tenantId` aufgelöst.
+
+- Falsches Tenant-Header-Setup (`X-Tenant-ID` / `X-Tenant-Slug`) blendet Nodes aus.
+- Bei Update/Delete kann stattdessen ein `403 Zugriff verweigert` zurückkommen.
+
+### Problem: Review-Status-Update schlägt mit `400` fehl
+
+Erlaubte Statuswerte für `PATCH /api/compliance/reviews/:id`:
+
+- `PENDING`
+- `APPROVED`
+- `REJECTED`
+- `CHANGES_REQUESTED`
+
+---
+
+Für detaillierte Workflows, API-Referenz und Betriebsmodi:
+`docs/AUTOMATION_COMPLIANCE_KNOWLEDGE_RUNBOOK.md`
+

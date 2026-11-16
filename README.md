@@ -205,6 +205,38 @@ it-doku/
 - `GET /api/templates` - List all templates (tenant-aware)
 - `GET /api/templates/:id` - Get template by ID
 
+### Automation
+- `GET /api/automation/connectors` - List tenant + global source connectors
+- `POST /api/automation/connectors` - Create a source connector
+- `PATCH /api/automation/connectors/:id` - Enable/disable tenant-owned connector
+- `GET /api/automation/jobs` - List generation jobs (incl. suggestions/findings)
+- `POST /api/automation/jobs` - Create generation job
+- `POST /api/automation/jobs/:id/retry` - Retry failed/cancelled job
+- `POST /api/automation/jobs/:id/cancel` - Cancel pending/running job
+- `GET /api/automation/suggestions` - List update suggestions
+
+### Compliance
+- `GET /api/compliance/schemas` - List template schemas
+- `POST /api/compliance/schemas` - Create schema baseline
+- `GET /api/compliance/annotations` - List compliance annotations
+- `POST /api/compliance/annotations` - Create annotation
+- `GET /api/compliance/trace-links` - List trace links
+- `POST /api/compliance/trace-links` - Create trace link
+- `GET /api/compliance/quality/findings` - List quality findings
+- `POST /api/compliance/quality/check` - Run quality checks for a document
+- `GET /api/compliance/reviews` - List review requests
+- `POST /api/compliance/reviews` - Create review request
+
+### Knowledge & Assistant
+- `GET /api/knowledge` - List knowledge nodes
+- `POST /api/knowledge` - Create knowledge node
+- `PATCH /api/knowledge/:id` - Update knowledge node
+- `DELETE /api/knowledge/:id` - Delete knowledge node
+- `POST /api/assistant/query` - Ask assistant (returns document/knowledge citations)
+- `GET /api/assistant/traces` - List persisted answer traces
+
+> **Tenant note:** Automation, Compliance, Knowledge and Assistant endpoints are tenant-scoped. Use `X-Tenant-ID` or `X-Tenant-Slug`.
+
 ---
 
 ## 🎨 Screenshots
@@ -279,6 +311,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ### Implementation Guides
 - [Phase 1 & 2: Authentication & Multi-Tenancy](docs/PHASE_1_2_IMPLEMENTATION.md)
+- [Automation, Compliance & Knowledge Runbook](docs/AUTOMATION_COMPLIANCE_KNOWLEDGE_RUNBOOK.md)
 - [Troubleshooting Guide](docs/TROUBLESHOOTING.md)
 - [Gap Analysis](docs/GAP_ANALYSIS.md)
 
@@ -302,3 +335,5 @@ npm run automation:worker
 ```
 
 > Tipp: Für lokale Tests `AUTOMATION_RUN_IMMEDIATE=true` setzen. In produktiven Setups kann stattdessen eine echte Queue (z. B. Azure Service Bus mit `AUTOMATION_QUEUE_PROVIDER=servicebus`) angeschlossen werden.
+
+> Mehr Details zu Betriebsmodi, API-Constraints und End-to-End-Workflows: `docs/AUTOMATION_COMPLIANCE_KNOWLEDGE_RUNBOOK.md`.
