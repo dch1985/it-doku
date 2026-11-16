@@ -148,7 +148,7 @@ Alternativ Queue-basiert:
 Wenn die Konfiguration korrigiert ist, Job neu anstoßen:
 
 ```bash
-curl -X POST http://localhost:3001/api/automation/jobs/<jobId>/retry \
+curl -X POST <backend-base-url>/api/automation/jobs/<jobId>/retry \
   -H "Authorization: Bearer <token>" \
   -H "X-Tenant-ID: <tenant-id>"
 ```
