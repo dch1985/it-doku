@@ -271,6 +271,7 @@ router.patch('/reviews/:id', async (req: Request, res: Response) => {
       status: status as any,
       comments: body?.comments ?? null,
       tenantId: req.tenant?.id ?? null,
+      actorUserId: req.user?.id ?? null,
     });
 
     res.json(review);
