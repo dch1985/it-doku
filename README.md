@@ -120,7 +120,7 @@ npm run dev
 
 The application will be available at:
 - Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:3001`
+- Backend API: `http://localhost:3002`
 
 ---
 
@@ -199,11 +199,65 @@ it-doku/
 
 ### GitHub Integration
 - `GET /api/github/repos/:username` - List user repositories
-- `GET /api/github/readme/:owner/:repo` - Get repository README
+- `GET /api/github/repos/:owner/:repo/readme` - Get repository README
+- `GET /api/github/repos/:owner/:repo/structure?path=` - Get repository structure
+- `GET /api/github/repos/:owner/:repo/file?path=` - Get file content
+- `POST /api/github/repos/:owner/:repo/import` - Import README as document
+- `GET /api/github/search?q=` - Search code in GitHub
 
 ### Templates
 - `GET /api/templates` - List all templates (tenant-aware)
 - `GET /api/templates/:id` - Get template by ID
+
+### Analytics & Search
+- `GET /api/analytics` - KPI overview for Automate, Centralize, Comply
+- `GET /api/search?q=<term>&type=<documents|knowledge>` - Ranked global search (documents + knowledge nodes)
+
+### Automation (Automate)
+- `GET /api/automation/connectors` - List tenant + global connectors
+- `POST /api/automation/connectors` - Create tenant connector
+- `PATCH /api/automation/connectors/:id` - Activate/deactivate tenant connector
+- `GET /api/automation/jobs` - List jobs with findings and suggestions
+- `POST /api/automation/jobs` - Start generation job (`intent`, `documentId`, `connectorId`, `payload`)
+- `GET /api/automation/jobs/:id` - Job detail
+- `POST /api/automation/jobs/:id/retry` - Reset non-running job to `PENDING` (then re-process/re-queue depending on runtime mode)
+- `POST /api/automation/jobs/:id/cancel` - Cancel `PENDING`/`RUNNING` job
+- `POST /api/automation/jobs/:id/approve` - Mark job result as approved
+- `GET /api/automation/suggestions` - List update suggestions
+- `PATCH /api/automation/suggestions/:id` - Update suggestion status (`OPEN`, `APPLIED`, `DISMISSED`)
+
+### Knowledge Nodes (Centralize)
+- `GET /api/knowledge` - List knowledge nodes (optional `documentId` filter)
+- `POST /api/knowledge` - Create node (`content`, `type`, optional metadata)
+- `PATCH /api/knowledge/:id` - Update node content/type/document link
+- `DELETE /api/knowledge/:id` - Delete node
+
+### Compliance (Comply)
+- `GET /api/compliance/schemas` / `POST /api/compliance/schemas` - Template schema management
+- `GET /api/compliance/annotations` / `POST /api/compliance/annotations` - Requirement annotations
+- `GET /api/compliance/trace-links` / `POST /api/compliance/trace-links` - Traceability links
+- `GET /api/compliance/quality/findings` - List quality findings
+- `PATCH /api/compliance/quality/findings/:id` - Resolve/reopen finding
+- `POST /api/compliance/quality/check` - Run quality checks for one document
+- `GET /api/compliance/reviews` / `POST /api/compliance/reviews` - Review workflow
+- `PATCH /api/compliance/reviews/:id` - Update review status/comments
+
+### Workflow Cheat Sheet (Developer Runbook)
+1. **Automation lifecycle**
+   - Create connector -> create job -> monitor in `/api/automation/jobs`.
+   - Typical status path (with immediate mode or active queue worker): `PENDING -> RUNNING -> COMPLETED` (or `FAILED`/`CANCELLED`).
+   - `cancel` works only for `PENDING` or `RUNNING`.
+   - `retry` is rejected while the job is already `RUNNING`.
+2. **Knowledge coverage loop**
+   - Create/update nodes via `/api/knowledge`.
+   - Link nodes to `documentId` for better citations/search context.
+   - Validate discoverability with `/api/search?type=knowledge&q=<term>`.
+3. **Compliance loop**
+   - Run `POST /api/compliance/quality/check` after major content edits.
+   - Resolve findings with action `RESOLVE` or reopen with `REOPEN`.
+   - Start review via `POST /api/compliance/reviews` and transition statuses (`PENDING`, `APPROVED`, `CHANGES_REQUESTED`, `REJECTED`).
+
+> **Tenant context:** Most authenticated routes are tenant-aware and expect `X-Tenant-ID`. Missing/wrong tenant context results in empty data or authorization failures.
 
 ---
 
@@ -297,8 +351,12 @@ For support, email driss.chaouat@example.com or open an issue on GitHub.
 cd backend
 npm run automation:job -- <jobId>
 
-# Länger laufender Worker (Platzhalter für zukünftigen Queue-Provider)
+# Länger laufender Worker (nutzt den konfigurierten Queue-Provider)
 npm run automation:worker
 ```
 
-> Tipp: Für lokale Tests `AUTOMATION_RUN_IMMEDIATE=true` setzen. In produktiven Setups kann stattdessen eine echte Queue (z. B. Azure Service Bus mit `AUTOMATION_QUEUE_PROVIDER=servicebus`) angeschlossen werden.
+> Ausführungsmodi:
+> - `AUTOMATION_RUN_IMMEDIATE=true`: verarbeitet Jobs direkt bei Create/Retry.
+> - `AUTOMATION_QUEUE_AUTORUN=true`: publiziert Jobs an den Queue-Provider.
+> - `AUTOMATION_QUEUE_PROVIDER=servicebus`: benötigt `AZURE_SERVICE_BUS_CONNECTION_STRING` und `AZURE_SERVICE_BUS_QUEUE_NAME`.
+> - Sind beide Run-Modi deaktiviert, bleiben neue Jobs in `PENDING`, bis sie manuell verarbeitet werden.

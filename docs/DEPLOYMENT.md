@@ -42,6 +42,12 @@ AZURE_SERVICE_BUS_CONNECTION_STRING=
 AZURE_SERVICE_BUS_QUEUE_NAME=
 ```
 
+#### Automation runtime modes (important)
+- `AUTOMATION_RUN_IMMEDIATE=true`: jobs are processed immediately on create/retry in the API process.
+- `AUTOMATION_QUEUE_AUTORUN=true`: jobs are published to the configured queue provider.
+- `AUTOMATION_QUEUE_PROVIDER=servicebus`: requires both `AZURE_SERVICE_BUS_CONNECTION_STRING` and `AZURE_SERVICE_BUS_QUEUE_NAME`.
+- Prefer enabling **one execution strategy at a time** to avoid ambiguous operations behavior.
+
 ### Frontend Production
 
 ```env
@@ -92,5 +98,19 @@ npx prisma generate
 3. Test document CRUD operations
 4. Monitor error logs
 5. Set up Application Insights (optional)
-6. (Optional) Automationsjobs testen: `npm run automation:job -- <jobId>` oder Worker starten (`npm run automation:worker`).
+6. Verify analytics endpoint: `GET /api/analytics` returns `system`, `automation`, `centralize`, `comply`.
+7. Verify global search endpoint: `GET /api/search?q=<term>` returns `documents`, `knowledge`, `total`.
+8. Automation smoke test (Automate):
+   - Create connector
+   - Start generation job
+   - Validate job transitions (`PENDING -> RUNNING -> COMPLETED|FAILED|CANCELLED`) with immediate mode or active worker
+   - Test `retry` and `cancel` constraints
+9. Knowledge smoke test (Centralize):
+   - Create one node linked to a document and one orphan node
+   - Confirm node list and search visibility
+10. Compliance smoke test (Comply):
+    - Run `POST /api/compliance/quality/check` for one document
+    - Resolve/reopen a finding
+    - Create review request and update review status
+11. (Optional) Worker mode validation: run `npm run automation:worker` and process a queued job.
 
