@@ -120,7 +120,7 @@ npm run dev
 
 The application will be available at:
 - Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:3001`
+- Backend API: `http://localhost:3002`
 
 ---
 
@@ -199,7 +199,11 @@ it-doku/
 
 ### GitHub Integration
 - `GET /api/github/repos/:username` - List user repositories
-- `GET /api/github/readme/:owner/:repo` - Get repository README
+- `GET /api/github/repos/:owner/:repo/readme` - Get repository README
+- `GET /api/github/repos/:owner/:repo/structure?path=` - Get repository structure
+- `GET /api/github/repos/:owner/:repo/file?path=` - Get file content
+- `POST /api/github/repos/:owner/:repo/import` - Import README as document
+- `GET /api/github/search?q=` - Search code in GitHub
 
 ### Templates
 - `GET /api/templates` - List all templates (tenant-aware)

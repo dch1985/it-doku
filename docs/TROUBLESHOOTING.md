@@ -79,10 +79,10 @@ az sql server firewall-rule create \
 
 ```bash
 # Test Backend API
-curl http://localhost:3001/api/health
+curl http://localhost:3002/api/health
 
 # Test Documents Endpoint
-curl http://localhost:3001/api/documents
+curl http://localhost:3002/api/documents
 ```
 
 ### Temporäre Workaround (wenn Firewall nicht geändert werden kann)
@@ -111,7 +111,7 @@ router.get('/', async (req: Request, res: Response) => {
 ## Weitere häufige Probleme
 
 ### Backend läuft nicht
-- Prüfe ob Port 3001 frei ist: `netstat -ano | findstr :3001`
+- Prüfe ob Port 3002 frei ist: `netstat -ano | findstr :3002`
 - Starte Backend: `cd backend && npm run dev`
 
 ### Frontend kann Backend nicht erreichen
