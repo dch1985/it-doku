@@ -21,6 +21,30 @@ type UpdateReviewBody = {
   comments?: string | null;
 };
 
+export function getOptionalNullableStringField(
+  body: unknown,
+  fieldName: string,
+): string | null | undefined {
+  if (!body || typeof body !== 'object') {
+    return undefined;
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(body, fieldName)) {
+    return undefined;
+  }
+
+  const value = (body as Record<string, unknown>)[fieldName];
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value !== 'string') {
+    throw new ApplicationError(`${fieldName} muss ein String oder null sein`, 400);
+  }
+
+  return value;
+}
+
 const router = Router();
 const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
 
@@ -174,6 +198,7 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateFindingBody;
     const action = body?.action ? body.action.toUpperCase() : undefined;
+    const resolution = getOptionalNullableStringField(body, 'resolution');
 
     if (action && action !== 'RESOLVE' && action !== 'REOPEN') {
       throw new ApplicationError(`Ungültige Aktion: ${action}`, 400);
@@ -181,7 +206,7 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
 
     const finding = await complianceService.updateQualityFinding(req.params.id, {
       action: action as 'RESOLVE' | 'REOPEN' | undefined,
-      resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
+      resolution,
     });
 
     res.json(finding);
@@ -266,10 +291,11 @@ router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
     const body = req.body as UpdateReviewBody;
     const status = body?.status ? String(body.status).toUpperCase() : undefined;
+    const comments = getOptionalNullableStringField(body, 'comments');
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
       status: status as any,
-      comments: body?.comments ?? null,
+      comments,
       tenantId: req.tenant?.id ?? null,
     });
 
