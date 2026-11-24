@@ -5,21 +5,33 @@ import { tenantMiddleware } from '../middleware/tenant.middleware.js';
 import { ApplicationError } from '../middleware/errorHandler.js';
 import { complianceService } from '../services/compliance.service.js';
 
-type UpdateFindingBody = {
-  resolution?: string | null;
-  action?: 'RESOLVE' | 'REOPEN';
-};
-
 type CreateReviewBody = {
   documentId: string;
   reviewerId: string;
   comments?: string | null;
 };
 
-type UpdateReviewBody = {
-  status?: string;
-  comments?: string | null;
-};
+type JsonObject = Record<string, unknown>;
+
+export function getOptionalNullableStringField(
+  body: JsonObject | null | undefined,
+  field: string,
+): string | null | undefined {
+  if (!body || !Object.prototype.hasOwnProperty.call(body, field)) {
+    return undefined;
+  }
+
+  const value = body[field];
+  if (value === null) {
+    return null;
+  }
+
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  throw new ApplicationError(`${field} muss ein String oder null sein`, 400);
+}
 
 const router = Router();
 const isDevMode = process.env.NODE_ENV === 'development' || process.env.DEV_AUTH_ENABLED === 'true';
@@ -172,8 +184,14 @@ router.get('/quality/findings', async (req: Request, res: Response) => {
 
 router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
   try {
-    const body = req.body as UpdateFindingBody;
-    const action = body?.action ? body.action.toUpperCase() : undefined;
+    const body = (req.body ?? {}) as JsonObject;
+    const resolution = getOptionalNullableStringField(body, 'resolution');
+    const actionValue = body.action;
+    if (actionValue !== undefined && typeof actionValue !== 'string') {
+      throw new ApplicationError('action muss ein String sein', 400);
+    }
+
+    const action = actionValue ? actionValue.toUpperCase() : undefined;
 
     if (action && action !== 'RESOLVE' && action !== 'REOPEN') {
       throw new ApplicationError(`Ungültige Aktion: ${action}`, 400);
@@ -181,7 +199,7 @@ router.patch('/quality/findings/:id', async (req: Request, res: Response) => {
 
     const finding = await complianceService.updateQualityFinding(req.params.id, {
       action: action as 'RESOLVE' | 'REOPEN' | undefined,
-      resolution: typeof body?.resolution === 'string' ? body.resolution : body?.resolution ?? null,
+      resolution,
     });
 
     res.json(finding);
@@ -264,12 +282,18 @@ router.post('/reviews', async (req: Request, res: Response) => {
 
 router.patch('/reviews/:id', async (req: Request, res: Response) => {
   try {
-    const body = req.body as UpdateReviewBody;
-    const status = body?.status ? String(body.status).toUpperCase() : undefined;
+    const body = (req.body ?? {}) as JsonObject;
+    const comments = getOptionalNullableStringField(body, 'comments');
+    const statusValue = body.status;
+    if (statusValue !== undefined && typeof statusValue !== 'string') {
+      throw new ApplicationError('status muss ein String sein', 400);
+    }
+
+    const status = statusValue ? statusValue.toUpperCase() : undefined;
 
     const review = await complianceService.updateReviewRequest(req.params.id, {
       status: status as any,
-      comments: body?.comments ?? null,
+      comments,
       tenantId: req.tenant?.id ?? null,
     });
 
