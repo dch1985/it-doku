@@ -144,16 +144,51 @@ export const complianceService = {
     });
   },
 
-  listQualityFindings(documentId?: string) {
+  listQualityFindings(tenantId?: string | null, documentId?: string) {
     return prisma.qualityFinding.findMany({
       where: {
         ...(documentId ? { documentId } : {}),
+        ...(tenantId
+          ? {
+              OR: [
+                { document: { tenantId } },
+                { generationJob: { tenantId } },
+              ],
+            }
+          : {}),
       },
       orderBy: { createdAt: 'desc' },
     });
   },
 
-  async updateQualityFinding(id: string, changes: QualityFindingUpdatePayload) {
+  async updateQualityFinding(
+    id: string,
+    changes: QualityFindingUpdatePayload,
+    tenantId?: string | null,
+  ) {
+    const finding = await prisma.qualityFinding.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        document: { select: { tenantId: true } },
+        generationJob: { select: { tenantId: true } },
+      },
+    });
+
+    if (!finding) {
+      throw new ApplicationError('Quality Finding wurde nicht gefunden', 404);
+    }
+
+    if (tenantId) {
+      const belongsToTenant =
+        finding.document?.tenantId === tenantId ||
+        finding.generationJob?.tenantId === tenantId;
+
+      if (!belongsToTenant) {
+        throw new ApplicationError('Zugriff auf dieses Quality Finding ist nicht erlaubt', 403);
+      }
+    }
+
     const payload = changes ?? {};
     const data: Record<string, unknown> = {};
 
