@@ -343,17 +343,26 @@ export const automationService = {
       throw new Error(`GenerationJob ${jobId} nicht gefunden`);
     }
 
-    if (job.status === 'COMPLETED') {
+    if (['COMPLETED', 'CANCELLED'].includes(job.status)) {
       return this.getJobWithDetails(jobId);
     }
 
-    await prisma.generationJob.update({
-      where: { id: jobId },
+    const claimed = await prisma.generationJob.updateMany({
+      where: {
+        id: jobId,
+        status: {
+          in: ['PENDING', 'FAILED'],
+        },
+      },
       data: {
         status: 'RUNNING',
         error: null,
       },
     });
+
+    if (claimed.count === 0) {
+      return this.getJobWithDetails(jobId);
+    }
 
     try {
       const context = await buildGenerationContext(jobId);
@@ -365,6 +374,14 @@ export const automationService = {
       });
 
       const findings = buildQualityFindings(draft);
+      const latestState = await prisma.generationJob.findUnique({
+        where: { id: jobId },
+        select: { status: true },
+      });
+
+      if (latestState?.status === 'CANCELLED') {
+        return this.getJobWithDetails(jobId);
+      }
 
       const operations = [
         prisma.generationJob.update({
@@ -397,8 +414,13 @@ export const automationService = {
 
       return this.getJobWithDetails(jobId);
     } catch (error: any) {
-      await prisma.generationJob.update({
-        where: { id: jobId },
+      await prisma.generationJob.updateMany({
+        where: {
+          id: jobId,
+          status: {
+            not: 'CANCELLED',
+          },
+        },
         data: {
           status: 'FAILED',
           error: error?.message ?? 'Unbekannter Fehler in der Generierung',
